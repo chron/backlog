@@ -3,22 +3,20 @@ import type { DispatchProps, RunProps } from "../app/types";
 import { CharacterReaction } from "../components/CharacterReaction";
 import { GameCard } from "../components/GameCard";
 import { PassiveChip } from "../components/PassiveChip";
+import { RunVitals } from "../components/RunVitals";
 import { TaskPanel } from "../components/TaskPanel";
 import { TargetingArrow } from "../components/TargetingArrow";
-import { formatIntent, getCard, getCycle, getDeveloper } from "../domain/content";
-import type { CharacterMood, Discipline, DeveloperId } from "../domain/models";
+import { disciplineLabel, formatIntent, getCard, getCycle, getDeveloper } from "../domain/content";
+import type { CardInstance, CharacterMood, Discipline, DeveloperId } from "../domain/models";
 import { getCardPresentation } from "../game/presentation";
 import type { CharacterCue } from "../game/presentation";
-import {
-  effectiveCardCost,
-  getCurrentIntent,
-  incomingMorale,
-  isCycleReady,
-  shippingPreview,
-} from "../game/rules";
+import { effectiveCardCost, getCurrentIntent, incomingMorale } from "../game/rules";
 import type { CardTarget } from "../game/rules";
 
-type CycleScreenProps = DispatchProps & RunProps;
+type CycleScreenProps = DispatchProps &
+  RunProps & {
+    onInspectCards: (title: string, cards: readonly CardInstance[], orderHidden?: boolean) => void;
+  };
 
 interface AimState {
   instanceId: string;
@@ -33,6 +31,7 @@ interface CeremonyItem {
   taskId?: string;
   taskName: string;
   label: string;
+  eyebrow: "Intent Resolves" | "Automation Runs";
 }
 
 interface CeremonyState {
@@ -44,7 +43,7 @@ interface ReactionState extends CharacterCue {
   id: number;
 }
 
-export function CycleScreen({ dispatch, run }: CycleScreenProps) {
+export function CycleScreen({ dispatch, run, onInspectCards }: CycleScreenProps) {
   const [selectedInstanceId, setSelectedInstanceId] = useState<string>();
   const [aim, setAim] = useState<AimState>();
   const aimRef = useRef<AimState | undefined>(undefined);
@@ -56,6 +55,7 @@ export function CycleScreen({ dispatch, run }: CycleScreenProps) {
   const [reaction, setReaction] = useState<ReactionState>();
   const [reactingPassiveIds, setReactingPassiveIds] = useState<DeveloperId[]>([]);
   const cycle = run?.cycle;
+  const maxDays = cycle ? getCycle(cycle.cycleId).maxDays : 0;
   const activeInstanceId = aim?.instanceId ?? selectedInstanceId;
   const selectedCard = cycle?.hand.find((instance) => instance.instanceId === activeInstanceId);
   const selectedOwnerId = selectedCard ? getCard(selectedCard.cardId).ownerId : undefined;
@@ -136,13 +136,13 @@ export function CycleScreen({ dispatch, run }: CycleScreenProps) {
         }
 
         setCeremony(undefined);
-        setDayBanner(`Day ${(cycle?.day ?? 0) + 1}`);
+        setDayBanner(cycle && cycle.day < maxDays ? `Day ${cycle.day + 1}` : "Deadline");
         dispatch({ type: "END_DAY" });
       },
       reducedMotion ? 80 : 720,
     );
     return () => window.clearTimeout(timer);
-  }, [ceremony, cycle?.day, dispatch]);
+  }, [ceremony, cycle, dispatch, maxDays]);
 
   useEffect(() => {
     if (!dayBanner) return;
@@ -152,15 +152,8 @@ export function CycleScreen({ dispatch, run }: CycleScreenProps) {
 
   if (!run || !cycle) return null;
   const definition = getCycle(cycle.cycleId);
-  const canShip = isCycleReady(cycle);
-  const ship = shippingPreview(cycle);
   const moraleIncoming = incomingMorale(cycle);
   const resolvingDay = Boolean(ceremony);
-  const shipSummary = !canShip
-    ? undefined
-    : ship.defects > 0
-      ? `${ship.defects} Defect${ship.defects === 1 ? "" : "s"} · −${ship.moraleLoss} Morale${ship.techDebt ? " · +1 Debt" : ""}`
-      : "Clean";
 
   function updateAim(nextAim?: AimState) {
     aimRef.current = nextAim;
@@ -265,7 +258,7 @@ export function CycleScreen({ dispatch, run }: CycleScreenProps) {
     setReaction(undefined);
     setReactingPassiveIds([]);
     updateAim(undefined);
-    const items = cycle.tasks.flatMap((task) => {
+    const intentItems: CeremonyItem[] = cycle.tasks.flatMap((task) => {
       const intent = getCurrentIntent(cycle, task);
       if (!intent) return [];
       const definitionTask = definition.tasks.find((candidate) => candidate.id === task.taskId);
@@ -274,13 +267,55 @@ export function CycleScreen({ dispatch, run }: CycleScreenProps) {
           taskId: task.taskId,
           taskName: definitionTask?.name ?? task.taskId,
           label: formatIntent(intent),
+          eyebrow: "Intent Resolves" as const,
         },
       ];
     });
+    const automationItems: CeremonyItem[] =
+      cycle.day >= definition.maxDays || run.morale <= moraleIncoming
+        ? []
+        : cycle.tasks.flatMap((task) => {
+            if (task.status === "shipped") return [];
+            const scripted = task.requirements
+              .map((requirement) => ({
+                requirement,
+                amount: Math.min(
+                  requirement.scriptPower,
+                  Math.max(0, requirement.target - requirement.verified - requirement.unverified),
+                ),
+              }))
+              .filter(({ amount }) => amount > 0);
+            if (scripted.length === 0) return [];
+            const definitionTask = definition.tasks.find(
+              (candidate) => candidate.id === task.taskId,
+            );
+            return scripted.map(({ requirement, amount }) => ({
+              taskId: task.taskId,
+              taskName: definitionTask?.name ?? task.taskId,
+              label: `${disciplineLabel(requirement.discipline)} Script · +${amount} Verified`,
+              eyebrow: "Automation Runs" as const,
+            }));
+          });
+    const items = [...intentItems, ...automationItems];
     setCeremony({
-      items: items.length > 0 ? items : [{ taskName: "All Tasks", label: "No open intents" }],
+      items:
+        items.length > 0
+          ? items
+          : [
+              {
+                taskName: "All Tasks",
+                label: "No open intents",
+                eyebrow: "Intent Resolves",
+              },
+            ],
       index: 0,
     });
+  }
+
+  function shipTask(taskId: string) {
+    setSelectedInstanceId(undefined);
+    updateAim(undefined);
+    dispatch({ type: "SHIP_TASK", taskId });
   }
 
   const ceremonyItem = ceremony?.items[ceremony.index];
@@ -295,16 +330,7 @@ export function CycleScreen({ dispatch, run }: CycleScreenProps) {
   return (
     <section className="screen cycle-screen" aria-label={definition.name}>
       <header className="cycle-hud">
-        <div className="run-vitals" aria-label="Run status">
-          <span>
-            <small>Morale</small>
-            <b>{run.morale}</b>
-          </span>
-          <span>
-            <small>Credits</small>
-            <b>${run.credits}</b>
-          </span>
-        </div>
+        <RunVitals run={run} />
 
         <div className="passive-rack" aria-label="Squad passives">
           {run.squad.map((developerId) => {
@@ -351,7 +377,9 @@ export function CycleScreen({ dispatch, run }: CycleScreenProps) {
               selectedCard={selectedCard}
               hoveredTargetKey={aim?.hoveredTargetKey}
               resolving={ceremonyItem?.taskId === task.taskId}
+              shippingDisabled={resolvingDay || resolvingCard}
               onTarget={playSelected}
+              onShip={shipTask}
             />
           );
         })}
@@ -362,13 +390,15 @@ export function CycleScreen({ dispatch, run }: CycleScreenProps) {
       </div>
 
       <div className="cycle-bottom">
-        <div
-          className="card-pile card-pile--draw"
+        <button
+          className="card-pile card-pile--draw card-pile--button"
+          type="button"
+          onClick={() => onInspectCards("Draw", cycle.drawPile, true)}
           aria-label={`Draw pile, ${cycle.drawPile.length}`}
         >
           <span>Draw</span>
           <b>{cycle.drawPile.length}</b>
-        </div>
+        </button>
 
         <div className="hand" aria-label="Cards in hand">
           {cycle.hand.map((instance) => {
@@ -401,16 +431,6 @@ export function CycleScreen({ dispatch, run }: CycleScreenProps) {
         <div className="cycle-corner">
           <div className="cycle-actions">
             <button
-              className="button button--primary cycle-action"
-              type="button"
-              disabled={!canShip || resolvingDay || resolvingCard}
-              onClick={() => dispatch({ type: "SHIP_CYCLE" })}
-              aria-label={shipSummary ? `Ship: ${shipSummary}` : "Ship unavailable"}
-            >
-              <strong>Ship</strong>
-              {shipSummary && <small>{shipSummary}</small>}
-            </button>
-            <button
               className="button button--secondary cycle-action"
               type="button"
               disabled={resolvingDay || resolvingCard}
@@ -420,13 +440,15 @@ export function CycleScreen({ dispatch, run }: CycleScreenProps) {
               {moraleIncoming > 0 && <small>−{moraleIncoming} Morale</small>}
             </button>
           </div>
-          <div
-            className="card-pile card-pile--discard"
+          <button
+            className="card-pile card-pile--discard card-pile--button"
+            type="button"
+            onClick={() => onInspectCards("Discard", cycle.discardPile)}
             aria-label={`Discard pile, ${cycle.discardPile.length}`}
           >
             <span>Discard</span>
             <b>{cycle.discardPile.length}</b>
-          </div>
+          </button>
         </div>
       </div>
 
@@ -442,7 +464,7 @@ export function CycleScreen({ dispatch, run }: CycleScreenProps) {
 
       {ceremonyItem && (
         <output className="day-ceremony" aria-live="assertive">
-          <span>Intent Resolves</span>
+          <span>{ceremonyItem.eyebrow}</span>
           <strong>{ceremonyItem.taskName}</strong>
           <b>{ceremonyItem.label}</b>
         </output>

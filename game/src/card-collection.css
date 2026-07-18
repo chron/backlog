@@ -1,0 +1,317 @@
+.collection-browser__backdrop {
+  position: fixed;
+  z-index: 90;
+  inset: 0;
+  display: grid;
+  padding: 1rem;
+  place-items: center;
+  background: color-mix(in oklch, var(--ink) 30%, transparent);
+}
+
+.collection-browser {
+  position: relative;
+  display: flex;
+  width: min(1060px, 100%);
+  max-height: calc(100dvh - 2rem);
+  margin: 0;
+  padding: 0;
+  border: var(--line);
+  border-radius: 1.1rem 0.55rem 1.25rem 0.7rem;
+  flex-direction: column;
+  background-color: var(--paper);
+  background-image: radial-gradient(
+    circle,
+    color-mix(in oklch, var(--ink) 16%, transparent) 1px,
+    transparent 1px
+  );
+  background-size: 20px 20px;
+  box-shadow: 12px 12px 0 var(--ink);
+  color: var(--ink);
+  overflow: hidden;
+}
+
+.collection-browser__header {
+  display: flex;
+  padding: 1rem 1rem 0.85rem 1.25rem;
+  border-bottom: var(--line);
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  background: var(--yellow);
+}
+
+.collection-browser__header h2,
+.collection-browser__header p {
+  margin: 0;
+}
+
+.collection-browser__header h2 {
+  font-family: var(--display);
+  font-size: clamp(2.7rem, 7vw, 5rem);
+  font-weight: 900;
+  letter-spacing: -0.055em;
+  line-height: 0.78;
+  text-transform: uppercase;
+}
+
+.collection-browser__header p {
+  margin-top: 0.55rem;
+  font-size: 0.66rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.collection-browser__close {
+  display: grid;
+  width: 48px;
+  aspect-ratio: 1;
+  padding: 0;
+  border: var(--line);
+  border-radius: 50%;
+  place-items: center;
+  background: var(--panel);
+  box-shadow: 4px 4px 0 var(--ink);
+  font-family: var(--display);
+  font-size: 2rem;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.collection-browser__close:active,
+.collection-card:not(:disabled):active,
+.collection-entry:not(:disabled):active,
+.card-pile--button:not(:disabled):active {
+  box-shadow: 2px 2px 0 var(--ink);
+  transform: translate(3px, 3px);
+}
+
+.collection-browser__grid {
+  display: grid;
+  min-height: 0;
+  padding: 1.4rem;
+  grid-template-columns: repeat(auto-fill, minmax(172px, 1fr));
+  gap: 1rem;
+  overflow: auto;
+}
+
+.collection-browser__empty {
+  grid-column: 1 / -1;
+  margin: 3rem 0;
+  font-family: var(--display);
+  font-size: clamp(3rem, 12vw, 7rem);
+  font-weight: 900;
+  text-align: center;
+}
+
+.collection-card {
+  --collection-accent: var(--yellow);
+  position: relative;
+  display: flex;
+  min-width: 0;
+  min-height: 236px;
+  padding: 0.85rem;
+  border: var(--line);
+  border-radius: 0.8rem 0.35rem 0.9rem 0.45rem;
+  flex-direction: column;
+  gap: 0.4rem;
+  background: color-mix(in oklch, var(--collection-accent) 24%, var(--panel));
+  box-shadow: 6px 6px 0 var(--ink);
+  color: var(--ink);
+  overflow: hidden;
+  text-align: left;
+}
+
+button.collection-card {
+  transition:
+    transform 160ms var(--ease-out-quint),
+    box-shadow 160ms var(--ease-out-quint);
+}
+
+button.collection-card:not(:disabled):hover,
+.collection-card.is-selected {
+  box-shadow: 9px 9px 0 var(--ink);
+  transform: translateY(-4px);
+}
+
+.collection-card.is-selected {
+  outline: 6px solid var(--yellow);
+  outline-offset: -9px;
+}
+
+.collection-card:disabled {
+  opacity: 0.48;
+}
+
+.collection-card__count {
+  position: absolute;
+  z-index: 4;
+  top: 0.55rem;
+  right: 0.55rem;
+  display: grid;
+  min-width: 38px;
+  min-height: 34px;
+  padding: 0.2rem 0.35rem;
+  border: 2px solid var(--ink);
+  place-items: center;
+  background: var(--yellow);
+  box-shadow: 3px 3px 0 var(--ink);
+  font-size: 0.82rem;
+  font-weight: 900;
+}
+
+.collection-card__owner,
+.collection-card > strong,
+.collection-card__output,
+.collection-card__tags {
+  position: relative;
+  z-index: 2;
+}
+
+.collection-card__owner {
+  padding-right: 3rem;
+  color: color-mix(in oklch, var(--ink) 72%, var(--panel));
+  font-size: 0.62rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.collection-card > strong {
+  max-width: 10ch;
+  font-size: 1.25rem;
+  line-height: 1.05;
+}
+
+.collection-card__output {
+  display: flex;
+  align-items: baseline;
+  gap: 0.35rem;
+}
+
+.collection-card__output b {
+  font-family: var(--display);
+  font-size: 4rem;
+  line-height: 0.9;
+}
+
+.collection-card__output small {
+  font-size: 0.68rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.collection-card__tags {
+  display: flex;
+  margin-top: auto;
+  flex-wrap: wrap;
+  gap: 0.28rem;
+}
+
+.collection-card__tags > span {
+  padding: 0.24rem 0.35rem;
+  border: 2px solid var(--ink);
+  background: var(--mint);
+  font-size: 0.56rem;
+  font-weight: 900;
+  letter-spacing: 0.035em;
+  text-transform: uppercase;
+}
+
+.collection-card__tags > .is-risk {
+  background: var(--pink);
+}
+
+.collection-card .character-portrait--card {
+  right: -1.2rem;
+  bottom: 0;
+  width: 126px;
+  height: 180px;
+}
+
+.collection-browser__actions {
+  display: flex;
+  padding: 0.8rem 1rem 1rem;
+  border-top: var(--line);
+  justify-content: flex-end;
+  gap: 0.75rem;
+  background: var(--panel);
+}
+
+.card-pile--button {
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  transition:
+    transform 160ms var(--ease-out-quint),
+    box-shadow 160ms var(--ease-out-quint);
+}
+
+.card-pile--button:not(:disabled):hover {
+  box-shadow: 8px 8px 0 var(--ink);
+  transform: translateY(-4px) rotate(0deg);
+}
+
+.collection-entry {
+  display: grid;
+  min-width: 76px;
+  padding: 0.45rem 0.65rem;
+  border: 2px solid var(--ink);
+  background: var(--yellow);
+  box-shadow: 3px 3px 0 var(--ink);
+  line-height: 1;
+  text-align: left;
+  text-transform: uppercase;
+}
+
+.collection-entry-group {
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-end;
+  gap: 0.8rem;
+}
+
+.collection-entry small {
+  font-size: 0.58rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+}
+
+.collection-entry b {
+  margin-top: 0.25rem;
+  font-size: 1.1rem;
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 560px) {
+  .collection-browser__backdrop {
+    padding: 0;
+  }
+
+  .collection-browser {
+    width: 100%;
+    max-height: 100dvh;
+    min-height: 100dvh;
+    border-radius: 0;
+    box-shadow: none;
+  }
+
+  .collection-browser__grid {
+    padding: 1rem;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.7rem;
+  }
+
+  .collection-card {
+    min-height: 214px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .collection-card,
+  .collection-browser__close,
+  .collection-entry,
+  .card-pile--button {
+    transition: none !important;
+  }
+}

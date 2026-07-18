@@ -1,15 +1,22 @@
 import type { DispatchProps, RunProps } from "../app/types";
+import { CardCollectionEntry } from "../components/CardCollectionBrowser";
 
-type ShopScreenProps = DispatchProps & RunProps;
+type ShopScreenProps = DispatchProps &
+  RunProps & {
+    onInspectDeck: () => void;
+  };
 
-export function ShopScreen({ dispatch, run }: ShopScreenProps) {
+export function ShopScreen({ dispatch, run, onInspectDeck }: ShopScreenProps) {
   return (
     <section className="screen" aria-labelledby="shop-heading">
       <div className="screen-heading">
         <h1 id="shop-heading" className="display-title">
           TOOL SHOP
         </h1>
-        <span>${run?.credits ?? 0}</span>
+        <div className="collection-entry-group">
+          <span>${run?.credits ?? 0}</span>
+          <CardCollectionEntry count={run?.deck.length ?? 0} onOpen={onInspectDeck} />
+        </div>
       </div>
 
       <div className="shop-shelf">

@@ -1,44 +1,155 @@
+import { useEffect, useRef } from "react";
 import type { DispatchProps, RunProps } from "../app/types";
+import { CardCollectionEntry } from "../components/CardCollectionBrowser";
 import { CharacterToken } from "../components/CharacterToken";
-import { isMapNodeAvailable, mapNodes } from "../domain/content";
+import { isMapNodeAvailable, mapEdges, mapNodes } from "../domain/content";
+import type { MapNode, RunState } from "../domain/models";
 
-type MapScreenProps = DispatchProps & RunProps;
+type MapScreenProps = DispatchProps &
+  RunProps & {
+    onInspectDeck: () => void;
+  };
 
-export function MapScreen({ dispatch, run }: MapScreenProps) {
+type MapNodeState = "available" | "current" | "locked" | "visited";
+
+const mapNodeById = new Map(mapNodes.map((node) => [node.id, node]));
+
+function getNodeState(node: MapNode, run: RunState): MapNodeState {
+  if (node.id === run.currentNodeId) return "current";
+  if (run.completedNodeIds.includes(node.id)) return "visited";
+  return isMapNodeAvailable(node, run.currentNodeId, run.completedNodeIds) ? "available" : "locked";
+}
+
+function nodeGlyph(node: MapNode): string {
+  switch (node.kind) {
+    case "cycle":
+      return "</>";
+    case "event":
+      return "?";
+    case "shop":
+      return "$";
+    case "retro":
+      return "★";
+  }
+}
+
+function nodeTypeLabel(node: MapNode): string {
+  return node.kind === "retro"
+    ? "Retro"
+    : `${node.kind.slice(0, 1).toUpperCase()}${node.kind.slice(1)}`;
+}
+
+function visibleNodeLabel(node: MapNode, state: MapNodeState): string {
+  if (node.kind === "event" || state === "available" || state === "locked") {
+    return nodeTypeLabel(node);
+  }
+  return node.title;
+}
+
+export function MapScreen({ dispatch, run, onInspectDeck }: MapScreenProps) {
+  const viewportRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const viewport = viewportRef.current;
+    const availableNodes = run
+      ? mapNodes.filter((node) => getNodeState(node, run) === "available")
+      : [];
+    if (!viewport || availableNodes.length === 0) return;
+    const activeY =
+      availableNodes.reduce((total, node) => total + node.position.y, 0) / availableNodes.length;
+    const canvas = viewport.firstElementChild;
+    if (!(canvas instanceof HTMLElement)) return;
+    const top = (activeY / 100) * canvas.offsetHeight - viewport.clientHeight / 2;
+    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    viewport.scrollTo({ top: Math.max(0, top), behavior: reducedMotion ? "auto" : "smooth" });
+  }, [run]);
+
   return (
     <section className="screen map-screen" aria-labelledby="map-heading">
       <div className="screen-heading">
         <h1 id="map-heading" className="display-title">
           ROADMAP
         </h1>
-        <div className="squad-strip" aria-label="Current squad">
-          {run?.squad.map((developerId) => (
-            <CharacterToken key={developerId} developerId={developerId} compact />
-          ))}
+        <div className="collection-entry-group">
+          <div className="squad-strip" aria-label="Current squad">
+            {run?.squad.map((developerId) => (
+              <CharacterToken key={developerId} developerId={developerId} compact />
+            ))}
+          </div>
+          <CardCollectionEntry count={run?.deck.length ?? 0} onOpen={onInspectDeck} />
         </div>
       </div>
 
-      <div className="map-path" aria-label="Run map">
-        {mapNodes.map((node, index) => {
-          const complete = run?.completedNodeIds.includes(node.id) ?? false;
-          const available = run ? isMapNodeAvailable(node, run.completedNodeIds) : false;
-          const locked = !complete && !available;
-          return (
-            <button
-              className={`map-node${complete ? " is-complete" : ""}${locked ? " is-locked" : ""}`}
-              style={{ "--node-index": index } as React.CSSProperties}
-              type="button"
-              key={node.id}
-              disabled={complete || locked}
-              onClick={() => dispatch({ type: "VISIT_NODE", nodeId: node.id })}
-              aria-label={`${node.title}, ${complete ? "done" : locked ? "locked" : "available"}`}
-            >
-              <span>{complete ? "✓" : locked ? "×" : index + 1}</span>
-              <strong>{node.title}</strong>
-              <small>{complete ? "Done" : locked ? "Locked" : node.kind}</small>
-            </button>
-          );
-        })}
+      <div className="map-viewport" ref={viewportRef} aria-label="Run map">
+        <div className="map-canvas">
+          <svg
+            className="map-edges"
+            viewBox="0 0 100 100"
+            preserveAspectRatio="none"
+            aria-hidden="true"
+          >
+            {mapEdges.map((edge) => {
+              const from = mapNodeById.get(edge.fromNodeId);
+              const to = mapNodeById.get(edge.toNodeId);
+              if (!from || !to) return null;
+              const toState = run ? getNodeState(to, run) : "locked";
+              const edgeState =
+                run?.completedNodeIds.includes(edge.fromNodeId) &&
+                run.completedNodeIds.includes(edge.toNodeId)
+                  ? "visited"
+                  : run?.currentNodeId === edge.fromNodeId && toState === "available"
+                    ? "available"
+                    : "locked";
+              return (
+                <line
+                  key={`${edge.fromNodeId}-${edge.toNodeId}`}
+                  className={`map-edge is-${edgeState}`}
+                  x1={from.position.x}
+                  y1={from.position.y}
+                  x2={to.position.x}
+                  y2={to.position.y}
+                />
+              );
+            })}
+          </svg>
+
+          {mapNodes.map((node) => {
+            const state = run ? getNodeState(node, run) : "locked";
+            const typeLabel = nodeTypeLabel(node);
+            const visibleLabel = visibleNodeLabel(node, state);
+            const showsEncounterTitle = visibleLabel !== typeLabel;
+            const stateLabel =
+              state === "current"
+                ? "Here"
+                : state === "visited"
+                  ? "Done"
+                  : state === "available"
+                    ? "Choose"
+                    : "Locked";
+            return (
+              <button
+                className={`map-node map-node--${node.kind} is-${state}`}
+                style={{ left: `${node.position.x}%`, top: `${node.position.y}%` }}
+                type="button"
+                key={node.id}
+                disabled={state !== "available"}
+                onClick={() => dispatch({ type: "VISIT_NODE", nodeId: node.id })}
+                aria-current={state === "current" ? "step" : undefined}
+                aria-label={`${visibleLabel}, ${stateLabel}`}
+                data-map-node={node.id}
+              >
+                <span className="map-node__glyph" aria-hidden="true">
+                  {nodeGlyph(node)}
+                </span>
+                <strong>{visibleLabel}</strong>
+                <small className={showsEncounterTitle ? undefined : "is-state-only"}>
+                  {showsEncounterTitle && <span>{typeLabel}</span>}
+                  <b>{stateLabel}</b>
+                </small>
+              </button>
+            );
+          })}
+        </div>
       </div>
     </section>
   );

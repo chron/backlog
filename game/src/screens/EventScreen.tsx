@@ -1,8 +1,12 @@
 import type { DispatchProps, RunProps } from "../app/types";
+import { CardCollectionEntry } from "../components/CardCollectionBrowser";
 
-type EventScreenProps = DispatchProps & RunProps;
+type EventScreenProps = DispatchProps &
+  RunProps & {
+    onInspectDeck: () => void;
+  };
 
-export function EventScreen({ dispatch, run }: EventScreenProps) {
+export function EventScreen({ dispatch, run, onInspectDeck }: EventScreenProps) {
   const moraleGain = Math.min(2, Math.max(0, 10 - (run?.morale ?? 10)));
 
   return (
@@ -11,6 +15,7 @@ export function EventScreen({ dispatch, run }: EventScreenProps) {
         <h1 id="event-heading" className="display-title">
           SCOPE CREEP
         </h1>
+        <CardCollectionEntry count={run?.deck.length ?? 0} onOpen={onInspectDeck} />
       </div>
       <div className="event-art" aria-hidden="true">
         + ONE TINY THING
@@ -30,7 +35,7 @@ export function EventScreen({ dispatch, run }: EventScreenProps) {
           onClick={() => dispatch({ type: "CHOOSE_EVENT", choice: "sure-easy" })}
         >
           <strong>Sure, Easy</strong>
-          <span>+35 Credits · +1 Tech Debt</span>
+          <span>+35 Credits · +3 Tech Debt</span>
         </button>
       </div>
     </section>
