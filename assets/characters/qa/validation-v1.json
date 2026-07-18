@@ -1,0 +1,725 @@
+{
+  "schemaVersion": 1,
+  "assets": [
+    {
+      "character": "seb",
+      "displayName": "Seb",
+      "mood": "idle",
+      "metrics": {
+        "dimensions": [
+          941,
+          1672
+        ],
+        "mode": "RGBA",
+        "cornerAlpha": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "subjectBounds": [
+          76,
+          136,
+          859,
+          1672
+        ],
+        "alphaCoverage": 0.4741,
+        "semiTransparentPixels": 6063,
+        "residualKeyEdgeRatio": 0.0,
+        "pngBytes": 1328724,
+        "webpBytes": 78624
+      },
+      "errors": []
+    },
+    {
+      "character": "seb",
+      "displayName": "Seb",
+      "mood": "thinking",
+      "metrics": {
+        "dimensions": [
+          941,
+          1672
+        ],
+        "mode": "RGBA",
+        "cornerAlpha": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "subjectBounds": [
+          130,
+          128,
+          790,
+          1672
+        ],
+        "alphaCoverage": 0.4175,
+        "semiTransparentPixels": 5316,
+        "residualKeyEdgeRatio": 0.0,
+        "pngBytes": 1177767,
+        "webpBytes": 72348
+      },
+      "errors": []
+    },
+    {
+      "character": "seb",
+      "displayName": "Seb",
+      "mood": "success",
+      "metrics": {
+        "dimensions": [
+          940,
+          1672
+        ],
+        "mode": "RGBA",
+        "cornerAlpha": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "subjectBounds": [
+          68,
+          139,
+          896,
+          1672
+        ],
+        "alphaCoverage": 0.4516,
+        "semiTransparentPixels": 5836,
+        "residualKeyEdgeRatio": 0.0,
+        "pngBytes": 1248655,
+        "webpBytes": 80468
+      },
+      "errors": []
+    },
+    {
+      "character": "toby",
+      "displayName": "Toby",
+      "mood": "idle",
+      "metrics": {
+        "dimensions": [
+          932,
+          1687
+        ],
+        "mode": "RGBA",
+        "cornerAlpha": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "subjectBounds": [
+          183,
+          110,
+          829,
+          1687
+        ],
+        "alphaCoverage": 0.4223,
+        "semiTransparentPixels": 5101,
+        "residualKeyEdgeRatio": 0.0,
+        "pngBytes": 1207038,
+        "webpBytes": 86050
+      },
+      "errors": []
+    },
+    {
+      "character": "toby",
+      "displayName": "Toby",
+      "mood": "thinking",
+      "metrics": {
+        "dimensions": [
+          930,
+          1691
+        ],
+        "mode": "RGBA",
+        "cornerAlpha": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "subjectBounds": [
+          155,
+          97,
+          790,
+          1691
+        ],
+        "alphaCoverage": 0.4273,
+        "semiTransparentPixels": 5550,
+        "residualKeyEdgeRatio": 0.0,
+        "pngBytes": 1243126,
+        "webpBytes": 92690
+      },
+      "errors": []
+    },
+    {
+      "character": "toby",
+      "displayName": "Toby",
+      "mood": "success",
+      "metrics": {
+        "dimensions": [
+          937,
+          1678
+        ],
+        "mode": "RGBA",
+        "cornerAlpha": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "subjectBounds": [
+          112,
+          116,
+          798,
+          1678
+        ],
+        "alphaCoverage": 0.4315,
+        "semiTransparentPixels": 5390,
+        "residualKeyEdgeRatio": 0.0,
+        "pngBytes": 1191910,
+        "webpBytes": 85964
+      },
+      "errors": []
+    },
+    {
+      "character": "steph",
+      "displayName": "Steph",
+      "mood": "idle",
+      "metrics": {
+        "dimensions": [
+          941,
+          1672
+        ],
+        "mode": "RGBA",
+        "cornerAlpha": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "subjectBounds": [
+          30,
+          119,
+          927,
+          1672
+        ],
+        "alphaCoverage": 0.4577,
+        "semiTransparentPixels": 8612,
+        "residualKeyEdgeRatio": 0.0,
+        "pngBytes": 1356583,
+        "webpBytes": 108162
+      },
+      "errors": []
+    },
+    {
+      "character": "steph",
+      "displayName": "Steph",
+      "mood": "thinking",
+      "metrics": {
+        "dimensions": [
+          941,
+          1672
+        ],
+        "mode": "RGBA",
+        "cornerAlpha": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "subjectBounds": [
+          198,
+          121,
+          767,
+          1672
+        ],
+        "alphaCoverage": 0.408,
+        "semiTransparentPixels": 6826,
+        "residualKeyEdgeRatio": 0.0,
+        "pngBytes": 1202520,
+        "webpBytes": 98296
+      },
+      "errors": []
+    },
+    {
+      "character": "steph",
+      "displayName": "Steph",
+      "mood": "success",
+      "metrics": {
+        "dimensions": [
+          940,
+          1672
+        ],
+        "mode": "RGBA",
+        "cornerAlpha": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "subjectBounds": [
+          108,
+          121,
+          922,
+          1672
+        ],
+        "alphaCoverage": 0.4347,
+        "semiTransparentPixels": 9781,
+        "residualKeyEdgeRatio": 0.0,
+        "pngBytes": 1266962,
+        "webpBytes": 106842
+      },
+      "errors": []
+    },
+    {
+      "character": "elspeth",
+      "displayName": "Elspeth",
+      "mood": "idle",
+      "metrics": {
+        "dimensions": [
+          941,
+          1672
+        ],
+        "mode": "RGBA",
+        "cornerAlpha": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "subjectBounds": [
+          41,
+          105,
+          863,
+          1672
+        ],
+        "alphaCoverage": 0.466,
+        "semiTransparentPixels": 6646,
+        "residualKeyEdgeRatio": 0.0,
+        "pngBytes": 1435180,
+        "webpBytes": 115604
+      },
+      "errors": []
+    },
+    {
+      "character": "elspeth",
+      "displayName": "Elspeth",
+      "mood": "thinking",
+      "metrics": {
+        "dimensions": [
+          941,
+          1672
+        ],
+        "mode": "RGBA",
+        "cornerAlpha": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "subjectBounds": [
+          136,
+          114,
+          752,
+          1672
+        ],
+        "alphaCoverage": 0.4421,
+        "semiTransparentPixels": 5442,
+        "residualKeyEdgeRatio": 0.0,
+        "pngBytes": 1326216,
+        "webpBytes": 103432
+      },
+      "errors": []
+    },
+    {
+      "character": "elspeth",
+      "displayName": "Elspeth",
+      "mood": "success",
+      "metrics": {
+        "dimensions": [
+          941,
+          1672
+        ],
+        "mode": "RGBA",
+        "cornerAlpha": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "subjectBounds": [
+          224,
+          107,
+          812,
+          1672
+        ],
+        "alphaCoverage": 0.4323,
+        "semiTransparentPixels": 5761,
+        "residualKeyEdgeRatio": 0.0,
+        "pngBytes": 1266852,
+        "webpBytes": 104922
+      },
+      "errors": []
+    },
+    {
+      "character": "kirsten",
+      "displayName": "Kirsten",
+      "mood": "idle",
+      "metrics": {
+        "dimensions": [
+          941,
+          1672
+        ],
+        "mode": "RGBA",
+        "cornerAlpha": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "subjectBounds": [
+          46,
+          158,
+          858,
+          1672
+        ],
+        "alphaCoverage": 0.4953,
+        "semiTransparentPixels": 6453,
+        "residualKeyEdgeRatio": 0.0,
+        "pngBytes": 1406857,
+        "webpBytes": 104778
+      },
+      "errors": []
+    },
+    {
+      "character": "kirsten",
+      "displayName": "Kirsten",
+      "mood": "thinking",
+      "metrics": {
+        "dimensions": [
+          941,
+          1672
+        ],
+        "mode": "RGBA",
+        "cornerAlpha": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "subjectBounds": [
+          130,
+          121,
+          783,
+          1672
+        ],
+        "alphaCoverage": 0.4695,
+        "semiTransparentPixels": 5933,
+        "residualKeyEdgeRatio": 0.0,
+        "pngBytes": 1312661,
+        "webpBytes": 98802
+      },
+      "errors": []
+    },
+    {
+      "character": "kirsten",
+      "displayName": "Kirsten",
+      "mood": "success",
+      "metrics": {
+        "dimensions": [
+          941,
+          1672
+        ],
+        "mode": "RGBA",
+        "cornerAlpha": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "subjectBounds": [
+          28,
+          151,
+          912,
+          1672
+        ],
+        "alphaCoverage": 0.4924,
+        "semiTransparentPixels": 7529,
+        "residualKeyEdgeRatio": 0.0,
+        "pngBytes": 1360023,
+        "webpBytes": 105902
+      },
+      "errors": []
+    },
+    {
+      "character": "matt",
+      "displayName": "Matt",
+      "mood": "idle",
+      "metrics": {
+        "dimensions": [
+          941,
+          1672
+        ],
+        "mode": "RGBA",
+        "cornerAlpha": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "subjectBounds": [
+          50,
+          121,
+          934,
+          1672
+        ],
+        "alphaCoverage": 0.4647,
+        "semiTransparentPixels": 6480,
+        "residualKeyEdgeRatio": 0.0,
+        "pngBytes": 1358856,
+        "webpBytes": 110552
+      },
+      "errors": []
+    },
+    {
+      "character": "matt",
+      "displayName": "Matt",
+      "mood": "thinking",
+      "metrics": {
+        "dimensions": [
+          941,
+          1672
+        ],
+        "mode": "RGBA",
+        "cornerAlpha": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "subjectBounds": [
+          154,
+          108,
+          801,
+          1672
+        ],
+        "alphaCoverage": 0.4431,
+        "semiTransparentPixels": 5800,
+        "residualKeyEdgeRatio": 0.0,
+        "pngBytes": 1312348,
+        "webpBytes": 107178
+      },
+      "errors": []
+    },
+    {
+      "character": "matt",
+      "displayName": "Matt",
+      "mood": "success",
+      "metrics": {
+        "dimensions": [
+          941,
+          1672
+        ],
+        "mode": "RGBA",
+        "cornerAlpha": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "subjectBounds": [
+          30,
+          120,
+          926,
+          1672
+        ],
+        "alphaCoverage": 0.4695,
+        "semiTransparentPixels": 7009,
+        "residualKeyEdgeRatio": 0.0,
+        "pngBytes": 1320968,
+        "webpBytes": 110348
+      },
+      "errors": []
+    },
+    {
+      "character": "nick",
+      "displayName": "Nick",
+      "mood": "idle",
+      "metrics": {
+        "dimensions": [
+          941,
+          1672
+        ],
+        "mode": "RGBA",
+        "cornerAlpha": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "subjectBounds": [
+          61,
+          99,
+          846,
+          1672
+        ],
+        "alphaCoverage": 0.4653,
+        "semiTransparentPixels": 6049,
+        "residualKeyEdgeRatio": 0.0,
+        "pngBytes": 1288535,
+        "webpBytes": 83268
+      },
+      "errors": []
+    },
+    {
+      "character": "nick",
+      "displayName": "Nick",
+      "mood": "thinking",
+      "metrics": {
+        "dimensions": [
+          941,
+          1672
+        ],
+        "mode": "RGBA",
+        "cornerAlpha": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "subjectBounds": [
+          147,
+          107,
+          799,
+          1672
+        ],
+        "alphaCoverage": 0.4373,
+        "semiTransparentPixels": 5755,
+        "residualKeyEdgeRatio": 0.0,
+        "pngBytes": 1170251,
+        "webpBytes": 75730
+      },
+      "errors": []
+    },
+    {
+      "character": "nick",
+      "displayName": "Nick",
+      "mood": "success",
+      "metrics": {
+        "dimensions": [
+          941,
+          1672
+        ],
+        "mode": "RGBA",
+        "cornerAlpha": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "subjectBounds": [
+          107,
+          100,
+          845,
+          1672
+        ],
+        "alphaCoverage": 0.454,
+        "semiTransparentPixels": 5867,
+        "residualKeyEdgeRatio": 0.0,
+        "pngBytes": 1178052,
+        "webpBytes": 77724
+      },
+      "errors": []
+    },
+    {
+      "character": "levi",
+      "displayName": "Levi",
+      "mood": "idle",
+      "metrics": {
+        "dimensions": [
+          941,
+          1672
+        ],
+        "mode": "RGBA",
+        "cornerAlpha": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "subjectBounds": [
+          80,
+          117,
+          834,
+          1672
+        ],
+        "alphaCoverage": 0.4593,
+        "semiTransparentPixels": 6062,
+        "residualKeyEdgeRatio": 0.0,
+        "pngBytes": 1219352,
+        "webpBytes": 79514
+      },
+      "errors": []
+    },
+    {
+      "character": "levi",
+      "displayName": "Levi",
+      "mood": "thinking",
+      "metrics": {
+        "dimensions": [
+          941,
+          1672
+        ],
+        "mode": "RGBA",
+        "cornerAlpha": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "subjectBounds": [
+          154,
+          118,
+          795,
+          1672
+        ],
+        "alphaCoverage": 0.4207,
+        "semiTransparentPixels": 5452,
+        "residualKeyEdgeRatio": 0.0,
+        "pngBytes": 1160482,
+        "webpBytes": 77752
+      },
+      "errors": []
+    },
+    {
+      "character": "levi",
+      "displayName": "Levi",
+      "mood": "success",
+      "metrics": {
+        "dimensions": [
+          940,
+          1672
+        ],
+        "mode": "RGBA",
+        "cornerAlpha": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "subjectBounds": [
+          79,
+          117,
+          919,
+          1672
+        ],
+        "alphaCoverage": 0.4603,
+        "semiTransparentPixels": 6559,
+        "residualKeyEdgeRatio": 0.0,
+        "pngBytes": 1249143,
+        "webpBytes": 85688
+      },
+      "errors": []
+    }
+  ]
+}

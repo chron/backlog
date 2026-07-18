@@ -1,0 +1,144 @@
+{
+  "schemaVersion": 1,
+  "semanticMoods": ["idle", "thinking", "success"],
+  "portraitRoles": ["selection", "dock", "card", "token", "cutin"],
+  "characters": {
+    "seb": {
+      "displayName": "Seb",
+      "references": ["seb/thumbs-up.png", "seb/skeptical.png", "seb/arm-behind-head.png", "seb/considering.png"],
+      "promptFile": "seb-v1.prompt.md",
+      "focalByRole": {
+        "selection": {"x": 0.5, "y": 0.36, "scale": 1.0},
+        "dock": {"x": 0.5, "y": 0.2, "scale": 1.7},
+        "card": {"x": 0.5, "y": 0.44, "scale": 1.0},
+        "token": {"x": 0.5, "y": 0.2, "scale": 1.8},
+        "cutin": {"x": 0.5, "y": 0.4, "scale": 0.95}
+      },
+      "moods": {
+        "idle": {"stem": "seb-idle-v1", "key": "#00FF00", "status": "reviewed"},
+        "thinking": {"stem": "seb-thinking-v1", "key": "#00FF00", "status": "reviewed"},
+        "success": {"stem": "seb-success-v1", "key": "#00FF00", "status": "reviewed"}
+      }
+    },
+    "toby": {
+      "displayName": "Toby",
+      "references": ["toby/bashful.png", "toby/content.png", "toby/happy.png", "toby/exasperated.png"],
+      "promptFile": "toby-v1.prompt.md",
+      "focalByRole": {
+        "selection": {"x": 0.5, "y": 0.36, "scale": 1.0},
+        "dock": {"x": 0.5, "y": 0.2, "scale": 1.7},
+        "card": {"x": 0.5, "y": 0.44, "scale": 1.0},
+        "token": {"x": 0.5, "y": 0.2, "scale": 1.8},
+        "cutin": {"x": 0.5, "y": 0.4, "scale": 0.95}
+      },
+      "moods": {
+        "idle": {"stem": "toby-idle-v1", "key": "#00FF00", "status": "reviewed"},
+        "thinking": {"stem": "toby-thinking-v1", "key": "#00FF00", "status": "reviewed"},
+        "success": {"stem": "toby-success-v1", "key": "#00FF00", "status": "reviewed"}
+      }
+    },
+    "steph": {
+      "displayName": "Steph",
+      "references": ["steph/dubious.png", "steph/nervous.png", "steph/neutral.png", "steph/side-eye.png"],
+      "promptFile": "steph-v1.prompt.md",
+      "focalByRole": {
+        "selection": {"x": 0.5, "y": 0.36, "scale": 1.0},
+        "dock": {"x": 0.5, "y": 0.2, "scale": 1.7},
+        "card": {"x": 0.5, "y": 0.44, "scale": 1.0},
+        "token": {"x": 0.5, "y": 0.2, "scale": 1.8},
+        "cutin": {"x": 0.5, "y": 0.4, "scale": 0.95}
+      },
+      "moods": {
+        "idle": {"stem": "steph-idle-v1", "key": "#00FF00", "status": "reviewed"},
+        "thinking": {"stem": "steph-thinking-v1", "key": "#00FF00", "status": "reviewed"},
+        "success": {"stem": "steph-success-v1", "key": "#00FF00", "status": "reviewed"}
+      }
+    },
+    "elspeth": {
+      "displayName": "Elspeth",
+      "references": ["elspeth/applauding.png", "elspeth/concerned.png", "elspeth/emphatic.png", "elspeth/hand-on-forehead.png"],
+      "promptFile": "elspeth-v1.prompt.md",
+      "focalByRole": {
+        "selection": {"x": 0.5, "y": 0.36, "scale": 1.0},
+        "dock": {"x": 0.5, "y": 0.2, "scale": 1.7},
+        "card": {"x": 0.5, "y": 0.44, "scale": 1.0},
+        "token": {"x": 0.5, "y": 0.2, "scale": 1.8},
+        "cutin": {"x": 0.5, "y": 0.4, "scale": 0.95}
+      },
+      "moods": {
+        "idle": {"stem": "elspeth-idle-v1", "key": "#00FF00", "status": "reviewed"},
+        "thinking": {"stem": "elspeth-thinking-v1", "key": "#00FF00", "status": "reviewed"},
+        "success": {"stem": "elspeth-success-v1", "key": "#00FF00", "status": "reviewed"}
+      }
+    },
+    "kirsten": {
+      "displayName": "Kirsten",
+      "references": ["kirsten/amused.png", "kirsten/with-cat.png", "kirsten/bored.png", "kirsten/relaxed.png"],
+      "promptFile": "kirsten-v1.prompt.md",
+      "focalByRole": {
+        "selection": {"x": 0.5, "y": 0.36, "scale": 1.0},
+        "dock": {"x": 0.5, "y": 0.2, "scale": 1.7},
+        "card": {"x": 0.5, "y": 0.44, "scale": 1.0},
+        "token": {"x": 0.5, "y": 0.2, "scale": 1.8},
+        "cutin": {"x": 0.5, "y": 0.4, "scale": 0.95}
+      },
+      "moods": {
+        "idle": {"stem": "kirsten-idle-v1", "key": "#00FF00", "status": "reviewed"},
+        "thinking": {"stem": "kirsten-thinking-v1", "key": "#00FF00", "status": "reviewed"},
+        "success": {"stem": "kirsten-success-v1", "key": "#00FF00", "status": "reviewed"}
+      }
+    },
+    "matt": {
+      "displayName": "Matt",
+      "references": ["matt/angry.png", "matt/dramatic.png", "matt/orange-hoodie.png", "matt/smirking.png"],
+      "promptFile": "matt-v1.prompt.md",
+      "focalByRole": {
+        "selection": {"x": 0.5, "y": 0.36, "scale": 1.0},
+        "dock": {"x": 0.5, "y": 0.2, "scale": 1.7},
+        "card": {"x": 0.5, "y": 0.44, "scale": 1.0},
+        "token": {"x": 0.5, "y": 0.2, "scale": 1.8},
+        "cutin": {"x": 0.5, "y": 0.4, "scale": 0.95}
+      },
+      "moods": {
+        "idle": {"stem": "matt-idle-v1", "key": "#00FF00", "status": "reviewed"},
+        "thinking": {"stem": "matt-thinking-v1", "key": "#00FF00", "status": "reviewed"},
+        "success": {"stem": "matt-success-v1", "key": "#00FF00", "status": "reviewed"}
+      }
+    },
+    "nick": {
+      "displayName": "Nick",
+      "references": ["nick/concerned.png", "nick/happy.png", "nick/supportive.png"],
+      "excludedReferences": [{"path": "nick/with-child.png", "reason": "Do not use without explicit consent recorded for the child reference."}],
+      "promptFile": "nick-v1.prompt.md",
+      "focalByRole": {
+        "selection": {"x": 0.5, "y": 0.36, "scale": 1.0},
+        "dock": {"x": 0.5, "y": 0.2, "scale": 1.7},
+        "card": {"x": 0.5, "y": 0.44, "scale": 1.0},
+        "token": {"x": 0.5, "y": 0.2, "scale": 1.8},
+        "cutin": {"x": 0.5, "y": 0.4, "scale": 0.95}
+      },
+      "moods": {
+        "idle": {"stem": "nick-idle-v1", "key": "#00FF00", "status": "reviewed"},
+        "thinking": {"stem": "nick-thinking-v1", "key": "#00FF00", "status": "reviewed"},
+        "success": {"stem": "nick-success-v1", "key": "#00FF00", "status": "reviewed"}
+      }
+    },
+    "levi": {
+      "displayName": "Levi",
+      "references": ["levi/surprised.png", "levi/stoic.png", "levi/worried.png"],
+      "promptFile": "levi-v1.prompt.md",
+      "focalByRole": {
+        "selection": {"x": 0.5, "y": 0.36, "scale": 1.0},
+        "dock": {"x": 0.5, "y": 0.2, "scale": 1.7},
+        "card": {"x": 0.5, "y": 0.44, "scale": 1.0},
+        "token": {"x": 0.5, "y": 0.2, "scale": 1.8},
+        "cutin": {"x": 0.5, "y": 0.4, "scale": 0.95}
+      },
+      "moods": {
+        "idle": {"stem": "levi-idle-v1", "key": "#00FF00", "status": "reviewed"},
+        "thinking": {"stem": "levi-thinking-v1", "key": "#00FF00", "status": "reviewed"},
+        "success": {"stem": "levi-success-v1", "key": "#00FF00", "status": "reviewed"}
+      }
+    }
+  }
+}
