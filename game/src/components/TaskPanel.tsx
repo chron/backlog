@@ -1,10 +1,12 @@
 import { disciplineLabel, formatIntent } from "../domain/content";
 import type { CardInstance, Discipline, RunState, TaskState } from "../domain/models";
 import {
+  absorbMoraleDamage,
   getCurrentIntent,
-  isTaskReady,
+  getScheduledIntent,
   requirementProgress,
   resolveCardTarget,
+  taskShippingPreview,
 } from "../game/rules";
 
 interface TaskPanelProps {
@@ -14,7 +16,9 @@ interface TaskPanelProps {
   selectedCard?: CardInstance;
   hoveredTargetKey?: string;
   resolving?: boolean;
+  shippingDisabled?: boolean;
   onTarget: (taskId: string, discipline?: Discipline) => void;
+  onShip: (taskId: string) => void;
 }
 
 export function TaskPanel({
@@ -24,28 +28,56 @@ export function TaskPanel({
   selectedCard,
   hoveredTargetKey,
   resolving,
+  shippingDisabled,
   onTarget,
+  onShip,
 }: TaskPanelProps) {
   const cycle = run.cycle;
   if (!cycle) return null;
-  const ready = isTaskReady(task);
+  const ready = task.status === "ready";
+  const shipped = task.status === "shipped";
+  const ship = taskShippingPreview(task);
+  const shippingDamage = absorbMoraleDamage(cycle.block, ship.moraleLoss);
+  const defectLabel = `${ship.defects} Defect${ship.defects === 1 ? "" : "s"}`;
+  const paulFocus =
+    run.squad.includes("paul") &&
+    !cycle.triggeredPassiveIds.includes("paul") &&
+    cycle.tasks.some(
+      (candidate) => candidate.taskId !== task.taskId && candidate.status !== "shipped",
+    ) &&
+    cycle.focus < 3;
   const intent = getCurrentIntent(cycle, task);
+  const scheduledIntent = getScheduledIntent(cycle, task);
   const selectedDefinition = selectedCard
     ? resolveCardTarget(run, selectedCard, { taskId: task.taskId })
     : undefined;
-  const reviewing =
-    selectedCard && selectedDefinition?.legal && selectedDefinition.kind === "review";
+  const taskTargeting =
+    selectedCard &&
+    selectedDefinition?.legal &&
+    (selectedDefinition.kind === "review" || selectedDefinition.kind === "tactic");
 
   return (
-    <article className={`task-panel${ready ? " is-ready" : ""}${resolving ? " is-resolving" : ""}`}>
+    <article
+      className={`task-panel${ready ? " is-ready" : ""}${shipped ? " is-shipped" : ""}${resolving ? " is-resolving" : ""}`}
+    >
       <header className="task-panel__header">
         <div>
-          <span className="task-panel__state">{ready ? "Ready" : "Open"}</span>
+          <span className="task-panel__state">
+            {shipped ? "Shipped" : ready ? "Ready" : "Open"}
+          </span>
           <h2>{taskName}</h2>
         </div>
-        <div className={`intent-badge intent-badge--${intent?.kind ?? "cancelled"}`}>
+        <div
+          className={`intent-badge intent-badge--${task.stunned ? "stunned" : (intent?.kind ?? "cancelled")}`}
+        >
           <span>Intent</span>
-          <strong>{intent ? formatIntent(intent) : "Cancelled"}</strong>
+          <strong>
+            {task.stunned && scheduledIntent
+              ? `Stunned · ${formatIntent(scheduledIntent)}`
+              : intent
+                ? formatIntent(intent)
+                : "Cancelled"}
+          </strong>
         </div>
       </header>
 
@@ -108,6 +140,16 @@ export function TaskPanel({
                   />
                 )}
               </span>
+              {(requirement.scriptPower > 0 || requirement.scriptBlock > 0) && (
+                <span
+                  className="requirement__script"
+                  aria-label={`${requirement.scriptPower > 0 ? `Script ${requirement.scriptPower}` : ""}${requirement.scriptPower > 0 && requirement.scriptBlock > 0 ? ", " : ""}${requirement.scriptBlock > 0 ? `Guard ${requirement.scriptBlock}` : ""}`}
+                >
+                  {requirement.scriptPower > 0 && <b>Script +{requirement.scriptPower}</b>}
+                  {requirement.scriptBlock > 0 && <b>Guard +{requirement.scriptBlock}</b>}
+                  <small>Each Day</small>
+                </span>
+              )}
               {(requirement.unverified > 0 || legalTarget) && (
                 <span className="requirement__foot">
                   <span>
@@ -123,17 +165,44 @@ export function TaskPanel({
         })}
       </div>
 
-      {reviewing && (
+      {taskTargeting && (
         <button
-          className={`review-target${hoveredTargetKey === `${task.taskId}:review` ? " is-aimed" : ""}`}
+          className={`review-target${hoveredTargetKey === `${task.taskId}:${selectedDefinition.kind}` ? " is-aimed" : ""}`}
           type="button"
           onClick={() => onTarget(task.taskId)}
-          data-card-target={`${task.taskId}:review`}
+          data-card-target={`${task.taskId}:${selectedDefinition.kind}`}
           data-task-id={task.taskId}
         >
           {selectedDefinition.label}
         </button>
       )}
+
+      {ready && (
+        <div className="task-ship">
+          <span>
+            {[
+              ship.defects > 0
+                ? `${defectLabel} · ${shippingDamage.moraleLoss > 0 ? `−${shippingDamage.moraleLoss} Morale` : "Blocked"}`
+                : "Clean",
+              ship.techDebt > 0 ? `+${ship.techDebt} Debt` : undefined,
+              paulFocus ? "+1 Focus" : undefined,
+            ]
+              .filter(Boolean)
+              .join(" · ")}
+          </span>
+          <button
+            className="button button--primary task-ship__button"
+            type="button"
+            disabled={shippingDisabled}
+            onClick={() => onShip(task.taskId)}
+            aria-label={`Ship ${taskName}. ${ship.defects > 0 ? `${defectLabel}, ${shippingDamage.blocked} blocked and ${shippingDamage.moraleLoss} Morale lost` : "Clean ship"}${ship.techDebt > 0 ? `, plus ${ship.techDebt} Tech Debt` : ""}${paulFocus ? ", gain 1 Focus" : ""}`}
+          >
+            Ship Task
+          </button>
+        </div>
+      )}
+
+      {shipped && <div className="task-shipped-stamp">Shipped</div>}
     </article>
   );
 }

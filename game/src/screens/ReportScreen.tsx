@@ -35,13 +35,19 @@ export function ReportScreen({ dispatch, report }: ReportScreenProps) {
             <span>Morale</span>
           </div>
         </div>
+        <div className="report-stat report-stat--blue">
+          <div className="report-stat__content">
+            <strong>+{report.techDebtAdded}</strong>
+            <span>Debt</span>
+          </div>
+        </div>
       </div>
 
       <div className="task-recap" aria-label="Task results">
         {report.tasks.map((task) => (
           <div key={task.taskId}>
             <strong>{task.name}</strong>
-            <span>{task.completed ? "Ready" : "Open"}</span>
+            <span>{task.completed ? "Shipped" : "Open"}</span>
             <small>
               {task.verifiedWork} Verified · {task.unverifiedWork} Unverified
             </small>
@@ -50,7 +56,7 @@ export function ReportScreen({ dispatch, report }: ReportScreenProps) {
       </div>
 
       <div className="reward-placeholder">
-        <strong>Card reward next</strong>
+        <strong>{shipped ? "Card reward next" : "No card reward"}</strong>
         <span>{report.creditsGained > 0 ? `+${report.creditsGained} Credits` : "No Credits"}</span>
       </div>
 

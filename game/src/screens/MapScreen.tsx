@@ -24,6 +24,8 @@ function nodeGlyph(node: MapNode): string {
   switch (node.kind) {
     case "cycle":
       return "</>";
+    case "boss":
+      return "!!";
     case "event":
       return "?";
     case "shop":

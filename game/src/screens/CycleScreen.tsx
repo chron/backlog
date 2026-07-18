@@ -10,7 +10,14 @@ import { disciplineLabel, formatIntent, getCard, getCycle, getDeveloper } from "
 import type { CardInstance, CharacterMood, Discipline, DeveloperId } from "../domain/models";
 import { getCardPresentation } from "../game/presentation";
 import type { CharacterCue } from "../game/presentation";
-import { effectiveCardCost, getCurrentIntent, incomingMorale } from "../game/rules";
+import {
+  absorbMoraleDamage,
+  effectiveCardCost,
+  getCurrentIntent,
+  getScheduledIntent,
+  incomingMorale,
+  resolveCardTarget,
+} from "../game/rules";
 import type { CardTarget } from "../game/rules";
 
 type CycleScreenProps = DispatchProps &
@@ -31,7 +38,7 @@ interface CeremonyItem {
   taskId?: string;
   taskName: string;
   label: string;
-  eyebrow: "Intent Resolves" | "Automation Runs";
+  eyebrow: "Intent Resolves" | "Automation Runs" | "Intent Stunned";
 }
 
 interface CeremonyState {
@@ -93,10 +100,7 @@ export function CycleScreen({ dispatch, run, onInspectCards }: CycleScreenProps)
       if (!target) return;
 
       suppressedClickRef.current = currentAim.instanceId;
-      playCardRef.current(currentAim.instanceId, {
-        taskId: target.taskId,
-        discipline: target.discipline,
-      });
+      playCardRef.current(currentAim.instanceId, target.target);
       setSelectedInstanceId(undefined);
     }
 
@@ -153,6 +157,7 @@ export function CycleScreen({ dispatch, run, onInspectCards }: CycleScreenProps)
   if (!run || !cycle) return null;
   const definition = getCycle(cycle.cycleId);
   const moraleIncoming = incomingMorale(cycle);
+  const incomingDamage = absorbMoraleDamage(cycle.block, moraleIncoming);
   const resolvingDay = Boolean(ceremony);
 
   function updateAim(nextAim?: AimState) {
@@ -164,12 +169,21 @@ export function CycleScreen({ dispatch, run, onInspectCards }: CycleScreenProps)
     const target = document
       .elementFromPoint(clientX, clientY)
       ?.closest<HTMLElement>("[data-card-target]");
-    const taskId = target?.dataset.taskId;
-    if (!target || !taskId) return undefined;
+    if (!target) return undefined;
+    if (target.dataset.targetKind === "squad") {
+      return {
+        key: target.dataset.cardTarget,
+        target: { kind: "squad" } as CardTarget,
+      };
+    }
+    const taskId = target.dataset.taskId;
+    if (!taskId) return undefined;
     return {
       key: target.dataset.cardTarget,
-      taskId,
-      discipline: target.dataset.targetDiscipline as Discipline | undefined,
+      target: {
+        taskId,
+        discipline: target.dataset.targetDiscipline as Discipline | undefined,
+      } as CardTarget,
     };
   }
 
@@ -211,10 +225,7 @@ export function CycleScreen({ dispatch, run, onInspectCards }: CycleScreenProps)
 
     if (target) {
       suppressedClickRef.current = instanceId;
-      commitCardPlay(instanceId, {
-        taskId: target.taskId,
-        discipline: target.discipline,
-      });
+      commitCardPlay(instanceId, target.target);
       setSelectedInstanceId(undefined);
     }
   }
@@ -258,7 +269,19 @@ export function CycleScreen({ dispatch, run, onInspectCards }: CycleScreenProps)
     setReaction(undefined);
     setReactingPassiveIds([]);
     updateAim(undefined);
-    const intentItems: CeremonyItem[] = cycle.tasks.flatMap((task) => {
+    const intentItems = cycle.tasks.flatMap<CeremonyItem>((task) => {
+      const scheduledIntent = getScheduledIntent(cycle, task);
+      if (task.stunned && scheduledIntent) {
+        const definitionTask = definition.tasks.find((candidate) => candidate.id === task.taskId);
+        return [
+          {
+            taskId: task.taskId,
+            taskName: definitionTask?.name ?? task.taskId,
+            label: formatIntent(scheduledIntent),
+            eyebrow: "Intent Stunned" as const,
+          },
+        ];
+      }
       const intent = getCurrentIntent(cycle, task);
       if (!intent) return [];
       const definitionTask = definition.tasks.find((candidate) => candidate.id === task.taskId);
@@ -274,25 +297,30 @@ export function CycleScreen({ dispatch, run, onInspectCards }: CycleScreenProps)
     const automationItems: CeremonyItem[] =
       cycle.day >= definition.maxDays || run.morale <= moraleIncoming
         ? []
-        : cycle.tasks.flatMap((task) => {
+        : cycle.tasks.flatMap<CeremonyItem>((task) => {
             if (task.status === "shipped") return [];
-            const scripted = task.requirements
-              .map((requirement) => ({
-                requirement,
-                amount: Math.min(
-                  requirement.scriptPower,
-                  Math.max(0, requirement.target - requirement.verified - requirement.unverified),
-                ),
-              }))
-              .filter(({ amount }) => amount > 0);
+            const scripted = task.requirements.flatMap((requirement) => {
+              const amount = Math.min(
+                requirement.scriptPower,
+                Math.max(0, requirement.target - requirement.verified - requirement.unverified),
+              );
+              return [
+                amount > 0
+                  ? `${disciplineLabel(requirement.discipline)} Script · +${amount} Verified`
+                  : undefined,
+                requirement.scriptBlock > 0
+                  ? `Guard · +${requirement.scriptBlock} Block`
+                  : undefined,
+              ].filter((label): label is string => Boolean(label));
+            });
             if (scripted.length === 0) return [];
             const definitionTask = definition.tasks.find(
               (candidate) => candidate.id === task.taskId,
             );
-            return scripted.map(({ requirement, amount }) => ({
+            return scripted.map((label) => ({
               taskId: task.taskId,
               taskName: definitionTask?.name ?? task.taskId,
-              label: `${disciplineLabel(requirement.discipline)} Script · +${amount} Verified`,
+              label,
               eyebrow: "Automation Runs" as const,
             }));
           });
@@ -320,6 +348,10 @@ export function CycleScreen({ dispatch, run, onInspectCards }: CycleScreenProps)
 
   const ceremonyItem = ceremony?.items[ceremony.index];
   playCardRef.current = commitCardPlay;
+  const squadResolution = selectedCard
+    ? resolveCardTarget(run, selectedCard, { kind: "squad" })
+    : undefined;
+  const squadTargetable = squadResolution?.legal && squadResolution.kind === "tactic";
 
   function portraitMood(developerId: DeveloperId): CharacterMood {
     if (reaction?.developerId === developerId) return "success";
@@ -332,20 +364,41 @@ export function CycleScreen({ dispatch, run, onInspectCards }: CycleScreenProps)
       <header className="cycle-hud">
         <RunVitals run={run} />
 
-        <div className="passive-rack" aria-label="Squad passives">
-          {run.squad.map((developerId) => {
-            const developer = getDeveloper(developerId);
-            const triggered = cycle.triggeredPassiveIds.includes(developerId);
-            return (
-              <PassiveChip
-                key={developer.id}
-                developerId={developer.id}
-                spent={triggered}
-                mood={portraitMood(developer.id)}
-                reacting={reactingPassiveIds.includes(developer.id)}
-              />
-            );
-          })}
+        <div className="squad-zone">
+          <div className="passive-rack" aria-label="Squad passives">
+            {run.squad.map((developerId) => {
+              const developer = getDeveloper(developerId);
+              const triggered = cycle.triggeredPassiveIds.includes(developerId);
+              return (
+                <PassiveChip
+                  key={developer.id}
+                  developerId={developer.id}
+                  spent={triggered}
+                  mood={portraitMood(developer.id)}
+                  reacting={reactingPassiveIds.includes(developer.id)}
+                />
+              );
+            })}
+          </div>
+          <button
+            className={`squad-status-rack${squadTargetable ? " is-targetable" : ""}${aim?.hoveredTargetKey === "squad" ? " is-aimed" : ""}`}
+            type="button"
+            disabled={!squadTargetable}
+            onClick={() =>
+              selectedCard && commitCardPlay(selectedCard.instanceId, { kind: "squad" })
+            }
+            data-card-target={squadTargetable ? "squad" : undefined}
+            data-target-kind={squadTargetable ? "squad" : undefined}
+            aria-label={squadTargetable ? squadResolution.label : "Squad status"}
+          >
+            {cycle.block > 0 && <span className="status-buff">Block {cycle.block}</span>}
+            {cycle.blockedDisciplines.map((discipline) => (
+              <span className="status-debuff" key={discipline}>
+                {disciplineLabel(discipline)} +1 Cost
+              </span>
+            ))}
+            {squadTargetable && <b>{squadResolution.label}</b>}
+          </button>
         </div>
 
         <div className="cycle-counters">
@@ -437,7 +490,13 @@ export function CycleScreen({ dispatch, run, onInspectCards }: CycleScreenProps)
               onClick={startEndDay}
             >
               <strong>End Day</strong>
-              {moraleIncoming > 0 && <small>−{moraleIncoming} Morale</small>}
+              {moraleIncoming > 0 && (
+                <small>
+                  {incomingDamage.moraleLoss > 0
+                    ? `−${incomingDamage.moraleLoss} Morale`
+                    : "Blocked"}
+                </small>
+              )}
             </button>
           </div>
           <button

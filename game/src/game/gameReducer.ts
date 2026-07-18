@@ -21,12 +21,14 @@ import type {
   TaskState,
 } from "../domain/models";
 import {
+  absorbMoraleDamage,
   createCycleReport,
   getCurrentIntent,
-  isCycleReady,
-  isTaskReady,
+  getScheduledIntent,
+  isCycleShipped,
+  refreshTaskStatus,
   resolveCardTarget,
-  shippingPreview,
+  taskShippingPreview,
   verifyTask,
 } from "./rules";
 import type { CardTarget } from "./rules";
@@ -63,7 +65,7 @@ export type GameAction =
       target: CardTarget;
     }
   | { type: "END_DAY" }
-  | { type: "SHIP_CYCLE" }
+  | { type: "SHIP_TASK"; taskId: string }
   | { type: "CONTINUE_REPORT" }
   | { type: "CHOOSE_CARD_REWARD"; cardId: string }
   | { type: "SKIP_CARD_REWARD" }
@@ -86,7 +88,9 @@ function createRun(seed = 0x5eed1234): RunState {
     nextCardInstanceId: 1,
     tools: [],
     morale: 10,
+    techDebt: 0,
     credits: 40,
+    currentNodeId: null,
     completedNodeIds: [],
     cycle: null,
     pendingCardReward: null,
@@ -174,12 +178,17 @@ function createCycleState(run: RunState, nodeId: string, cycleId: string): Cycle
     startingMorale: run.morale,
     day: 1,
     focus: 3,
+    block: 0,
     tasks: definition.tasks.map((task) => ({
       taskId: task.id,
+      status: "open",
+      stunned: false,
       requirements: task.requirements.map((requirement) => ({
         ...requirement,
         verified: 0,
         unverified: 0,
+        scriptPower: 0,
+        scriptBlock: 0,
       })),
     })),
     drawPile: firstDraw.drawPile,
@@ -189,10 +198,12 @@ function createCycleState(run: RunState, nodeId: string, cycleId: string): Cycle
     triggeredPassiveIds: [],
     resolvedIntents: [],
     temporaryCardCounter: 0,
+    defects: 0,
+    techDebtAdded: 0,
   };
 }
 
-function addTechDebt(run: RunState): RunState {
+function addTechDebtCard(run: RunState): RunState {
   return {
     ...run,
     deck: [
@@ -206,13 +217,26 @@ function addTechDebt(run: RunState): RunState {
   };
 }
 
+const techDebtCardThreshold = 3;
+
+function addTechDebt(run: RunState, amount: number): RunState {
+  if (amount <= 0) return run;
+  const techDebt = run.techDebt + amount;
+  const cardsToAdd =
+    Math.floor(techDebt / techDebtCardThreshold) - Math.floor(run.techDebt / techDebtCardThreshold);
+  let nextRun = { ...run, techDebt };
+  for (let index = 0; index < cardsToAdd; index += 1) {
+    nextRun = addTechDebtCard(nextRun);
+  }
+  return nextRun;
+}
+
 function finishCycle(
   run: RunState,
   cycle: CycleState,
   report: CycleReport,
   finalMorale: number,
   creditsGained: number,
-  techDebtAdded: boolean,
 ): GameState {
   let nextRun: RunState = {
     ...completeNode(run, cycle.nodeId),
@@ -229,7 +253,6 @@ function finishCycle(
       },
     ],
   };
-  if (techDebtAdded) nextRun = addTechDebt(nextRun);
 
   if (finalMorale <= 0) {
     return {
@@ -242,25 +265,122 @@ function finishCycle(
     };
   }
 
-  nextRun = createCardReward(nextRun, cycle.nodeId);
+  if (report.outcome === "shipped") {
+    nextRun = createCardReward(nextRun, cycle.nodeId);
+  }
   return { screen: { name: "report", report }, run: nextRun };
 }
 
-function shipCycle(run: RunState, cycle: CycleState): GameState {
+function completeShippedCycle(run: RunState, cycle: CycleState): GameState {
   const definition = getCycle(cycle.cycleId);
-  const preview = shippingPreview(cycle);
   const creditsGained = 20 + (definition.maxDays - cycle.day) * 5;
-  const finalMorale = run.morale - preview.moraleLoss;
-  const moraleDelta = finalMorale - cycle.startingMorale;
-  const report = createCycleReport(cycle, "shipped", moraleDelta, creditsGained, preview.techDebt);
+  const moraleDelta = run.morale - cycle.startingMorale;
+  const report = createCycleReport(
+    cycle,
+    "shipped",
+    moraleDelta,
+    creditsGained,
+    cycle.techDebtAdded,
+  );
 
-  return finishCycle(run, cycle, report, finalMorale, creditsGained, preview.techDebt);
+  return finishCycle(run, cycle, report, run.morale, creditsGained);
 }
 
 function missCycle(run: RunState, cycle: CycleState): GameState {
   const finalMorale = run.morale - 3;
-  const report = createCycleReport(cycle, "missed", finalMorale - cycle.startingMorale, 0, true);
-  return finishCycle(run, cycle, report, finalMorale, 0, true);
+  const missedDebt = 3;
+  const missedCycle = { ...cycle, techDebtAdded: cycle.techDebtAdded + missedDebt };
+  const penalizedRun = addTechDebt({ ...run, morale: finalMorale, cycle: missedCycle }, missedDebt);
+  const report = createCycleReport(
+    missedCycle,
+    "missed",
+    finalMorale - cycle.startingMorale,
+    0,
+    missedCycle.techDebtAdded,
+  );
+  return finishCycle(penalizedRun, missedCycle, report, finalMorale, 0);
+}
+
+function applyTaskShipping(
+  run: RunState,
+  cycle: CycleState,
+  taskId: string,
+): { run: RunState; cycle: CycleState } | undefined {
+  const task = cycle.tasks.find((candidate) => candidate.taskId === taskId);
+  if (!task || task.status !== "ready") return undefined;
+
+  const preview = taskShippingPreview(task);
+  const nonTerminal = cycle.tasks.some(
+    (candidate) => candidate.taskId !== taskId && candidate.status !== "shipped",
+  );
+  const paulTriggers =
+    run.squad.includes("paul") &&
+    !cycle.triggeredPassiveIds.includes("paul") &&
+    nonTerminal &&
+    cycle.focus < 3;
+  const focusGained = paulTriggers ? Math.min(1, 3 - cycle.focus) : 0;
+  const damage = absorbMoraleDamage(cycle.block, preview.moraleLoss);
+  const nextCycle: CycleState = {
+    ...cycle,
+    tasks: cycle.tasks.map((candidate) =>
+      candidate.taskId === taskId ? { ...candidate, status: "shipped" } : candidate,
+    ),
+    defects: cycle.defects + preview.defects,
+    techDebtAdded: cycle.techDebtAdded + preview.techDebt,
+    focus: cycle.focus + focusGained,
+    block: damage.block,
+    triggeredPassiveIds: paulTriggers
+      ? [...cycle.triggeredPassiveIds, "paul"]
+      : cycle.triggeredPassiveIds,
+  };
+  let nextRun: RunState = {
+    ...run,
+    morale: run.morale - damage.moraleLoss,
+    cycle: nextCycle,
+    history: [
+      ...run.history,
+      {
+        kind: "task-shipped",
+        nodeId: cycle.nodeId,
+        taskId,
+        defects: preview.defects,
+        moraleLoss: damage.moraleLoss,
+        techDebtAdded: preview.techDebt,
+        focusGained,
+      },
+    ],
+  };
+  nextRun = addTechDebt(nextRun, preview.techDebt);
+  return { run: nextRun, cycle: nextCycle };
+}
+
+function runScripts(tasks: readonly TaskState[]): { tasks: TaskState[]; block: number } {
+  let block = 0;
+  const nextTasks = tasks.map((task) => {
+    if (task.status === "shipped") return task;
+    block += task.requirements.reduce((sum, requirement) => sum + requirement.scriptBlock, 0);
+    return refreshTaskStatus({
+      ...task,
+      requirements: task.requirements.map((requirement) => {
+        const remaining = Math.max(
+          0,
+          requirement.target - requirement.verified - requirement.unverified,
+        );
+        return {
+          ...requirement,
+          verified: requirement.verified + Math.min(requirement.scriptPower, remaining),
+        };
+      }),
+    });
+  });
+  return { tasks: nextTasks, block };
+}
+
+function taskShippingDefeat(run: RunState): GameState {
+  return {
+    screen: { name: "retro", outcome: "defeat", cause: "technically-shipped" },
+    run: { ...run, cycle: null },
+  };
 }
 
 function removeRegressionWork(task: TaskState, discipline: Discipline, amount: number): TaskState {
@@ -287,13 +407,19 @@ function endDay(run: RunState, cycle: CycleState): GameState {
     requirements: task.requirements.map((requirement) => ({ ...requirement })),
   }));
   let morale = run.morale;
+  let block = cycle.block;
   const blockedDisciplines: Discipline[] = [];
   const resolvedIntents: string[] = [];
   let interruptions = 0;
 
   for (const taskAtStart of cycle.tasks) {
     const currentTask = tasks.find((task) => task.taskId === taskAtStart.taskId);
-    if (!currentTask || isTaskReady(currentTask)) continue;
+    if (!currentTask || currentTask.status === "shipped") continue;
+    const scheduledIntent = getScheduledIntent({ ...cycle, tasks }, currentTask);
+    if (currentTask.stunned && scheduledIntent) {
+      resolvedIntents.push(`Stunned · ${formatIntent(scheduledIntent)}`);
+      continue;
+    }
     const intent = getCurrentIntent({ ...cycle, tasks }, currentTask);
     if (!intent) continue;
 
@@ -329,7 +455,11 @@ function endDay(run: RunState, cycle: CycleState): GameState {
         interruptions += 1;
         break;
       case "crunch":
-        morale -= intent.moraleLoss;
+        {
+          const damage = absorbMoraleDamage(block, intent.moraleLoss);
+          block = damage.block;
+          morale -= damage.moraleLoss;
+        }
         break;
     }
 
@@ -338,7 +468,8 @@ function endDay(run: RunState, cycle: CycleState): GameState {
 
   const resolvedCycle: CycleState = {
     ...cycle,
-    tasks,
+    block,
+    tasks: tasks.map(refreshTaskStatus),
     hand: [],
     discardPile: [...cycle.discardPile, ...permanentHand],
     resolvedIntents: [...cycle.resolvedIntents, ...resolvedIntents],
@@ -353,9 +484,20 @@ function endDay(run: RunState, cycle: CycleState): GameState {
   }
 
   if (cycle.day >= definition.maxDays) {
-    return isCycleReady(resolvedCycle)
-      ? shipCycle(nextRun, resolvedCycle)
-      : missCycle(nextRun, resolvedCycle);
+    let deadlineRun: RunState = nextRun;
+    let deadlineCycle = resolvedCycle;
+    for (const task of resolvedCycle.tasks) {
+      if (task.status !== "ready") continue;
+      const shipped = applyTaskShipping(deadlineRun, deadlineCycle, task.taskId);
+      if (!shipped) continue;
+      deadlineRun = shipped.run;
+      deadlineCycle = shipped.cycle;
+      if (deadlineRun.morale <= 0) return taskShippingDefeat(deadlineRun);
+    }
+
+    return isCycleShipped(deadlineCycle)
+      ? completeShippedCycle(deadlineRun, deadlineCycle)
+      : missCycle(deadlineRun, deadlineCycle);
   }
 
   const distractions: CardInstance[] = Array.from({ length: interruptions }, (_, index) => ({
@@ -368,10 +510,13 @@ function endDay(run: RunState, cycle: CycleState): GameState {
     resolvedCycle.discardPile,
     5,
   );
+  const scripts = runScripts(resolvedCycle.tasks);
   const nextCycle: CycleState = {
     ...resolvedCycle,
     day: cycle.day + 1,
     focus: 3,
+    block: scripts.block,
+    tasks: scripts.tasks.map((task) => ({ ...task, stunned: false })),
     drawPile: nextDraw.drawPile,
     hand: nextDraw.drawn,
     discardPile: nextDraw.discardPile,
@@ -431,32 +576,34 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       if (
         !node ||
         state.run.completedNodeIds.includes(node.id) ||
-        !isMapNodeAvailable(node, state.run.completedNodeIds)
+        !isMapNodeAvailable(node, state.run.currentNodeId, state.run.completedNodeIds)
       ) {
         return state;
       }
 
-      if (node.kind === "cycle" && node.cycleId) {
-        const cycle = createCycleState(state.run, node.id, node.cycleId);
+      const runAtNode = { ...state.run, currentNodeId: node.id };
+
+      if ((node.kind === "cycle" || node.kind === "boss") && node.cycleId) {
+        const cycle = createCycleState(runAtNode, node.id, node.cycleId);
         return {
           screen: { name: "cycle", nodeId: node.id, cycleId: node.cycleId },
-          run: { ...state.run, cycle },
+          run: { ...runAtNode, cycle },
         };
       }
 
       if (node.kind === "retro") {
         return {
           screen: { name: "retro", outcome: "victory" },
-          run: completeNode(state.run, node.id),
+          run: completeNode(runAtNode, node.id),
         };
       }
 
       return {
         screen: { name: node.kind, nodeId: node.id } as Extract<
           Screen,
-          { name: Exclude<MapNodeKind, "cycle" | "retro"> }
+          { name: Exclude<MapNodeKind, "cycle" | "boss" | "retro"> }
         >,
-        run: state.run,
+        run: runAtNode,
       };
     }
 
@@ -474,7 +621,10 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         if (resolution.kind === "review") {
           return verifyTask(task, resolution.amount);
         }
-        return {
+        if (resolution.kind === "tactic") {
+          return { ...task, stunned: resolution.stun || task.stunned };
+        }
+        return refreshTaskStatus({
           ...task,
           requirements: task.requirements.map((requirement) =>
             requirement.discipline !== resolution.discipline
@@ -482,9 +632,11 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
               : {
                   ...requirement,
                   [resolution.workKind]: requirement[resolution.workKind] + resolution.amount,
+                  scriptPower: requirement.scriptPower + resolution.scriptPowerAdded,
+                  scriptBlock: requirement.scriptBlock + resolution.scriptBlockAdded,
                 },
           ),
-        };
+        });
       });
       const triggeredPassiveIds = [
         ...cycle.triggeredPassiveIds,
@@ -493,6 +645,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       const nextCycle: CycleState = {
         ...cycle,
         focus: cycle.focus - resolution.cost,
+        block: cycle.block + resolution.blockGained,
         tasks,
         hand: cycle.hand.filter((candidate) => candidate.instanceId !== instance.instanceId),
         discardPile: [...cycle.discardPile, instance],
@@ -505,11 +658,15 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       if (state.screen.name !== "cycle" || !state.run?.cycle) return state;
       return endDay(state.run, state.run.cycle);
 
-    case "SHIP_CYCLE":
-      if (state.screen.name !== "cycle" || !state.run?.cycle || !isCycleReady(state.run.cycle)) {
-        return state;
-      }
-      return shipCycle(state.run, state.run.cycle);
+    case "SHIP_TASK": {
+      if (state.screen.name !== "cycle" || !state.run?.cycle) return state;
+      const shipped = applyTaskShipping(state.run, state.run.cycle, action.taskId);
+      if (!shipped) return state;
+      if (shipped.run.morale <= 0) return taskShippingDefeat(shipped.run);
+      return isCycleShipped(shipped.cycle)
+        ? completeShippedCycle(shipped.run, shipped.cycle)
+        : { ...state, run: shipped.run };
+    }
 
     case "CONTINUE_REPORT":
       if (state.screen.name !== "report" || !state.run) return state;
@@ -563,7 +720,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       const run =
         action.choice === "push-back"
           ? { ...completedRun, morale: Math.min(10, completedRun.morale + 2) }
-          : addTechDebt({ ...completedRun, credits: completedRun.credits + 35 });
+          : addTechDebt({ ...completedRun, credits: completedRun.credits + 35 }, 3);
       return { screen: { name: "map" }, run };
     }
 

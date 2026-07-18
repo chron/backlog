@@ -12,10 +12,17 @@ import type {
   WorkKind,
 } from "../domain/models";
 
-export interface CardTarget {
+interface TaskCardTarget {
+  kind?: "task";
   taskId: string;
   discipline?: Discipline;
 }
+
+interface SquadCardTarget {
+  kind: "squad";
+}
+
+export type CardTarget = TaskCardTarget | SquadCardTarget;
 
 export type CardResolution =
   | {
@@ -26,6 +33,9 @@ export type CardResolution =
       discipline: Discipline;
       amount: number;
       workKind: WorkKind;
+      scriptPowerAdded: number;
+      scriptBlockAdded: number;
+      blockGained: number;
       pitchedIn: boolean;
       triggeredPassiveIds: DeveloperId[];
       label: string;
@@ -36,6 +46,17 @@ export type CardResolution =
       cost: number;
       taskId: string;
       amount: number;
+      blockGained: number;
+      triggeredPassiveIds: DeveloperId[];
+      label: string;
+    }
+  | {
+      kind: "tactic";
+      legal: true;
+      cost: number;
+      taskId?: string;
+      blockGained: number;
+      stun: boolean;
       triggeredPassiveIds: DeveloperId[];
       label: string;
     }
@@ -52,11 +73,17 @@ function remainingWork(requirement: RequirementState): number {
 }
 
 export function isTaskReady(task: TaskState): boolean {
-  return task.requirements.every((requirement) => remainingWork(requirement) === 0);
+  return task.status !== "open";
 }
 
-export function isCycleReady(cycle: CycleState): boolean {
-  return cycle.tasks.every(isTaskReady);
+export function isCycleShipped(cycle: CycleState): boolean {
+  return cycle.tasks.every((task) => task.status === "shipped");
+}
+
+export function refreshTaskStatus(task: TaskState): TaskState {
+  if (task.status === "shipped") return task;
+  const ready = task.requirements.every((requirement) => remainingWork(requirement) === 0);
+  return { ...task, status: ready ? "ready" : "open" };
 }
 
 function taskUnverifiedWork(task: TaskState): number {
@@ -79,12 +106,28 @@ function totalWork(cycle: CycleState): number {
   );
 }
 
-export function getCurrentIntent(cycle: CycleState, task: TaskState) {
-  if (isTaskReady(task)) return undefined;
+export function getScheduledIntent(cycle: CycleState, task: TaskState) {
+  if (task.status === "shipped") return undefined;
   const definition = getCycle(cycle.cycleId).tasks.find(
     (candidate) => candidate.id === task.taskId,
   );
   return definition?.intents[cycle.day - 1];
+}
+
+export function getCurrentIntent(cycle: CycleState, task: TaskState) {
+  return task.stunned ? undefined : getScheduledIntent(cycle, task);
+}
+
+export function absorbMoraleDamage(
+  block: number,
+  amount: number,
+): { block: number; blocked: number; moraleLoss: number } {
+  const blocked = Math.min(block, amount);
+  return {
+    block: block - blocked,
+    blocked,
+    moraleLoss: amount - blocked,
+  };
 }
 
 export function incomingMorale(cycle: CycleState): number {
@@ -94,29 +137,28 @@ export function incomingMorale(cycle: CycleState): number {
   }, 0);
 }
 
-export function shippingPreview(cycle: CycleState): {
+export function taskShippingPreview(task: TaskState): {
   unverified: number;
   defects: number;
   moraleLoss: number;
-  techDebt: boolean;
+  techDebt: number;
 } {
-  const unverified = totalUnverifiedWork(cycle);
+  const unverified = taskUnverifiedWork(task);
   const defects = Math.ceil(unverified / 3);
+  const techDebt = Math.ceil(unverified / 2);
   return {
     unverified,
     defects,
     moraleLoss: defects,
-    techDebt: defects >= 2,
+    techDebt,
   };
 }
 
 export function effectiveCardCost(
   card: CardDefinition,
   cycle: CycleState,
-  squad: readonly DeveloperId[],
+  _squad: readonly DeveloperId[],
 ): number {
-  const paulDiscount =
-    squad.includes("paul") && !cycle.triggeredPassiveIds.includes("paul") ? 1 : 0;
   const blockedCost =
     card.discipline &&
     card.discipline !== "flexible" &&
@@ -124,7 +166,7 @@ export function effectiveCardCost(
       ? 1
       : 0;
 
-  return Math.max(0, card.cost - paulDiscount) + blockedCost;
+  return card.cost + blockedCost;
 }
 
 function addTriggeredPassive(passiveIds: DeveloperId[], id: DeveloperId): DeveloperId[] {
@@ -144,16 +186,35 @@ export function resolveCardTarget(
     return { legal: false, reason: `${card.name} is unplayable.` };
   }
 
-  const task = cycle.tasks.find((candidate) => candidate.taskId === target.taskId);
-  if (!task) return { legal: false, reason: "Choose a Task." };
-
   const cost = effectiveCardCost(card, cycle, run.squad);
   if (cost > cycle.focus) return { legal: false, reason: "Not enough Focus." };
 
-  let triggeredPassiveIds: DeveloperId[] = [];
-  if (run.squad.includes("paul") && !cycle.triggeredPassiveIds.includes("paul")) {
-    triggeredPassiveIds = addTriggeredPassive(triggeredPassiveIds, "paul");
+  if (card.kind === "tactic" && !card.stun) {
+    if (target.kind !== "squad") {
+      return { legal: false, reason: "Aim this at the squad." };
+    }
+    return {
+      kind: "tactic",
+      legal: true,
+      cost,
+      blockGained: card.block ?? 0,
+      stun: false,
+      triggeredPassiveIds: [],
+      label: card.block ? `Block ${card.block}` : card.name,
+    };
   }
+
+  if (target.kind === "squad") {
+    return { legal: false, reason: "Choose a Task." };
+  }
+
+  const task = cycle.tasks.find((candidate) => candidate.taskId === target.taskId);
+  if (!task) return { legal: false, reason: "Choose a Task." };
+  if (task.status === "shipped") {
+    return { legal: false, reason: "This Task has already shipped." };
+  }
+
+  let triggeredPassiveIds: DeveloperId[] = [];
 
   if (card.kind === "review") {
     const available = taskUnverifiedWork(task);
@@ -173,8 +234,32 @@ export function resolveCardTarget(
       cost,
       taskId: task.taskId,
       amount,
+      blockGained: card.block ?? 0,
       triggeredPassiveIds,
-      label: `Verify ${amount}`,
+      label: [`Verify ${amount}`, card.block ? `Block ${card.block}` : undefined]
+        .filter(Boolean)
+        .join(" · "),
+    };
+  }
+
+  if (card.kind === "tactic") {
+    if (card.stun && task.stunned) {
+      return { legal: false, reason: "This intent is already Stunned." };
+    }
+    if (card.stun && !getScheduledIntent(cycle, task)) {
+      return { legal: false, reason: "This Task has no intent to Stun." };
+    }
+    return {
+      kind: "tactic",
+      legal: true,
+      cost,
+      taskId: task.taskId,
+      blockGained: card.block ?? 0,
+      stun: card.stun ?? false,
+      triggeredPassiveIds,
+      label: [card.stun ? "Stun" : undefined, card.block ? `Block ${card.block}` : undefined]
+        .filter(Boolean)
+        .join(" · "),
     };
   }
 
@@ -189,11 +274,17 @@ export function resolveCardTarget(
     return { legal: false, reason: "That requirement is complete." };
   }
 
+  if (card.automation?.kind === "trigger" && requirement.scriptPower === 0) {
+    return { legal: false, reason: "Install a Script here first." };
+  }
+
   const pitchedIn = card.discipline !== "flexible" && card.discipline !== target.discipline;
   const workKind: WorkKind = pitchedIn ? "unverified" : (card.workKind ?? "verified");
-  let amount = pitchedIn ? 1 : card.amount;
+  let amount =
+    card.automation?.kind === "trigger" ? requirement.scriptPower : pitchedIn ? 1 : card.amount;
 
   if (
+    amount > 0 &&
     workKind === "verified" &&
     run.squad.includes("irene") &&
     !cycle.triggeredPassiveIds.includes("irene")
@@ -213,9 +304,34 @@ export function resolveCardTarget(
   }
 
   amount = Math.min(amount, remainingWork(requirement));
-  const label = pitchedIn
-    ? `Pitch In · ${amount} Unverified`
-    : `${disciplineLabel(target.discipline)} +${amount} ${workKind}`;
+  const scriptPowerAdded = card.automation?.kind === "install" ? card.automation.power : 0;
+  const scriptBlockAdded =
+    card.automation?.kind === "install" ? (card.automation.blockPower ?? 0) : 0;
+  const blockGained = card.block ?? 0;
+  const label =
+    card.automation?.kind === "trigger"
+      ? `Run Script · +${amount} Verified`
+      : card.automation?.kind === "install"
+        ? [
+            amount > 0
+              ? pitchedIn
+                ? `Pitch In · ${amount} Unverified`
+                : `+${amount} ${workKind === "verified" ? "Verified" : "Unverified"}`
+              : undefined,
+            scriptPowerAdded > 0 ? `Script +${scriptPowerAdded}` : undefined,
+            scriptBlockAdded > 0 ? `Guard +${scriptBlockAdded}` : undefined,
+            blockGained > 0 ? `Block ${blockGained}` : undefined,
+          ]
+            .filter(Boolean)
+            .join(" · ")
+        : [
+            pitchedIn
+              ? `Pitch In · ${amount} Unverified`
+              : `${disciplineLabel(target.discipline)} +${amount} ${workKind}`,
+            blockGained > 0 ? `Block ${blockGained}` : undefined,
+          ]
+            .filter(Boolean)
+            .join(" · ");
 
   return {
     kind: "work",
@@ -225,6 +341,9 @@ export function resolveCardTarget(
     discipline: target.discipline,
     amount,
     workKind,
+    scriptPowerAdded,
+    scriptBlockAdded,
+    blockGained,
     pitchedIn,
     triggeredPassiveIds,
     label,
@@ -246,7 +365,7 @@ export function verifyTask(task: TaskState, amount: number): TaskState {
       };
     });
 
-  return { ...task, requirements };
+  return refreshTaskStatus({ ...task, requirements });
 }
 
 export function createCycleReport(
@@ -254,10 +373,9 @@ export function createCycleReport(
   outcome: CycleReport["outcome"],
   moraleDelta: number,
   creditsGained: number,
-  techDebtAdded: boolean,
+  techDebtAdded: number,
 ): CycleReport {
   const definition = getCycle(cycle.cycleId);
-  const preview = shippingPreview(cycle);
   return {
     nodeId: cycle.nodeId,
     cycleName: definition.name,
@@ -268,14 +386,14 @@ export function createCycleReport(
       return {
         taskId: task.taskId,
         name: taskDefinition?.name ?? task.taskId,
-        completed: isTaskReady(task),
+        completed: task.status === "shipped",
         verifiedWork: task.requirements.reduce((sum, requirement) => sum + requirement.verified, 0),
         unverifiedWork: taskUnverifiedWork(task),
       };
     }),
     shippedProgress: totalWork(cycle),
-    unverifiedProgress: preview.unverified,
-    defects: outcome === "shipped" ? preview.defects : 0,
+    unverifiedProgress: totalUnverifiedWork(cycle),
+    defects: cycle.defects,
     moraleDelta,
     creditsGained,
     techDebtAdded,

@@ -6,16 +6,18 @@ type CharacterArtwork = Readonly<Record<CharacterMood, string>>;
 
 export type Discipline = "frontend" | "backend" | "infra";
 export type WorkKind = "verified" | "unverified";
-type CardKind = "work" | "review" | "status";
+type CardKind = "work" | "review" | "tactic" | "status";
 type CardTag =
   | "ai-assisted"
   | "automation"
   | "basic"
   | "character"
+  | "defense"
   | "flexible"
   | "review"
   | "reward"
-  | "status";
+  | "status"
+  | "stun";
 
 export interface Developer {
   id: DeveloperId;
@@ -37,6 +39,9 @@ export interface CardDefinition {
   discipline?: Discipline | "flexible";
   amount: number;
   workKind?: WorkKind;
+  block?: number;
+  stun?: boolean;
+  automation?: { kind: "install"; power: number; blockPower?: number } | { kind: "trigger" };
   rules: string;
   tags: readonly CardTag[];
 }
@@ -78,10 +83,14 @@ export interface RequirementState {
   target: number;
   verified: number;
   unverified: number;
+  scriptPower: number;
+  scriptBlock: number;
 }
 
 export interface TaskState {
   taskId: string;
+  status: "open" | "ready" | "shipped";
+  stunned: boolean;
   requirements: RequirementState[];
 }
 
@@ -91,6 +100,7 @@ export interface CycleState {
   startingMorale: number;
   day: number;
   focus: number;
+  block: number;
   tasks: TaskState[];
   drawPile: CardInstance[];
   hand: CardInstance[];
@@ -99,6 +109,8 @@ export interface CycleState {
   triggeredPassiveIds: DeveloperId[];
   resolvedIntents: string[];
   temporaryCardCounter: number;
+  defects: number;
+  techDebtAdded: number;
 }
 
 interface CardRewardState {
@@ -113,6 +125,15 @@ type RunHistoryEvent =
       outcome: CycleReport["outcome"];
       day: number;
     }
+  | {
+      kind: "task-shipped";
+      nodeId: string;
+      taskId: string;
+      defects: number;
+      moraleLoss: number;
+      techDebtAdded: number;
+      focusGained: number;
+    }
   | { kind: "card-added"; cardId: string; sourceNodeId: string }
   | { kind: "card-skipped"; sourceNodeId: string };
 
@@ -124,7 +145,9 @@ export interface RunState {
   nextCardInstanceId: number;
   tools: string[];
   morale: number;
+  techDebt: number;
   credits: number;
+  currentNodeId: string | null;
   completedNodeIds: string[];
   cycle: CycleState | null;
   pendingCardReward: CardRewardState | null;
@@ -150,16 +173,26 @@ export interface CycleReport {
   defects: number;
   moraleDelta: number;
   creditsGained: number;
-  techDebtAdded: boolean;
+  techDebtAdded: number;
   resolvedIntents: string[];
 }
 
-export type MapNodeKind = "cycle" | "event" | "shop" | "retro";
+export type MapNodeKind = "cycle" | "boss" | "event" | "shop" | "retro";
+
+interface MapPosition {
+  x: number;
+  y: number;
+}
 
 export interface MapNode {
   id: string;
   kind: MapNodeKind;
   title: string;
   cycleId?: string;
-  predecessorNodeIds: readonly string[];
+  position: MapPosition;
+}
+
+export interface MapEdge {
+  fromNodeId: string;
+  toNodeId: string;
 }

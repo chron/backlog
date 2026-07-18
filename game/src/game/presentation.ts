@@ -1,6 +1,6 @@
 import { getCard, getDeveloper } from "../domain/content";
 import type { CardInstance, DeveloperId, RunState, TaskState } from "../domain/models";
-import { isTaskReady, resolveCardTarget, verifyTask } from "./rules";
+import { isTaskReady, refreshTaskStatus, resolveCardTarget, verifyTask } from "./rules";
 import type { CardTarget } from "./rules";
 
 export interface CharacterCue {
@@ -24,6 +24,10 @@ export function getCardPresentation(
   if (!cycle) return undefined;
   const resolution = resolveCardTarget(run, instance, target);
   if (!resolution.legal) return undefined;
+
+  if (!resolution.taskId) {
+    return { triggeredPassiveIds: resolution.triggeredPassiveIds };
+  }
 
   const card = getCard(instance.cardId);
   const task = cycle.tasks.find((candidate) => candidate.taskId === resolution.taskId);
@@ -67,7 +71,11 @@ function applyResolution(
     return verifyTask(task, resolution.amount);
   }
 
-  return {
+  if (resolution.kind === "tactic") {
+    return { ...task, stunned: resolution.stun || task.stunned };
+  }
+
+  return refreshTaskStatus({
     ...task,
     requirements: task.requirements.map((requirement) =>
       requirement.discipline !== resolution.discipline
@@ -75,7 +83,9 @@ function applyResolution(
         : {
             ...requirement,
             [resolution.workKind]: requirement[resolution.workKind] + resolution.amount,
+            scriptPower: requirement.scriptPower + resolution.scriptPowerAdded,
+            scriptBlock: requirement.scriptBlock + resolution.scriptBlockAdded,
           },
     ),
-  };
+  });
 }

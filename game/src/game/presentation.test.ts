@@ -31,13 +31,21 @@ describe("getCardPresentation", () => {
         level: "hero",
         title: "Agent Swarm",
       },
-      triggeredPassiveIds: ["paul", "madi"],
+      triggeredPassiveIds: ["madi"],
     });
   });
 
   it("keeps an ordinary passive contribution compact", () => {
     const state = startCycle(["paul", "odin", "irene"]);
-    const run = state.run;
+    const baseRun = state.run;
+    if (!baseRun?.cycle) throw new Error("Expected an active Cycle");
+    const run = {
+      ...baseRun,
+      cycle: {
+        ...baseRun.cycle,
+        hand: [...baseRun.cycle.hand, { cardId: "frontend-3", instanceId: "test-frontend-3" }],
+      },
+    };
     const instance = run?.cycle?.hand.find((card) => card.cardId === "frontend-3");
     if (!run || !instance) throw new Error("Expected Frontend in hand");
 

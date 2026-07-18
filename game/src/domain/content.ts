@@ -4,6 +4,7 @@ import type {
   Developer,
   Discipline,
   IntentDefinition,
+  MapEdge,
   MapNode,
 } from "./models";
 import ireneFixed from "../assets/characters/irene-fixed-v1.webp";
@@ -25,7 +26,7 @@ export const developers: readonly Developer[] = [
     name: "Paul",
     role: "Prototyper",
     passiveName: "Move Fast",
-    passiveRules: "The first card each Day costs 1 less.",
+    passiveRules: "The first non-final Task shipped each Day restores 1 Focus.",
     startingCardId: "vibe-code",
     accent: "oklch(0.68 0.19 31)",
     art: {
@@ -133,6 +134,16 @@ const cards: readonly CardDefinition[] = [
     tags: ["basic", "review"],
   },
   {
+    id: "standup-cover",
+    name: "Standup Cover",
+    cost: 1,
+    kind: "tactic",
+    amount: 0,
+    block: 4,
+    rules: "Gain 4 Block.",
+    tags: ["basic", "defense"],
+  },
+  {
     id: "vibe-code",
     ownerId: "paul",
     name: "Vibe Code",
@@ -164,7 +175,7 @@ const cards: readonly CardDefinition[] = [
     amount: 3,
     workKind: "verified",
     rules: "Any 3. Verified.",
-    tags: ["character", "automation", "flexible"],
+    tags: ["character", "flexible"],
   },
   {
     id: "agent-swarm",
@@ -207,9 +218,10 @@ const cards: readonly CardDefinition[] = [
     cost: 1,
     kind: "work",
     discipline: "flexible",
-    amount: 4,
+    amount: 1,
     workKind: "verified",
-    rules: "Any 4. Verified.",
+    automation: { kind: "install", power: 1 },
+    rules: "Any 1. Install Script 1.",
     tags: ["character", "automation", "flexible", "reward"],
   },
   {
@@ -263,10 +275,47 @@ const cards: readonly CardDefinition[] = [
     cost: 1,
     kind: "work",
     discipline: "infra",
-    amount: 5,
+    amount: 1,
     workKind: "verified",
-    rules: "Infra 5.",
+    automation: { kind: "install", power: 1 },
+    rules: "Infra 1. Install Script 1.",
     tags: ["automation", "reward"],
+  },
+  {
+    id: "quick-script",
+    name: "Quick Script",
+    cost: 1,
+    kind: "work",
+    discipline: "flexible",
+    amount: 1,
+    workKind: "verified",
+    automation: { kind: "install", power: 1 },
+    rules: "Any 1. Install Script 1.",
+    tags: ["automation", "flexible", "reward"],
+  },
+  {
+    id: "cron-job",
+    name: "Cron Job",
+    cost: 2,
+    kind: "work",
+    discipline: "flexible",
+    amount: 0,
+    workKind: "verified",
+    automation: { kind: "install", power: 2 },
+    rules: "Install Script 2.",
+    tags: ["automation", "flexible", "reward"],
+  },
+  {
+    id: "run-it-now",
+    name: "Run It Now",
+    cost: 1,
+    kind: "work",
+    discipline: "flexible",
+    amount: 0,
+    workKind: "verified",
+    automation: { kind: "trigger" },
+    rules: "Trigger one Script now.",
+    tags: ["automation", "flexible", "reward"],
   },
   {
     id: "second-pair-of-eyes",
@@ -276,6 +325,60 @@ const cards: readonly CardDefinition[] = [
     amount: 5,
     rules: "Verify 5 on one Task.",
     tags: ["review", "reward"],
+  },
+  {
+    id: "protect-the-branch",
+    name: "Protect the Branch",
+    cost: 1,
+    kind: "tactic",
+    amount: 0,
+    block: 6,
+    rules: "Gain 6 Block.",
+    tags: ["defense", "reward"],
+  },
+  {
+    id: "error-budget",
+    name: "Error Budget",
+    cost: 1,
+    kind: "tactic",
+    amount: 0,
+    block: 4,
+    rules: "Gain 4 Block.",
+    tags: ["defense", "reward"],
+  },
+  {
+    id: "feature-flag",
+    name: "Feature Flag",
+    cost: 1,
+    kind: "tactic",
+    amount: 0,
+    block: 3,
+    stun: true,
+    rules: "Gain 3 Block. Stun one intent.",
+    tags: ["defense", "stun", "reward"],
+  },
+  {
+    id: "not-reproducible",
+    name: "Not Reproducible",
+    cost: 1,
+    kind: "tactic",
+    amount: 0,
+    stun: true,
+    rules: "Stun one intent.",
+    tags: ["stun", "reward"],
+  },
+  {
+    id: "health-check",
+    name: "Health Check",
+    cost: 1,
+    kind: "work",
+    discipline: "infra",
+    amount: 1,
+    workKind: "verified",
+    block: 1,
+    automation: { kind: "install", power: 0, blockPower: 2 },
+    rules: "Infra 1. Gain 1 Block. Install Guard 2.",
+    tags: ["automation", "defense", "reward"],
   },
   {
     id: "tech-debt",
@@ -314,22 +417,20 @@ export function eligibleRewardCardIds(squad: readonly Developer["id"][]): string
 }
 
 export const starterBasicCardIds = [
-  "frontend-3",
-  "frontend-3",
-  "backend-3",
-  "backend-3",
-  "infra-3",
-  "infra-3",
+  "standup-cover",
   "flexible-2",
+  "frontend-3",
+  "backend-3",
+  "infra-3",
   "flexible-2",
   "review-3",
 ] as const;
 
 const cycles: readonly CycleDefinition[] = [
   {
-    id: "presence-upgrade",
-    name: "Presence Upgrade",
-    maxDays: 3,
+    id: "quick-win",
+    name: "Status Refresh",
+    maxDays: 5,
     tasks: [
       {
         id: "status-composer",
@@ -339,9 +440,33 @@ const cycles: readonly CycleDefinition[] = [
           { discipline: "backend", target: 3 },
         ],
         intents: [
-          { kind: "crunch", moraleLoss: 1 },
-          { kind: "scope", discipline: "frontend", amount: 2 },
+          { kind: "crunch", moraleLoss: 2 },
+          { kind: "scope", discipline: "frontend", amount: 3 },
+          { kind: "crunch", moraleLoss: 3 },
           { kind: "regression", discipline: "backend", amount: 2 },
+          { kind: "crunch", moraleLoss: 4 },
+        ],
+      },
+    ],
+  },
+  {
+    id: "presence-upgrade",
+    name: "Presence Upgrade",
+    maxDays: 5,
+    tasks: [
+      {
+        id: "status-composer",
+        name: "Status Composer",
+        requirements: [
+          { discipline: "frontend", target: 5 },
+          { discipline: "backend", target: 3 },
+        ],
+        intents: [
+          { kind: "crunch", moraleLoss: 2 },
+          { kind: "scope", discipline: "frontend", amount: 4 },
+          { kind: "regression", discipline: "backend", amount: 2 },
+          { kind: "crunch", moraleLoss: 3 },
+          { kind: "scope", discipline: "backend", amount: 3 },
         ],
       },
       {
@@ -353,8 +478,82 @@ const cycles: readonly CycleDefinition[] = [
         ],
         intents: [
           { kind: "interruption" },
+          { kind: "crunch", moraleLoss: 2 },
           { kind: "blocked", discipline: "backend" },
-          { kind: "crunch", moraleLoss: 1 },
+          { kind: "scope", discipline: "infra", amount: 3 },
+          { kind: "crunch", moraleLoss: 3 },
+        ],
+      },
+    ],
+  },
+  {
+    id: "growth-spurt",
+    name: "Growth Spurt",
+    maxDays: 5,
+    tasks: [
+      {
+        id: "billing-webhook",
+        name: "Billing Webhook",
+        requirements: [
+          { discipline: "backend", target: 5 },
+          { discipline: "infra", target: 4 },
+        ],
+        intents: [
+          { kind: "crunch", moraleLoss: 2 },
+          { kind: "regression", discipline: "backend", amount: 3 },
+          { kind: "crunch", moraleLoss: 3 },
+          { kind: "scope", discipline: "backend", amount: 4 },
+          { kind: "crunch", moraleLoss: 4 },
+        ],
+      },
+      {
+        id: "onboarding-polish",
+        name: "Onboarding Polish",
+        requirements: [
+          { discipline: "frontend", target: 6 },
+          { discipline: "backend", target: 3 },
+        ],
+        intents: [
+          { kind: "interruption" },
+          { kind: "scope", discipline: "frontend", amount: 4 },
+          { kind: "crunch", moraleLoss: 2 },
+          { kind: "regression", discipline: "frontend", amount: 3 },
+          { kind: "crunch", moraleLoss: 3 },
+        ],
+      },
+      {
+        id: "deploy-pipeline",
+        name: "Deploy Pipeline",
+        requirements: [{ discipline: "infra", target: 6 }],
+        intents: [
+          { kind: "blocked", discipline: "infra" },
+          { kind: "crunch", moraleLoss: 2 },
+          { kind: "scope", discipline: "infra", amount: 4 },
+          { kind: "interruption" },
+          { kind: "crunch", moraleLoss: 4 },
+        ],
+      },
+    ],
+  },
+  {
+    id: "final-release",
+    name: "Final Release",
+    maxDays: 5,
+    tasks: [
+      {
+        id: "final-release",
+        name: "Final Release",
+        requirements: [
+          { discipline: "frontend", target: 10 },
+          { discipline: "backend", target: 10 },
+          { discipline: "infra", target: 10 },
+        ],
+        intents: [
+          { kind: "crunch", moraleLoss: 3 },
+          { kind: "scope", discipline: "backend", amount: 5 },
+          { kind: "crunch", moraleLoss: 4 },
+          { kind: "scope", discipline: "infra", amount: 5 },
+          { kind: "crunch", moraleLoss: 6 },
         ],
       },
     ],
@@ -365,35 +564,86 @@ export const mapNodes: readonly MapNode[] = [
   {
     id: "cycle-1",
     kind: "cycle",
-    title: "Presence Upgrade",
-    cycleId: "presence-upgrade",
-    predecessorNodeIds: [],
+    title: "Status Refresh",
+    cycleId: "quick-win",
+    position: { x: 50, y: 6 },
   },
   {
     id: "event-1",
     kind: "event",
     title: "Scope Creep",
-    predecessorNodeIds: ["cycle-1"],
+    position: { x: 24, y: 20 },
   },
   {
     id: "shop-1",
     kind: "shop",
     title: "Tool Budget",
-    predecessorNodeIds: ["event-1"],
+    position: { x: 76, y: 20 },
+  },
+  {
+    id: "cycle-2",
+    kind: "cycle",
+    title: "Release Candidate",
+    cycleId: "presence-upgrade",
+    position: { x: 50, y: 35 },
+  },
+  {
+    id: "event-2",
+    kind: "event",
+    title: "One Tiny Thing",
+    position: { x: 24, y: 50 },
+  },
+  {
+    id: "shop-2",
+    kind: "shop",
+    title: "Emergency Budget",
+    position: { x: 76, y: 50 },
+  },
+  {
+    id: "cycle-3",
+    kind: "cycle",
+    title: "Growth Spurt",
+    cycleId: "growth-spurt",
+    position: { x: 50, y: 65 },
+  },
+  {
+    id: "final-release",
+    kind: "boss",
+    title: "Final Release",
+    cycleId: "final-release",
+    position: { x: 50, y: 80 },
   },
   {
     id: "retro-1",
     kind: "retro",
     title: "Release",
-    predecessorNodeIds: ["shop-1"],
+    position: { x: 50, y: 94 },
   },
 ] as const;
 
-export function isMapNodeAvailable(node: MapNode, completedNodeIds: readonly string[]): boolean {
-  return (
-    node.predecessorNodeIds.length === 0 ||
-    node.predecessorNodeIds.some((nodeId) => completedNodeIds.includes(nodeId))
-  );
+export const mapEdges: readonly MapEdge[] = [
+  { fromNodeId: "cycle-1", toNodeId: "event-1" },
+  { fromNodeId: "cycle-1", toNodeId: "shop-1" },
+  { fromNodeId: "event-1", toNodeId: "cycle-2" },
+  { fromNodeId: "shop-1", toNodeId: "cycle-2" },
+  { fromNodeId: "cycle-2", toNodeId: "event-2" },
+  { fromNodeId: "cycle-2", toNodeId: "shop-2" },
+  { fromNodeId: "event-2", toNodeId: "cycle-3" },
+  { fromNodeId: "shop-2", toNodeId: "cycle-3" },
+  { fromNodeId: "cycle-3", toNodeId: "final-release" },
+  { fromNodeId: "final-release", toNodeId: "retro-1" },
+] as const;
+
+export function isMapNodeAvailable(
+  node: MapNode,
+  currentNodeId: string | null,
+  completedNodeIds: readonly string[],
+): boolean {
+  if (completedNodeIds.includes(node.id)) return false;
+  if (!currentNodeId) {
+    return !mapEdges.some((edge) => edge.toNodeId === node.id);
+  }
+  return mapEdges.some((edge) => edge.fromNodeId === currentNodeId && edge.toNodeId === node.id);
 }
 
 export function getDeveloper(id: Developer["id"]): Developer {
@@ -429,7 +679,7 @@ export function formatIntent(intent: IntentDefinition): string {
     case "blocked":
       return `Blocked · ${disciplineLabel(intent.discipline)}`;
     case "interruption":
-      return "Interruption · +1 Distraction";
+      return "+1 Distraction";
     case "crunch":
       return `Crunch · −${intent.moraleLoss} Morale`;
   }

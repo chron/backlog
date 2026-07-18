@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getCard } from "../domain/content";
+import { eligibleRewardCardIds, formatIntent, getCard, getCycle } from "../domain/content";
 import type { DeveloperId, Discipline } from "../domain/models";
 import { gameReducer, initialGameState } from "./gameReducer";
 import type { GameState } from "./gameReducer";
@@ -7,13 +7,39 @@ import type { GameState } from "./gameReducer";
 function startCycle(
   squad: readonly [DeveloperId, DeveloperId, DeveloperId] = ["paul", "irene", "madi"],
   seed = 0x5eed1234,
+  nodeId: "cycle-1" | "cycle-2" | "cycle-3" | "final-release" = "cycle-1",
 ): GameState {
   let state = gameReducer(initialGameState, { type: "START_RUN", seed });
   for (const developerId of squad) {
     state = gameReducer(state, { type: "TOGGLE_DEVELOPER", developerId });
   }
   state = gameReducer(state, { type: "CONFIRM_SQUAD" });
-  return gameReducer(state, { type: "VISIT_NODE", nodeId: "cycle-1" });
+  if (!state.run) throw new Error("Expected a run");
+  const pathToNode = {
+    "cycle-1": { currentNodeId: null, completedNodeIds: [] },
+    "cycle-2": {
+      currentNodeId: "event-1",
+      completedNodeIds: ["cycle-1", "event-1"],
+    },
+    "cycle-3": {
+      currentNodeId: "event-2",
+      completedNodeIds: ["cycle-1", "event-1", "cycle-2", "event-2"],
+    },
+    "final-release": {
+      currentNodeId: "cycle-3",
+      completedNodeIds: ["cycle-1", "event-1", "cycle-2", "event-2", "cycle-3"],
+    },
+  } as const;
+  const path = pathToNode[nodeId];
+  state = {
+    screen: { name: "map" },
+    run: {
+      ...state.run,
+      currentNodeId: path.currentNodeId,
+      completedNodeIds: [...path.completedNodeIds],
+    },
+  };
+  return gameReducer(state, { type: "VISIT_NODE", nodeId });
 }
 
 function shipReadyCycle(seed = 0x5eed1234): GameState {
@@ -21,11 +47,15 @@ function shipReadyCycle(seed = 0x5eed1234): GameState {
   state = playCard(state, "frontend-3", "status-composer", "frontend");
   state = playCard(state, "frontend-3", "status-composer", "frontend");
   state = playCard(state, "agent-swarm", "status-composer", "backend");
-  state = gameReducer(state, { type: "END_DAY" });
-  state = playCard(state, "backend-3", "reconnect-logic", "backend");
-  state = playCard(state, "infra-3", "reconnect-logic", "infra");
-  state = playCard(state, "infra-3", "reconnect-logic", "infra");
-  return gameReducer(state, { type: "SHIP_CYCLE" });
+  return gameReducer(state, { type: "SHIP_TASK", taskId: "status-composer" });
+}
+
+function startCycleAt(
+  nodeId: "cycle-1" | "cycle-2" | "cycle-3" | "final-release",
+  squad: readonly [DeveloperId, DeveloperId, DeveloperId] = ["paul", "irene", "madi"],
+  seed = 0x5eed1234,
+): GameState {
+  return startCycle(squad, seed, nodeId);
 }
 
 function playCard(
@@ -34,6 +64,9 @@ function playCard(
   taskId: string,
   discipline?: Discipline,
 ): GameState {
+  if (!state.run?.cycle?.hand.some((card) => card.cardId === cardId)) {
+    state = addCardToHand(state, cardId);
+  }
   const instance = state.run?.cycle?.hand.find((card) => card.cardId === cardId);
   if (!instance) throw new Error(`${cardId} is not in hand`);
   return gameReducer(state, {
@@ -43,30 +76,63 @@ function playCard(
   });
 }
 
+function playCardOnSquad(state: GameState, cardId: string): GameState {
+  if (!state.run?.cycle?.hand.some((card) => card.cardId === cardId)) {
+    state = addCardToHand(state, cardId);
+  }
+  const instance = state.run?.cycle?.hand.find((card) => card.cardId === cardId);
+  if (!instance) throw new Error(`${cardId} is not in hand`);
+  return gameReducer(state, {
+    type: "PLAY_CARD",
+    instanceId: instance.instanceId,
+    target: { kind: "squad" },
+  });
+}
+
+function addCardToHand(state: GameState, cardId: string): GameState {
+  if (!state.run?.cycle) throw new Error("Expected an active Cycle");
+  const instance = {
+    cardId,
+    instanceId: `test-${cardId}-${state.run.cycle.hand.length}`,
+  };
+  return {
+    ...state,
+    run: {
+      ...state.run,
+      cycle: {
+        ...state.run.cycle,
+        hand: [...state.run.cycle.hand, instance],
+      },
+    },
+  };
+}
+
 function startMap(completedNodeIds: readonly string[] = []): GameState {
   const state = gameReducer(initialGameState, { type: "START_RUN" });
   if (!state.run) throw new Error("Expected a run");
   return {
     screen: { name: "map" },
-    run: { ...state.run, completedNodeIds: [...completedNodeIds] },
+    run: {
+      ...state.run,
+      currentNodeId: completedNodeIds.at(-1) ?? null,
+      completedNodeIds: [...completedNodeIds],
+    },
   };
 }
 
 describe("gameReducer", () => {
-  it("builds a 12-card deck from three character cards and nine Basics", () => {
+  it("builds a 10-card deck from three character cards and seven Basics", () => {
     const state = startCycle();
-    expect(state.run?.deck).toHaveLength(12);
+    expect(state.run?.deck).toHaveLength(10);
     expect(state.run?.deck.map((card) => card.cardId)).toEqual([
       "vibe-code",
       "already-fixed",
       "agent-swarm",
-      "frontend-3",
-      "frontend-3",
-      "backend-3",
-      "backend-3",
-      "infra-3",
-      "infra-3",
+      "standup-cover",
       "flexible-2",
+      "frontend-3",
+      "backend-3",
+      "infra-3",
       "flexible-2",
       "review-3",
     ]);
@@ -81,28 +147,124 @@ describe("gameReducer", () => {
       (requirement) => requirement.discipline === "backend",
     );
     expect(backend).toMatchObject({ verified: 0, unverified: 1 });
-    expect(state.run?.cycle?.focus).toBe(3);
-    expect(state.run?.cycle?.triggeredPassiveIds).toContain("paul");
+    expect(state.run?.cycle?.focus).toBe(2);
+    expect(state.run?.cycle?.triggeredPassiveIds).not.toContain("paul");
     expect(state.run?.cycle?.triggeredPassiveIds).not.toContain("madi");
   });
 
-  it("cancels a Ready Task intent and adds a temporary Distraction", () => {
+  it("keeps a Ready Task intent active until it ships", () => {
     let state = startCycle();
     state = playCard(state, "frontend-3", "status-composer", "frontend");
     state = playCard(state, "frontend-3", "status-composer", "frontend");
     state = playCard(state, "agent-swarm", "status-composer", "backend");
     state = gameReducer(state, { type: "END_DAY" });
 
-    expect(state.run?.morale).toBe(10);
+    expect(state.run?.morale).toBe(8);
     expect(state.run?.cycle?.day).toBe(2);
-    expect(state.run?.cycle?.resolvedIntents).toEqual(["Interruption · +1 Distraction"]);
-    expect(state.run?.cycle?.hand[0]?.cardId).toBe("distraction");
+    expect(state.run?.cycle?.resolvedIntents).toEqual(["Crunch · −2 Morale"]);
+    expect(state.run?.cycle?.tasks[0]?.status).toBe("ready");
   });
 
   it("takes telegraphed Morale damage from an Open Task at End Day", () => {
     const state = gameReducer(startCycle(), { type: "END_DAY" });
+    expect(state.run?.morale).toBe(8);
+    expect(state.run?.cycle?.resolvedIntents).toContain("Crunch · −2 Morale");
+  });
+
+  it("uses temporary Block against Crunch and resets it on the next Day", () => {
+    let state = startCycle();
+    state = addCardToHand(state, "standup-cover");
+    state = playCard(state, "standup-cover", "status-composer");
+    expect(state.run?.cycle).toMatchObject({ block: 0, focus: 3 });
+
+    state = playCardOnSquad(state, "standup-cover");
+    expect(state.run?.cycle?.block).toBe(4);
+
+    state = gameReducer(state, { type: "END_DAY" });
+
+    expect(state.run?.morale).toBe(10);
+    expect(state.run?.cycle).toMatchObject({ day: 2, block: 0 });
+    expect(state.run?.cycle?.resolvedIntents).toContain("Crunch · −2 Morale");
+  });
+
+  it("uses Block against Defects when shipping risky work", () => {
+    let state = startCycleAt("cycle-2");
+    if (!state.run?.cycle) throw new Error("Expected an active Cycle");
+    state = {
+      ...state,
+      run: { ...state.run, cycle: { ...state.run.cycle, focus: 4 } },
+    };
+    state = playCardOnSquad(state, "standup-cover");
+    state = playCard(state, "vibe-code", "status-composer", "frontend");
+    state = playCard(state, "flexible-2", "status-composer", "frontend");
+    state = playCard(state, "agent-swarm", "status-composer", "backend");
+
+    state = gameReducer(state, { type: "SHIP_TASK", taskId: "status-composer" });
+
+    expect(state.run?.morale).toBe(10);
+    expect(state.run?.cycle?.block).toBe(1);
+    expect(state.run?.history.at(-1)).toMatchObject({
+      kind: "task-shipped",
+      defects: 3,
+      moraleLoss: 0,
+    });
+  });
+
+  it("Stuns the current intent without progress and clears Stun next Day", () => {
+    let state = startCycle();
+    const before = state.run?.cycle?.tasks[0]?.requirements;
+    state = playCard(state, "not-reproducible", "status-composer");
+
+    expect(state.run?.cycle?.tasks[0]?.stunned).toBe(true);
+    expect(state.run?.cycle?.tasks[0]?.requirements).toEqual(before);
+
+    state = gameReducer(state, { type: "END_DAY" });
+
+    expect(state.run?.morale).toBe(10);
+    expect(state.run?.cycle?.tasks[0]?.stunned).toBe(false);
+    expect(state.run?.cycle?.resolvedIntents).toContain("Stunned · Crunch · −2 Morale");
+  });
+
+  it("turns an installed Guard Script into fresh Block next Day", () => {
+    let state = startCycle();
+    state = playCard(state, "health-check", "status-composer", "frontend");
+
+    expect(state.run?.cycle?.tasks[0]?.requirements[0]).toMatchObject({
+      scriptBlock: 2,
+    });
+    expect(state.run?.cycle?.block).toBe(1);
+
+    state = gameReducer(state, { type: "END_DAY" });
+
     expect(state.run?.morale).toBe(9);
-    expect(state.run?.cycle?.resolvedIntents).toContain("Crunch · −1 Morale");
+    expect(state.run?.cycle).toMatchObject({ day: 2, block: 2 });
+  });
+
+  it("ramps encounters from one Task to three before one boss project", () => {
+    expect(
+      ["quick-win", "presence-upgrade", "growth-spurt", "final-release"].map(
+        (cycleId) => getCycle(cycleId).tasks.length,
+      ),
+    ).toEqual([1, 2, 3, 1]);
+
+    const boss = startCycleAt("final-release");
+    expect(boss.screen).toEqual({
+      name: "cycle",
+      nodeId: "final-release",
+      cycleId: "final-release",
+    });
+    expect(boss.run?.cycle?.tasks).toHaveLength(1);
+    expect(boss.run?.cycle?.tasks[0]?.taskId).toBe("final-release");
+  });
+
+  it("uses meaningful Scope jumps and punchy Distraction copy", () => {
+    const scopeIntents = ["quick-win", "presence-upgrade", "growth-spurt", "final-release"]
+      .flatMap((cycleId) => getCycle(cycleId).tasks)
+      .flatMap((task) => task.intents)
+      .filter((intent) => intent.kind === "scope");
+    expect(scopeIntents.length).toBeGreaterThan(0);
+    expect(scopeIntents.every((intent) => intent.amount >= 3)).toBe(true);
+    expect(formatIntent({ kind: "interruption" })).toBe("+1 Distraction");
   });
 
   it("applies Review and Odin's first Review bonus deterministically", () => {
@@ -112,7 +274,7 @@ describe("gameReducer", () => {
 
     const frontend = state.run?.cycle?.tasks[0]?.requirements[0];
     expect(frontend).toMatchObject({ verified: 5, unverified: 0 });
-    expect(state.run?.cycle?.triggeredPassiveIds).toEqual(["paul", "madi", "odin"]);
+    expect(state.run?.cycle?.triggeredPassiveIds).toEqual(["madi", "odin"]);
   });
 
   it("ships every Ready Task with exact Defect, Morale, and credit consequences", () => {
@@ -124,16 +286,319 @@ describe("gameReducer", () => {
       outcome: "shipped",
       defects: 1,
       moraleDelta: -1,
-      creditsGained: 25,
-      techDebtAdded: false,
+      creditsGained: 40,
+      techDebtAdded: 2,
     });
     expect(state.run?.morale).toBe(9);
-    expect(state.run?.credits).toBe(65);
+    expect(state.run?.techDebt).toBe(2);
+    expect(state.run?.credits).toBe(80);
     expect(state.run?.completedNodeIds).toContain("cycle-1");
     expect(state.run?.history.at(-1)).toMatchObject({
       kind: "cycle-finished",
       nodeId: "cycle-1",
       outcome: "shipped",
+    });
+  });
+
+  it("ships one Ready Task immediately and makes it untargetable", () => {
+    let state = startCycleAt("cycle-2");
+    state = playCard(state, "frontend-3", "status-composer", "frontend");
+    state = playCard(state, "frontend-3", "status-composer", "frontend");
+    state = playCard(state, "agent-swarm", "status-composer", "backend");
+
+    expect(state.run?.cycle?.tasks[0]?.status).toBe("ready");
+    state = gameReducer(state, { type: "SHIP_TASK", taskId: "status-composer" });
+
+    expect(state.screen.name).toBe("cycle");
+    expect(state.run?.morale).toBe(9);
+    expect(state.run?.cycle?.defects).toBe(1);
+    expect(state.run?.cycle?.tasks.map((task) => task.status)).toEqual(["shipped", "open"]);
+    expect(state.run?.history.at(-1)).toEqual({
+      kind: "task-shipped",
+      nodeId: "cycle-2",
+      taskId: "status-composer",
+      defects: 1,
+      moraleLoss: 1,
+      techDebtAdded: 2,
+      focusGained: 1,
+    });
+    expect(state.run?.techDebt).toBe(2);
+    expect(state.run?.cycle?.focus).toBe(1);
+
+    const beforeIllegalPlay = state;
+    state = playCard(state, "vibe-code", "status-composer", "frontend");
+    expect(state).toBe(beforeIllegalPlay);
+  });
+
+  it("keeps a Ready Task reviewable before it ships", () => {
+    let state = startCycleAt("cycle-2");
+    state = playCard(state, "frontend-3", "status-composer", "frontend");
+    state = playCard(state, "frontend-3", "status-composer", "frontend");
+    state = playCard(state, "agent-swarm", "status-composer", "backend");
+    if (!state.run?.cycle) throw new Error("Expected an active Cycle");
+
+    state = {
+      ...state,
+      run: {
+        ...state.run,
+        cycle: { ...state.run.cycle, focus: 1 },
+      },
+    };
+    state = addCardToHand(state, "review-3");
+    state = playCard(state, "review-3", "status-composer");
+
+    const task = state.run?.cycle?.tasks[0];
+    expect(task?.status).toBe("ready");
+    expect(
+      task?.requirements.find((requirement) => requirement.discipline === "backend"),
+    ).toMatchObject({ verified: 3, unverified: 0 });
+  });
+
+  it("adds Tech Debt when one Task ships with two or more Defects", () => {
+    let state = startCycleAt("cycle-2");
+    state = playCard(state, "vibe-code", "status-composer", "frontend");
+    state = playCard(state, "agent-swarm", "status-composer", "backend");
+    const initialDeckSize = state.run?.deck.length ?? 0;
+
+    state = gameReducer(state, { type: "SHIP_TASK", taskId: "status-composer" });
+
+    expect(state.run?.morale).toBe(7);
+    expect(state.run?.cycle).toMatchObject({ defects: 3, techDebtAdded: 4 });
+    expect(state.run?.techDebt).toBe(4);
+    expect(state.run?.deck).toHaveLength(initialDeckSize + 1);
+    expect(state.run?.deck.at(-1)?.cardId).toBe("tech-debt");
+    expect(state.run?.history.at(-1)).toMatchObject({
+      kind: "task-shipped",
+      defects: 3,
+      techDebtAdded: 4,
+      focusGained: 1,
+    });
+  });
+
+  it("lets Review pay down the Tech Debt consequence before shipping", () => {
+    let state = startCycleAt("cycle-2");
+    state = playCard(state, "vibe-code", "status-composer", "frontend");
+    state = playCard(state, "agent-swarm", "status-composer", "backend");
+    state = addCardToHand(state, "review-3");
+    state = playCard(state, "review-3", "status-composer");
+    state = gameReducer(state, { type: "SHIP_TASK", taskId: "status-composer" });
+
+    expect(state.run?.techDebt).toBe(3);
+    expect(state.run?.cycle).toMatchObject({ defects: 2, techDebtAdded: 3 });
+    expect(state.run?.deck.at(-1)?.cardId).toBe("tech-debt");
+  });
+
+  it("installs a Script that adds Verified Work at the start of each new Day", () => {
+    let state = startCycleAt("cycle-2", ["paul", "odin", "madi"]);
+    state = addCardToHand(state, "quick-script");
+    state = playCard(state, "quick-script", "reconnect-logic", "backend");
+
+    expect(state.run?.cycle?.tasks[1]?.requirements[0]).toMatchObject({
+      verified: 1,
+      scriptPower: 1,
+    });
+
+    state = gameReducer(state, { type: "END_DAY" });
+    expect(state.run?.cycle?.day).toBe(2);
+    expect(state.run?.cycle?.tasks[1]?.requirements[0]).toMatchObject({
+      verified: 2,
+      scriptPower: 1,
+    });
+  });
+
+  it("lets a Script move an Open Task to Ready at the start of a new Day", () => {
+    let state = startCycle(["paul", "odin", "madi"]);
+    if (!state.run?.cycle) throw new Error("Expected an active Cycle");
+    state = {
+      ...state,
+      run: {
+        ...state.run,
+        cycle: {
+          ...state.run.cycle,
+          tasks: state.run.cycle.tasks.map((task) =>
+            task.taskId !== "status-composer"
+              ? task
+              : {
+                  ...task,
+                  requirements: task.requirements.map((requirement) => ({
+                    ...requirement,
+                    verified: requirement.discipline === "frontend" ? 5 : 2,
+                    scriptPower: requirement.discipline === "backend" ? 1 : 0,
+                  })),
+                },
+          ),
+        },
+      },
+    };
+
+    expect(state.run?.cycle?.tasks[0]?.status).toBe("open");
+    state = gameReducer(state, { type: "END_DAY" });
+    expect(state.run?.cycle?.tasks[0]).toMatchObject({ status: "ready" });
+    expect(state.run?.cycle?.tasks[0]?.requirements[1]).toMatchObject({ verified: 3 });
+  });
+
+  it("can trigger an installed Script immediately", () => {
+    let state = startCycleAt("cycle-2", ["paul", "odin", "madi"]);
+    state = addCardToHand(state, "quick-script");
+    state = playCard(state, "quick-script", "reconnect-logic", "backend");
+    state = addCardToHand(state, "run-it-now");
+    state = playCard(state, "run-it-now", "reconnect-logic", "backend");
+
+    expect(state.run?.cycle?.tasks[1]?.requirements[0]).toMatchObject({
+      verified: 2,
+      scriptPower: 1,
+    });
+    expect(state.run?.cycle?.focus).toBe(1);
+  });
+
+  it("offers the Automation family in post-Cycle rewards", () => {
+    const rewardIds = eligibleRewardCardIds(["paul", "odin", "irene"]);
+    expect(rewardIds).toEqual(
+      expect.arrayContaining(["quick-script", "cron-job", "run-it-now", "quietly-automated"]),
+    );
+  });
+
+  it("restores Focus only for Paul's first shipped Task each Day", () => {
+    let state = startCycleAt("cycle-2", ["paul", "odin", "madi"]);
+    if (!state.run?.cycle) throw new Error("Expected an active Cycle");
+    state = {
+      ...state,
+      run: {
+        ...state.run,
+        cycle: {
+          ...state.run.cycle,
+          focus: 0,
+          tasks: state.run.cycle.tasks.map((task) => ({
+            ...task,
+            status: "ready" as const,
+            requirements: task.requirements.map((requirement) => ({
+              ...requirement,
+              verified: requirement.target,
+              unverified: 0,
+            })),
+          })),
+        },
+      },
+    };
+
+    state = gameReducer(state, { type: "SHIP_TASK", taskId: "status-composer" });
+    expect(state.run?.cycle?.focus).toBe(1);
+    state = gameReducer(state, { type: "SHIP_TASK", taskId: "reconnect-logic" });
+
+    const shippingEvents = state.run?.history.filter((event) => event.kind === "task-shipped");
+    expect(shippingEvents?.map((event) => event.focusGained)).toEqual([1, 0]);
+  });
+
+  it("does not spend Paul's ship passive while Focus is already full", () => {
+    let state = startCycleAt("cycle-2", ["paul", "odin", "madi"]);
+    if (!state.run?.cycle) throw new Error("Expected an active Cycle");
+    state = {
+      ...state,
+      run: {
+        ...state.run,
+        cycle: {
+          ...state.run.cycle,
+          tasks: state.run.cycle.tasks.map((task, index) =>
+            index > 0
+              ? task
+              : {
+                  ...task,
+                  status: "ready" as const,
+                  requirements: task.requirements.map((requirement) => ({
+                    ...requirement,
+                    verified: requirement.target,
+                  })),
+                },
+          ),
+        },
+      },
+    };
+
+    state = gameReducer(state, { type: "SHIP_TASK", taskId: "status-composer" });
+    expect(state.run?.cycle?.triggeredPassiveIds).not.toContain("paul");
+    expect(state.run?.history.at(-1)).toMatchObject({ focusGained: 0 });
+  });
+
+  it("does not restore Focus for the final Task in a Cycle", () => {
+    let state = startCycleAt("cycle-2", ["paul", "odin", "madi"]);
+    if (!state.run?.cycle) throw new Error("Expected an active Cycle");
+    state = {
+      ...state,
+      run: {
+        ...state.run,
+        cycle: {
+          ...state.run.cycle,
+          focus: 1,
+          tasks: state.run.cycle.tasks.map((task) => ({
+            ...task,
+            status: task.taskId === "status-composer" ? "shipped" : "ready",
+            requirements: task.requirements.map((requirement) => ({
+              ...requirement,
+              verified: requirement.target,
+            })),
+          })),
+        },
+      },
+    };
+    state = gameReducer(state, { type: "SHIP_TASK", taskId: "reconnect-logic" });
+    expect(state.run?.history.at(-2)).toMatchObject({
+      kind: "task-shipped",
+      focusGained: 0,
+    });
+  });
+
+  it("cancels a Task's intent only after that Task ships", () => {
+    let state = startCycleAt("cycle-2", ["paul", "odin", "madi"]);
+    if (!state.run?.cycle) throw new Error("Expected an active Cycle");
+    state = {
+      ...state,
+      run: {
+        ...state.run,
+        cycle: {
+          ...state.run.cycle,
+          tasks: state.run.cycle.tasks.map((task) =>
+            task.taskId !== "status-composer"
+              ? task
+              : {
+                  ...task,
+                  status: "ready" as const,
+                  requirements: task.requirements.map((requirement) => ({
+                    ...requirement,
+                    verified: requirement.target,
+                  })),
+                },
+          ),
+        },
+      },
+    };
+
+    state = gameReducer(state, { type: "SHIP_TASK", taskId: "status-composer" });
+    state = gameReducer(state, { type: "END_DAY" });
+
+    expect(state.run?.morale).toBe(10);
+    expect(state.run?.cycle?.resolvedIntents).toEqual(["+1 Distraction"]);
+  });
+
+  it("loses immediately when a risky Task ships away the last Morale", () => {
+    let state = startCycle();
+    state = playCard(state, "frontend-3", "status-composer", "frontend");
+    state = playCard(state, "frontend-3", "status-composer", "frontend");
+    state = playCard(state, "agent-swarm", "status-composer", "backend");
+    if (!state.run) throw new Error("Expected a run");
+    state = { ...state, run: { ...state.run, morale: 1 } };
+
+    state = gameReducer(state, { type: "SHIP_TASK", taskId: "status-composer" });
+
+    expect(state.screen).toEqual({
+      name: "retro",
+      outcome: "defeat",
+      cause: "technically-shipped",
+    });
+    expect(state.run?.morale).toBe(0);
+    expect(state.run?.cycle).toBeNull();
+    expect(state.run?.history.at(-1)).toMatchObject({
+      kind: "task-shipped",
+      taskId: "status-composer",
     });
   });
 
@@ -192,6 +657,17 @@ describe("gameReducer", () => {
 
   it("misses at the final deadline, loses Morale, and adds Tech Debt", () => {
     let state = startCycle();
+    if (!state.run?.cycle) throw new Error("Expected an active Cycle");
+    state = {
+      ...state,
+      run: {
+        ...state.run,
+        morale: 20,
+        cycle: { ...state.run.cycle, startingMorale: 20 },
+      },
+    };
+    state = gameReducer(state, { type: "END_DAY" });
+    state = gameReducer(state, { type: "END_DAY" });
     state = gameReducer(state, { type: "END_DAY" });
     state = gameReducer(state, { type: "END_DAY" });
     state = gameReducer(state, { type: "END_DAY" });
@@ -200,13 +676,47 @@ describe("gameReducer", () => {
     if (state.screen.name !== "report") throw new Error("Expected report");
     expect(state.screen.report).toMatchObject({
       outcome: "missed",
-      moraleDelta: -5,
+      defects: 0,
+      moraleDelta: -12,
       creditsGained: 0,
-      techDebtAdded: true,
+      techDebtAdded: 3,
     });
-    expect(state.run?.morale).toBe(5);
+    expect(state.run?.morale).toBe(8);
+    expect(state.run?.techDebt).toBe(3);
+    expect(state.screen.report.tasks.map((task) => task.completed)).toEqual([false]);
     expect(state.run?.deck.at(-1)?.cardId).toBe("tech-debt");
-    expect(state.run?.pendingCardReward?.cardIds).toHaveLength(3);
+    expect(state.run?.pendingCardReward).toBeNull();
+  });
+
+  it("resolves the final intent before deciding whether a Ready Task auto-ships", () => {
+    let state = startCycleAt("cycle-2", ["paul", "odin", "madi"]);
+    if (!state.run?.cycle) throw new Error("Expected an active Cycle");
+    state = {
+      ...state,
+      run: {
+        ...state.run,
+        cycle: {
+          ...state.run.cycle,
+          day: 5,
+          tasks: state.run.cycle.tasks.map((task) => ({
+            ...task,
+            status: task.taskId === "status-composer" ? "open" : "ready",
+            requirements: task.requirements.map((requirement) => ({
+              ...requirement,
+              verified: requirement.target,
+            })),
+          })),
+        },
+      },
+    };
+
+    state = gameReducer(state, { type: "END_DAY" });
+
+    expect(state.screen.name).toBe("report");
+    if (state.screen.name !== "report") throw new Error("Expected report");
+    expect(state.screen.report.outcome).toBe("missed");
+    expect(state.screen.report.tasks.map((task) => task.completed)).toEqual([false, true]);
+    expect(state.screen.report.resolvedIntents).toContain("Crunch · −3 Morale");
   });
 
   it("does not allow more than three developers", () => {
@@ -225,12 +735,32 @@ describe("gameReducer", () => {
 
   it.each([
     ["event-1", "event", ["cycle-1"]],
-    ["shop-1", "shop", ["event-1"]],
-    ["retro-1", "retro", ["shop-1"]],
+    ["shop-1", "shop", ["cycle-1"]],
+    ["cycle-2", "cycle", ["cycle-1", "event-1"]],
+    ["retro-1", "retro", ["cycle-1", "event-1", "cycle-2", "event-2", "cycle-3", "final-release"]],
   ] as const)("routes %s to the %s placeholder", (nodeId, screenName, predecessors) => {
     let state = startMap(predecessors);
     state = gameReducer(state, { type: "VISIT_NODE", nodeId });
     expect(state.screen.name).toBe(screenName);
+    expect(state.run?.currentNodeId).toBe(nodeId);
+  });
+
+  it("locks the unchosen sibling after committing to a branch", () => {
+    let state = startMap(["cycle-1"]);
+    state = gameReducer(state, { type: "VISIT_NODE", nodeId: "event-1" });
+    state = gameReducer(state, { type: "CHOOSE_EVENT", choice: "push-back" });
+
+    expect(state.screen.name).toBe("map");
+    expect(state.run?.currentNodeId).toBe("event-1");
+    expect(state.run?.completedNodeIds).toContain("event-1");
+
+    const beforeLockedVisit = state;
+    state = gameReducer(state, { type: "VISIT_NODE", nodeId: "shop-1" });
+    expect(state).toBe(beforeLockedVisit);
+
+    state = gameReducer(state, { type: "VISIT_NODE", nodeId: "cycle-2" });
+    expect(state.screen.name).toBe("cycle");
+    expect(state.run?.currentNodeId).toBe("cycle-2");
   });
 
   it("makes the Scope Creep event choices mechanically distinct", () => {
@@ -256,7 +786,12 @@ describe("gameReducer", () => {
     sureEasy = gameReducer(sureEasy, { type: "VISIT_NODE", nodeId: "event-1" });
     sureEasy = gameReducer(sureEasy, { type: "CHOOSE_EVENT", choice: "sure-easy" });
     expect(sureEasy.run).toMatchObject({ morale: 10, credits: 75 });
+    expect(sureEasy.run?.techDebt).toBe(3);
     expect(sureEasy.run?.deck.at(-1)?.cardId).toBe("tech-debt");
     expect(sureEasy.run?.completedNodeIds).toContain("event-1");
+
+    sureEasy = gameReducer(sureEasy, { type: "VISIT_NODE", nodeId: "cycle-2" });
+    expect(sureEasy.run?.techDebt).toBe(3);
+    expect(sureEasy.run?.deck.at(-1)?.cardId).toBe("tech-debt");
   });
 });
