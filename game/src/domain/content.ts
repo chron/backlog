@@ -6,6 +6,7 @@ import type {
   IntentDefinition,
   MapEdge,
   MapNode,
+  ToolDefinition,
 } from "./models";
 import ireneFixed from "../assets/characters/irene-fixed-v1.webp";
 import ireneMaster from "../assets/characters/irene-master-v1.webp";
@@ -78,6 +79,65 @@ export const developers: readonly Developer[] = [
     },
   },
 ] as const;
+
+export const tools: readonly ToolDefinition[] = [
+  {
+    id: "pairing-session",
+    name: "Pairing Session",
+    symbol: "<>⃝",
+    rules: "All Pitch In Work is Verified.",
+  },
+  {
+    id: "ci-runner",
+    name: "CI Runner",
+    symbol: "▶",
+    rules: "Scripts run immediately when installed.",
+  },
+  {
+    id: "test-suite",
+    name: "Test Suite",
+    symbol: "✓✓",
+    rules: "Whenever you Review Work, gain that much Block.",
+  },
+  {
+    id: "error-budget",
+    name: "Error Budget",
+    symbol: "∞",
+    rules: "Unspent Block carries between Days.",
+  },
+  {
+    id: "merge-queue",
+    name: "Merge Queue",
+    symbol: "⇉",
+    rules: "Whenever you ship a Task, draw 2 cards and gain 1 Focus.",
+  },
+  {
+    id: "noise-cancelling-headphones",
+    name: "Noise-Cancelling Headphones",
+    symbol: "◖◗",
+    rules: "Every Distraction drawn is discarded and replaced.",
+  },
+  {
+    id: "enterprise-ai-licence",
+    name: "Enterprise AI Licence",
+    symbol: "AI+",
+    rules: "AI Assisted cards add 2 extra Work and 1 Tech Debt.",
+  },
+  {
+    id: "cron-upgrade",
+    name: "Cron Upgrade",
+    symbol: "×2",
+    rules: "Scripts run twice.",
+  },
+] as const;
+
+export const toolIds = tools.map((tool) => tool.id);
+
+export function getTool(id: ToolDefinition["id"]): ToolDefinition {
+  const tool = tools.find((candidate) => candidate.id === id);
+  if (!tool) throw new Error(`Unknown Tool: ${id}`);
+  return tool;
+}
 
 const cards: readonly CardDefinition[] = [
   {

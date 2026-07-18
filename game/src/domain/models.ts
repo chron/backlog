@@ -6,6 +6,15 @@ type CharacterArtwork = Readonly<Record<CharacterMood, string>>;
 
 export type Discipline = "frontend" | "backend" | "infra";
 export type WorkKind = "verified" | "unverified";
+export type ToolId =
+  | "pairing-session"
+  | "ci-runner"
+  | "test-suite"
+  | "error-budget"
+  | "merge-queue"
+  | "noise-cancelling-headphones"
+  | "enterprise-ai-licence"
+  | "cron-upgrade";
 type CardKind = "work" | "review" | "tactic" | "status";
 type CardTag =
   | "ai-assisted"
@@ -50,6 +59,13 @@ export interface CardInstance {
   instanceId: string;
   cardId: string;
   temporary?: boolean;
+}
+
+export interface ToolDefinition {
+  id: ToolId;
+  name: string;
+  symbol: string;
+  rules: string;
 }
 
 interface RequirementDefinition {
@@ -118,6 +134,11 @@ interface CardRewardState {
   cardIds: readonly [string, string, string];
 }
 
+interface ToolRewardState {
+  sourceNodeId: string;
+  toolIds: readonly [ToolId, ToolId, ToolId];
+}
+
 type RunHistoryEvent =
   | {
       kind: "cycle-finished";
@@ -135,7 +156,8 @@ type RunHistoryEvent =
       focusGained: number;
     }
   | { kind: "card-added"; cardId: string; sourceNodeId: string }
-  | { kind: "card-skipped"; sourceNodeId: string };
+  | { kind: "card-skipped"; sourceNodeId: string }
+  | { kind: "tool-added"; toolId: ToolId; sourceNodeId: string };
 
 export interface RunState {
   seed: number;
@@ -143,7 +165,7 @@ export interface RunState {
   squad: DeveloperId[];
   deck: CardInstance[];
   nextCardInstanceId: number;
-  tools: string[];
+  tools: ToolId[];
   morale: number;
   techDebt: number;
   credits: number;
@@ -151,6 +173,7 @@ export interface RunState {
   completedNodeIds: string[];
   cycle: CycleState | null;
   pendingCardReward: CardRewardState | null;
+  pendingToolReward: ToolRewardState | null;
   history: RunHistoryEvent[];
 }
 

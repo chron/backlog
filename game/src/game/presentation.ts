@@ -82,7 +82,13 @@ function applyResolution(
         ? requirement
         : {
             ...requirement,
-            [resolution.workKind]: requirement[resolution.workKind] + resolution.amount,
+            verified:
+              requirement.verified +
+              (resolution.workKind === "verified" ? resolution.amount : 0) +
+              resolution.scriptRunAmount,
+            unverified:
+              requirement.unverified +
+              (resolution.workKind === "unverified" ? resolution.amount : 0),
             scriptPower: requirement.scriptPower + resolution.scriptPowerAdded,
             scriptBlock: requirement.scriptBlock + resolution.scriptBlockAdded,
           },

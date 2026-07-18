@@ -156,6 +156,7 @@ export function CycleScreen({ dispatch, run, onInspectCards }: CycleScreenProps)
 
   if (!run || !cycle) return null;
   const definition = getCycle(cycle.cycleId);
+  const scriptMultiplier = run.tools.includes("cron-upgrade") ? 2 : 1;
   const moraleIncoming = incomingMorale(cycle);
   const incomingDamage = absorbMoraleDamage(cycle.block, moraleIncoming);
   const resolvingDay = Boolean(ceremony);
@@ -301,7 +302,7 @@ export function CycleScreen({ dispatch, run, onInspectCards }: CycleScreenProps)
             if (task.status === "shipped") return [];
             const scripted = task.requirements.flatMap((requirement) => {
               const amount = Math.min(
-                requirement.scriptPower,
+                requirement.scriptPower * scriptMultiplier,
                 Math.max(0, requirement.target - requirement.verified - requirement.unverified),
               );
               return [
@@ -309,7 +310,7 @@ export function CycleScreen({ dispatch, run, onInspectCards }: CycleScreenProps)
                   ? `${disciplineLabel(requirement.discipline)} Script · +${amount} Verified`
                   : undefined,
                 requirement.scriptBlock > 0
-                  ? `Guard · +${requirement.scriptBlock} Block`
+                  ? `Guard · +${requirement.scriptBlock * scriptMultiplier} Block`
                   : undefined,
               ].filter((label): label is string => Boolean(label));
             });

@@ -1,4 +1,5 @@
 import type { RunState } from "../domain/models";
+import { ToolRack } from "./ToolRack";
 
 interface RunVitalsProps {
   floating?: boolean;
@@ -29,6 +30,7 @@ export function RunVitals({ floating, run }: RunVitalsProps) {
           <span>{debtUntilJunk} Debt away</span>
         </span>
       </span>
+      <ToolRack toolIds={run.tools} />
     </div>
   );
 }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { eligibleRewardCardIds, formatIntent, getCard, getCycle } from "../domain/content";
-import type { DeveloperId, Discipline } from "../domain/models";
+import { eligibleRewardCardIds, formatIntent, getCard, getCycle, tools } from "../domain/content";
+import type { DeveloperId, Discipline, ToolId } from "../domain/models";
 import { gameReducer, initialGameState } from "./gameReducer";
 import type { GameState } from "./gameReducer";
 
@@ -105,6 +105,11 @@ function addCardToHand(state: GameState, cardId: string): GameState {
       },
     },
   };
+}
+
+function withTools(state: GameState, ...toolIds: ToolId[]): GameState {
+  if (!state.run) throw new Error("Expected a run");
+  return { ...state, run: { ...state.run, tools: toolIds } };
 }
 
 function startMap(completedNodeIds: readonly string[] = []): GameState {
@@ -793,5 +798,161 @@ describe("gameReducer", () => {
     sureEasy = gameReducer(sureEasy, { type: "VISIT_NODE", nodeId: "cycle-2" });
     expect(sureEasy.run?.techDebt).toBe(3);
     expect(sureEasy.run?.deck.at(-1)?.cardId).toBe("tech-debt");
+  });
+
+  it("authors eight unrestricted build-shaping Tools", () => {
+    expect(tools).toHaveLength(8);
+    expect(tools.map((tool) => tool.id)).toEqual([
+      "pairing-session",
+      "ci-runner",
+      "test-suite",
+      "error-budget",
+      "merge-queue",
+      "noise-cancelling-headphones",
+      "enterprise-ai-licence",
+      "cron-upgrade",
+    ]);
+    expect(tools.every((tool) => !tool.rules.includes("first"))).toBe(true);
+  });
+
+  it("offers deterministic unique Tool rewards and never offers an owned Tool", () => {
+    const base = withTools(startMap(), "pairing-session");
+    const first = gameReducer(base, { type: "OFFER_TOOL_REWARD", sourceNodeId: "incident-a" });
+    const second = gameReducer(base, { type: "OFFER_TOOL_REWARD", sourceNodeId: "incident-a" });
+
+    expect(first.screen.name).toBe("tool-reward");
+    expect(first.run?.pendingToolReward).toEqual(second.run?.pendingToolReward);
+    const offered = first.run?.pendingToolReward?.toolIds;
+    expect(offered).toHaveLength(3);
+    expect(new Set(offered).size).toBe(3);
+    expect(offered).not.toContain("pairing-session");
+
+    const chosen = offered?.[0];
+    if (!chosen) throw new Error("Expected a Tool reward");
+    const selected = gameReducer(first, { type: "CHOOSE_TOOL_REWARD", toolId: chosen });
+    expect(selected.screen.name).toBe("map");
+    expect(selected.run?.tools).toEqual(["pairing-session", chosen]);
+    expect(selected.run?.pendingToolReward).toBeNull();
+    expect(selected.run?.history.at(-1)).toEqual({
+      kind: "tool-added",
+      toolId: chosen,
+      sourceNodeId: "incident-a",
+    });
+  });
+
+  it("makes every Pitch In Verified with Pairing Session", () => {
+    let state = withTools(startCycle(["paul", "odin", "madi"]), "pairing-session");
+    state = playCard(state, "backend-3", "status-composer", "frontend");
+    expect(state.run?.cycle?.tasks[0]?.requirements[0]).toMatchObject({
+      verified: 1,
+      unverified: 0,
+    });
+  });
+
+  it("runs newly installed Scripts immediately with CI Runner", () => {
+    let state = withTools(startCycleAt("cycle-2", ["paul", "odin", "madi"]), "ci-runner");
+    state = playCard(state, "quick-script", "reconnect-logic", "backend");
+    expect(state.run?.cycle?.tasks[1]?.requirements[0]).toMatchObject({
+      verified: 2,
+      scriptPower: 1,
+    });
+  });
+
+  it("turns every point of Review into Block with Test Suite", () => {
+    let state = withTools(startCycle(["paul", "irene", "madi"]), "test-suite");
+    state = playCard(state, "vibe-code", "status-composer", "frontend");
+    state = playCard(state, "review-3", "status-composer");
+    expect(state.run?.cycle).toMatchObject({ block: 3 });
+    expect(state.run?.cycle?.tasks[0]?.requirements[0]).toMatchObject({
+      verified: 3,
+      unverified: 2,
+    });
+  });
+
+  it("carries all unused Block between Days with Error Budget", () => {
+    let state = withTools(startCycle(["paul", "odin", "madi"]), "error-budget");
+    state = playCardOnSquad(state, "protect-the-branch");
+    state = gameReducer(state, { type: "END_DAY" });
+    expect(state.run?.cycle).toMatchObject({ day: 2, block: 4 });
+  });
+
+  it("draws two and gains Focus on every ship with Merge Queue", () => {
+    let state = withTools(startCycleAt("cycle-2", ["paul", "odin", "madi"]), "merge-queue");
+    if (!state.run?.cycle) throw new Error("Expected an active Cycle");
+    state = {
+      ...state,
+      run: {
+        ...state.run,
+        cycle: {
+          ...state.run.cycle,
+          focus: 3,
+          hand: [],
+          drawPile: [
+            { cardId: "frontend-3", instanceId: "merge-draw-1" },
+            { cardId: "backend-3", instanceId: "merge-draw-2" },
+          ],
+          tasks: state.run.cycle.tasks.map((task) =>
+            task.taskId === "status-composer"
+              ? {
+                  ...task,
+                  status: "ready",
+                  requirements: task.requirements.map((requirement) => ({
+                    ...requirement,
+                    verified: requirement.target,
+                  })),
+                }
+              : task,
+          ),
+        },
+      },
+    };
+
+    state = gameReducer(state, { type: "SHIP_TASK", taskId: "status-composer" });
+    expect(state.run?.cycle?.focus).toBe(4);
+    expect(state.run?.cycle?.hand.map((card) => card.instanceId)).toEqual([
+      "merge-draw-1",
+      "merge-draw-2",
+    ]);
+  });
+
+  it("replaces every drawn Distraction with Noise-Cancelling Headphones", () => {
+    let state = withTools(
+      startCycleAt("cycle-2", ["paul", "odin", "madi"]),
+      "noise-cancelling-headphones",
+    );
+    state = gameReducer(state, { type: "END_DAY" });
+    expect(state.run?.cycle?.hand).toHaveLength(5);
+    expect(state.run?.cycle?.hand.some((card) => card.cardId === "distraction")).toBe(false);
+  });
+
+  it("supercharges every AI Assisted card and adds Debt with the enterprise licence", () => {
+    let state = withTools(startCycle(["paul", "odin", "madi"]), "enterprise-ai-licence");
+    state = playCard(state, "agent-swarm", "status-composer", "frontend");
+    expect(state.run?.cycle?.tasks[0]?.requirements[0]).toMatchObject({ unverified: 3 });
+    expect(state.run).toMatchObject({ techDebt: 1 });
+    expect(state.run?.cycle).toMatchObject({ techDebtAdded: 1 });
+  });
+
+  it("runs every Script twice with Cron Upgrade", () => {
+    let state = withTools(startCycle(["paul", "odin", "madi"]), "cron-upgrade");
+    if (!state.run?.cycle) throw new Error("Expected an active Cycle");
+    state = {
+      ...state,
+      run: {
+        ...state.run,
+        cycle: {
+          ...state.run.cycle,
+          tasks: state.run.cycle.tasks.map((task) => ({
+            ...task,
+            requirements: task.requirements.map((requirement) => ({
+              ...requirement,
+              scriptPower: requirement.discipline === "frontend" ? 1 : 0,
+            })),
+          })),
+        },
+      },
+    };
+    state = gameReducer(state, { type: "END_DAY" });
+    expect(state.run?.cycle?.tasks[0]?.requirements[0]).toMatchObject({ verified: 2 });
   });
 });

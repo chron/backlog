@@ -11,6 +11,7 @@ import { RetroScreen } from "../screens/RetroScreen";
 import { ShopScreen } from "../screens/ShopScreen";
 import { SquadScreen } from "../screens/SquadScreen";
 import { TitleScreen } from "../screens/TitleScreen";
+import { ToolRewardScreen } from "../screens/ToolRewardScreen";
 import { developers } from "../domain/content";
 import type { CardInstance } from "../domain/models";
 
@@ -83,6 +84,9 @@ export function App() {
       break;
     case "reward":
       screen = <RewardScreen dispatch={dispatch} run={state.run} />;
+      break;
+    case "tool-reward":
+      screen = <ToolRewardScreen dispatch={dispatch} run={state.run} />;
       break;
     case "event":
       screen = (

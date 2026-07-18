@@ -35,7 +35,9 @@ export type CardResolution =
       workKind: WorkKind;
       scriptPowerAdded: number;
       scriptBlockAdded: number;
+      scriptRunAmount: number;
       blockGained: number;
+      techDebtAdded: number;
       pitchedIn: boolean;
       triggeredPassiveIds: DeveloperId[];
       label: string;
@@ -47,6 +49,7 @@ export type CardResolution =
       taskId: string;
       amount: number;
       blockGained: number;
+      techDebtAdded: number;
       triggeredPassiveIds: DeveloperId[];
       label: string;
     }
@@ -56,6 +59,7 @@ export type CardResolution =
       cost: number;
       taskId?: string;
       blockGained: number;
+      techDebtAdded: number;
       stun: boolean;
       triggeredPassiveIds: DeveloperId[];
       label: string;
@@ -154,6 +158,28 @@ export function taskShippingPreview(task: TaskState): {
   };
 }
 
+export function taskShippingRewards(
+  run: RunState,
+  taskId: string,
+): { cardsDrawn: number; focusGained: number; paulTriggers: boolean } {
+  const cycle = run.cycle;
+  if (!cycle) return { cardsDrawn: 0, focusGained: 0, paulTriggers: false };
+  const nonTerminal = cycle.tasks.some(
+    (candidate) => candidate.taskId !== taskId && candidate.status !== "shipped",
+  );
+  const paulTriggers =
+    run.squad.includes("paul") &&
+    !cycle.triggeredPassiveIds.includes("paul") &&
+    nonTerminal &&
+    cycle.focus < 3;
+  const mergeQueue = run.tools.includes("merge-queue");
+  return {
+    cardsDrawn: mergeQueue ? 2 : 0,
+    focusGained: (paulTriggers ? 1 : 0) + (mergeQueue ? 1 : 0),
+    paulTriggers,
+  };
+}
+
 export function effectiveCardCost(
   card: CardDefinition,
   cycle: CycleState,
@@ -198,6 +224,7 @@ export function resolveCardTarget(
       legal: true,
       cost,
       blockGained: card.block ?? 0,
+      techDebtAdded: 0,
       stun: false,
       triggeredPassiveIds: [],
       label: card.block ? `Block ${card.block}` : card.name,
@@ -228,15 +255,17 @@ export function resolveCardTarget(
       triggeredPassiveIds = addTriggeredPassive(triggeredPassiveIds, "odin");
     }
     const amount = Math.min(available, card.amount + odinBonus);
+    const blockGained = (card.block ?? 0) + (run.tools.includes("test-suite") ? amount : 0);
     return {
       kind: "review",
       legal: true,
       cost,
       taskId: task.taskId,
       amount,
-      blockGained: card.block ?? 0,
+      blockGained,
+      techDebtAdded: 0,
       triggeredPassiveIds,
-      label: [`Verify ${amount}`, card.block ? `Block ${card.block}` : undefined]
+      label: [`Verify ${amount}`, blockGained ? `Block ${blockGained}` : undefined]
         .filter(Boolean)
         .join(" · "),
     };
@@ -255,6 +284,7 @@ export function resolveCardTarget(
       cost,
       taskId: task.taskId,
       blockGained: card.block ?? 0,
+      techDebtAdded: 0,
       stun: card.stun ?? false,
       triggeredPassiveIds,
       label: [card.stun ? "Stun" : undefined, card.block ? `Block ${card.block}` : undefined]
@@ -279,9 +309,16 @@ export function resolveCardTarget(
   }
 
   const pitchedIn = card.discipline !== "flexible" && card.discipline !== target.discipline;
-  const workKind: WorkKind = pitchedIn ? "unverified" : (card.workKind ?? "verified");
+  const pairedPitchIn = pitchedIn && run.tools.includes("pairing-session");
+  const workKind: WorkKind =
+    pitchedIn && !pairedPitchIn ? "unverified" : (card.workKind ?? "verified");
+  const scriptMultiplier = run.tools.includes("cron-upgrade") ? 2 : 1;
   let amount =
-    card.automation?.kind === "trigger" ? requirement.scriptPower : pitchedIn ? 1 : card.amount;
+    card.automation?.kind === "trigger"
+      ? requirement.scriptPower * scriptMultiplier
+      : pitchedIn
+        ? 1
+        : card.amount;
 
   if (
     amount > 0 &&
@@ -303,11 +340,27 @@ export function resolveCardTarget(
     triggeredPassiveIds = addTriggeredPassive(triggeredPassiveIds, "madi");
   }
 
+  const aiAssisted = card.tags.includes("ai-assisted");
+  if (aiAssisted && run.tools.includes("enterprise-ai-licence")) {
+    amount += 2;
+  }
+
   amount = Math.min(amount, remainingWork(requirement));
   const scriptPowerAdded = card.automation?.kind === "install" ? card.automation.power : 0;
   const scriptBlockAdded =
     card.automation?.kind === "install" ? (card.automation.blockPower ?? 0) : 0;
   const blockGained = card.block ?? 0;
+  const scriptRunAmount =
+    card.automation?.kind === "install" && run.tools.includes("ci-runner")
+      ? Math.min(
+          card.automation.power * scriptMultiplier,
+          Math.max(0, remainingWork(requirement) - amount),
+        )
+      : 0;
+  const techDebtAdded = aiAssisted && run.tools.includes("enterprise-ai-licence") ? 1 : 0;
+  const pitchLabel = pairedPitchIn
+    ? `Pairing · ${amount} Verified`
+    : `Pitch In · ${amount} Unverified`;
   const label =
     card.automation?.kind === "trigger"
       ? `Run Script · +${amount} Verified`
@@ -315,20 +368,21 @@ export function resolveCardTarget(
         ? [
             amount > 0
               ? pitchedIn
-                ? `Pitch In · ${amount} Unverified`
+                ? pitchLabel
                 : `+${amount} ${workKind === "verified" ? "Verified" : "Unverified"}`
               : undefined,
             scriptPowerAdded > 0 ? `Script +${scriptPowerAdded}` : undefined,
+            scriptRunAmount > 0 ? `Run +${scriptRunAmount}` : undefined,
             scriptBlockAdded > 0 ? `Guard +${scriptBlockAdded}` : undefined,
             blockGained > 0 ? `Block ${blockGained}` : undefined,
+            techDebtAdded > 0 ? `Debt +${techDebtAdded}` : undefined,
           ]
             .filter(Boolean)
             .join(" · ")
         : [
-            pitchedIn
-              ? `Pitch In · ${amount} Unverified`
-              : `${disciplineLabel(target.discipline)} +${amount} ${workKind}`,
+            pitchedIn ? pitchLabel : `${disciplineLabel(target.discipline)} +${amount} ${workKind}`,
             blockGained > 0 ? `Block ${blockGained}` : undefined,
+            techDebtAdded > 0 ? `Debt +${techDebtAdded}` : undefined,
           ]
             .filter(Boolean)
             .join(" · ");
@@ -343,7 +397,9 @@ export function resolveCardTarget(
     workKind,
     scriptPowerAdded,
     scriptBlockAdded,
+    scriptRunAmount,
     blockGained,
+    techDebtAdded,
     pitchedIn,
     triggeredPassiveIds,
     label,

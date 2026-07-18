@@ -9,6 +9,7 @@ import {
   squadRewardCardIds,
   starterBasicCardIds,
   teamRewardCardIds,
+  toolIds,
 } from "../domain/content";
 import type {
   CardInstance,
@@ -19,6 +20,7 @@ import type {
   MapNodeKind,
   RunState,
   TaskState,
+  ToolId,
 } from "../domain/models";
 import {
   absorbMoraleDamage,
@@ -29,6 +31,7 @@ import {
   refreshTaskStatus,
   resolveCardTarget,
   taskShippingPreview,
+  taskShippingRewards,
   verifyTask,
 } from "./rules";
 import type { CardTarget } from "./rules";
@@ -41,6 +44,7 @@ type Screen =
   | { name: "cycle"; nodeId: string; cycleId: string }
   | { name: "report"; report: CycleReport }
   | { name: "reward" }
+  | { name: "tool-reward" }
   | { name: "event"; nodeId: string }
   | { name: "shop"; nodeId: string }
   | {
@@ -69,6 +73,8 @@ export type GameAction =
   | { type: "CONTINUE_REPORT" }
   | { type: "CHOOSE_CARD_REWARD"; cardId: string }
   | { type: "SKIP_CARD_REWARD" }
+  | { type: "OFFER_TOOL_REWARD"; sourceNodeId: string }
+  | { type: "CHOOSE_TOOL_REWARD"; toolId: ToolId }
   | { type: "CHOOSE_EVENT"; choice: "push-back" | "sure-easy" }
   | { type: "LEAVE_NODE" }
   | { type: "RETURN_TITLE" };
@@ -94,6 +100,7 @@ function createRun(seed = 0x5eed1234): RunState {
     completedNodeIds: [],
     cycle: null,
     pendingCardReward: null,
+    pendingToolReward: null,
     history: [],
   };
 }
@@ -133,6 +140,31 @@ function createCardReward(run: RunState, sourceNodeId: string): RunState {
   };
 }
 
+function createToolReward(run: RunState, sourceNodeId: string): RunState {
+  const remaining = toolIds.filter((toolId) => !run.tools.includes(toolId));
+  if (remaining.length < 3) return run;
+
+  let rngState = run.rngState;
+  const picks: ToolId[] = [];
+  for (let index = 0; index < 3; index += 1) {
+    const pick = sampleOne(
+      remaining.filter((toolId) => !picks.includes(toolId)),
+      rngState,
+    );
+    picks.push(pick.item);
+    rngState = pick.rngState;
+  }
+
+  return {
+    ...run,
+    rngState,
+    pendingToolReward: {
+      sourceNodeId,
+      toolIds: picks as [ToolId, ToolId, ToolId],
+    },
+  };
+}
+
 function completeNode(run: RunState, nodeId: string): RunState {
   return {
     ...run,
@@ -146,6 +178,7 @@ function drawCards(
   originalDrawPile: readonly CardInstance[],
   originalDiscardPile: readonly CardInstance[],
   count: number,
+  replaceDistractions = false,
 ): {
   drawPile: CardInstance[];
   discardPile: CardInstance[];
@@ -163,7 +196,9 @@ function drawCards(
     }
 
     const next = drawPile.shift();
-    if (next) drawn.push(next);
+    if (!next) continue;
+    if (replaceDistractions && next.cardId === "distraction") continue;
+    drawn.push(next);
   }
 
   return { drawPile, discardPile, drawn };
@@ -171,7 +206,7 @@ function drawCards(
 
 function createCycleState(run: RunState, nodeId: string, cycleId: string): CycleState {
   const definition = getCycle(cycleId);
-  const firstDraw = drawCards(run.deck, [], 5);
+  const firstDraw = drawCards(run.deck, [], 5, run.tools.includes("noise-cancelling-headphones"));
   return {
     nodeId,
     cycleId,
@@ -310,15 +345,14 @@ function applyTaskShipping(
   if (!task || task.status !== "ready") return undefined;
 
   const preview = taskShippingPreview(task);
-  const nonTerminal = cycle.tasks.some(
-    (candidate) => candidate.taskId !== taskId && candidate.status !== "shipped",
+  const rewards = taskShippingRewards(run, taskId);
+  const paulTriggers = rewards.paulTriggers;
+  const nextDraw = drawCards(
+    cycle.drawPile,
+    cycle.discardPile,
+    rewards.cardsDrawn,
+    run.tools.includes("noise-cancelling-headphones"),
   );
-  const paulTriggers =
-    run.squad.includes("paul") &&
-    !cycle.triggeredPassiveIds.includes("paul") &&
-    nonTerminal &&
-    cycle.focus < 3;
-  const focusGained = paulTriggers ? Math.min(1, 3 - cycle.focus) : 0;
   const damage = absorbMoraleDamage(cycle.block, preview.moraleLoss);
   const nextCycle: CycleState = {
     ...cycle,
@@ -327,7 +361,10 @@ function applyTaskShipping(
     ),
     defects: cycle.defects + preview.defects,
     techDebtAdded: cycle.techDebtAdded + preview.techDebt,
-    focus: cycle.focus + focusGained,
+    focus: cycle.focus + rewards.focusGained,
+    drawPile: nextDraw.drawPile,
+    hand: [...cycle.hand, ...nextDraw.drawn],
+    discardPile: nextDraw.discardPile,
     block: damage.block,
     triggeredPassiveIds: paulTriggers
       ? [...cycle.triggeredPassiveIds, "paul"]
@@ -346,7 +383,7 @@ function applyTaskShipping(
         defects: preview.defects,
         moraleLoss: damage.moraleLoss,
         techDebtAdded: preview.techDebt,
-        focusGained,
+        focusGained: rewards.focusGained,
       },
     ],
   };
@@ -354,11 +391,17 @@ function applyTaskShipping(
   return { run: nextRun, cycle: nextCycle };
 }
 
-function runScripts(tasks: readonly TaskState[]): { tasks: TaskState[]; block: number } {
+function runScripts(
+  tasks: readonly TaskState[],
+  multiplier: number,
+): { tasks: TaskState[]; block: number } {
   let block = 0;
   const nextTasks = tasks.map((task) => {
     if (task.status === "shipped") return task;
-    block += task.requirements.reduce((sum, requirement) => sum + requirement.scriptBlock, 0);
+    block += task.requirements.reduce(
+      (sum, requirement) => sum + requirement.scriptBlock * multiplier,
+      0,
+    );
     return refreshTaskStatus({
       ...task,
       requirements: task.requirements.map((requirement) => {
@@ -368,7 +411,8 @@ function runScripts(tasks: readonly TaskState[]): { tasks: TaskState[]; block: n
         );
         return {
           ...requirement,
-          verified: requirement.verified + Math.min(requirement.scriptPower, remaining),
+          verified:
+            requirement.verified + Math.min(requirement.scriptPower * multiplier, remaining),
         };
       }),
     });
@@ -509,13 +553,15 @@ function endDay(run: RunState, cycle: CycleState): GameState {
     [...distractions, ...resolvedCycle.drawPile],
     resolvedCycle.discardPile,
     5,
+    run.tools.includes("noise-cancelling-headphones"),
   );
-  const scripts = runScripts(resolvedCycle.tasks);
+  const scriptMultiplier = run.tools.includes("cron-upgrade") ? 2 : 1;
+  const scripts = runScripts(resolvedCycle.tasks, scriptMultiplier);
   const nextCycle: CycleState = {
     ...resolvedCycle,
     day: cycle.day + 1,
     focus: 3,
-    block: scripts.block,
+    block: scripts.block + (run.tools.includes("error-budget") ? resolvedCycle.block : 0),
     tasks: scripts.tasks.map((task) => ({ ...task, stunned: false })),
     drawPile: nextDraw.drawPile,
     hand: nextDraw.drawn,
@@ -631,7 +677,13 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
               ? requirement
               : {
                   ...requirement,
-                  [resolution.workKind]: requirement[resolution.workKind] + resolution.amount,
+                  verified:
+                    requirement.verified +
+                    (resolution.workKind === "verified" ? resolution.amount : 0) +
+                    resolution.scriptRunAmount,
+                  unverified:
+                    requirement.unverified +
+                    (resolution.workKind === "unverified" ? resolution.amount : 0),
                   scriptPower: requirement.scriptPower + resolution.scriptPowerAdded,
                   scriptBlock: requirement.scriptBlock + resolution.scriptBlockAdded,
                 },
@@ -646,12 +698,15 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         ...cycle,
         focus: cycle.focus - resolution.cost,
         block: cycle.block + resolution.blockGained,
+        techDebtAdded: cycle.techDebtAdded + resolution.techDebtAdded,
         tasks,
         hand: cycle.hand.filter((candidate) => candidate.instanceId !== instance.instanceId),
         discardPile: [...cycle.discardPile, instance],
         triggeredPassiveIds,
       };
-      return { ...state, run: { ...state.run, cycle: nextCycle } };
+      let nextRun: RunState = { ...state.run, cycle: nextCycle };
+      nextRun = addTechDebt(nextRun, resolution.techDebtAdded);
+      return { ...state, run: nextRun };
     }
 
     case "END_DAY":
@@ -709,6 +764,40 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
           history: [
             ...state.run.history,
             { kind: "card-skipped", sourceNodeId: reward.sourceNodeId },
+          ],
+        },
+      };
+    }
+
+    case "OFFER_TOOL_REWARD": {
+      if (
+        !state.run ||
+        state.run.cycle ||
+        state.run.pendingCardReward ||
+        state.run.pendingToolReward
+      ) {
+        return state;
+      }
+      const run = createToolReward(state.run, action.sourceNodeId);
+      if (!run.pendingToolReward) return state;
+      return { screen: { name: "tool-reward" }, run };
+    }
+
+    case "CHOOSE_TOOL_REWARD": {
+      if (state.screen.name !== "tool-reward" || !state.run?.pendingToolReward) return state;
+      const reward = state.run.pendingToolReward;
+      if (!reward.toolIds.includes(action.toolId) || state.run.tools.includes(action.toolId)) {
+        return state;
+      }
+      return {
+        screen: { name: "map" },
+        run: {
+          ...state.run,
+          tools: [...state.run.tools, action.toolId],
+          pendingToolReward: null,
+          history: [
+            ...state.run.history,
+            { kind: "tool-added", toolId: action.toolId, sourceNodeId: reward.sourceNodeId },
           ],
         },
       };
