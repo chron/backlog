@@ -960,6 +960,7 @@ main:focus {
 }
 
 .intent-badge {
+  position: relative;
   max-width: 48%;
   padding: 0.55rem 0.65rem;
   border: 2px solid var(--ink);
@@ -970,6 +971,13 @@ main:focus {
   line-height: 1.15;
   text-align: right;
   text-transform: uppercase;
+  color: inherit;
+  cursor: help;
+  font-family: inherit;
+}
+
+.intent-badge:disabled {
+  cursor: default;
 }
 
 .intent-badge--crunch,
@@ -985,6 +993,23 @@ main:focus {
 .intent-badge--cancelled {
   background: var(--mint);
   box-shadow: none;
+}
+
+.intent-badge:hover .game-tooltip,
+.intent-badge:focus-visible .game-tooltip {
+  display: block;
+}
+
+.intent-badge:focus-visible {
+  outline: 3px solid var(--blue);
+  outline-offset: 3px;
+}
+
+.intent-badge .game-tooltip {
+  right: 0;
+  left: auto;
+  width: min(320px, calc(100vw - 2rem));
+  transform: rotate(1deg);
 }
 
 .requirement-stack {
@@ -1087,6 +1112,23 @@ main:focus {
     color-mix(in oklch, var(--yellow) 70%, transparent) 5px,
     color-mix(in oklch, var(--yellow) 70%, transparent) 10px
   );
+}
+
+.requirement__segments {
+  position: absolute;
+  z-index: 3;
+  display: flex;
+  inset: 0;
+  pointer-events: none;
+}
+
+.requirement__segments > span {
+  border-right: 2px solid color-mix(in oklch, var(--ink) 78%, transparent);
+  flex: 1;
+}
+
+.requirement__segments > span:last-child {
+  border-right: 0;
 }
 
 .requirement.is-targetable:hover .requirement__fill--preview,
@@ -1703,11 +1745,11 @@ main:focus {
   padding: 0;
   grid-template-columns: auto minmax(0, 1fr);
   align-items: stretch;
-  overflow: hidden;
+  overflow: visible;
   text-align: left;
 }
 
-.intent-badge > span {
+.intent-badge__label {
   display: grid;
   padding: 0.45rem;
   place-items: center;

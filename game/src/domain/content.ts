@@ -684,3 +684,22 @@ export function formatIntent(intent: IntentDefinition): string {
       return `Crunch · −${intent.moraleLoss} Morale`;
   }
 }
+
+export function describeIntent(intent: IntentDefinition): string {
+  const consequence = (() => {
+    switch (intent.kind) {
+      case "scope":
+        return `Adds ${intent.amount} ${disciplineLabel(intent.discipline)} Work to this Task.`;
+      case "regression":
+        return `Removes up to ${intent.amount} ${disciplineLabel(intent.discipline)} Work from this Task.`;
+      case "blocked":
+        return `${disciplineLabel(intent.discipline)} cards cost 1 extra Focus next Day.`;
+      case "interruption":
+        return "Adds 1 Distraction to tomorrow's draw.";
+      case "crunch":
+        return `Deals ${intent.moraleLoss} Morale damage. Block absorbs it first.`;
+    }
+  })();
+
+  return `${consequence} Ship this Task or Stun its intent before End Day to stop it.`;
+}

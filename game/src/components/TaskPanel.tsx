@@ -1,4 +1,4 @@
-import { disciplineLabel, formatIntent } from "../domain/content";
+import { describeIntent, disciplineLabel, formatIntent } from "../domain/content";
 import type { CardInstance, Discipline, RunState, TaskState } from "../domain/models";
 import {
   absorbMoraleDamage,
@@ -48,6 +48,8 @@ export function TaskPanel({
     cycle.focus < 3;
   const intent = getCurrentIntent(cycle, task);
   const scheduledIntent = getScheduledIntent(cycle, task);
+  const intentForHelp = scheduledIntent ?? intent;
+  const intentTooltipId = `intent-help-${task.taskId}`;
   const selectedDefinition = selectedCard
     ? resolveCardTarget(run, selectedCard, { taskId: task.taskId })
     : undefined;
@@ -67,10 +69,13 @@ export function TaskPanel({
           </span>
           <h2>{taskName}</h2>
         </div>
-        <div
+        <button
           className={`intent-badge intent-badge--${task.stunned ? "stunned" : (intent?.kind ?? "cancelled")}`}
+          type="button"
+          disabled={!intentForHelp}
+          aria-describedby={intentForHelp ? intentTooltipId : undefined}
         >
-          <span>Intent</span>
+          <span className="intent-badge__label">Intent</span>
           <strong>
             {task.stunned && scheduledIntent
               ? `Stunned · ${formatIntent(scheduledIntent)}`
@@ -78,7 +83,16 @@ export function TaskPanel({
                 ? formatIntent(intent)
                 : "Cancelled"}
           </strong>
-        </div>
+          {intentForHelp && (
+            <span className="game-tooltip" id={intentTooltipId} role="tooltip">
+              <strong>{task.stunned ? "Stunned" : "At End Day"}</strong>
+              <span>
+                {task.stunned ? "Cancelled for today. " : ""}
+                {describeIntent(intentForHelp)}
+              </span>
+            </span>
+          )}
+        </button>
       </header>
 
       <div className="requirement-stack">
@@ -139,6 +153,11 @@ export function TaskPanel({
                     }}
                   />
                 )}
+                <span className="requirement__segments">
+                  {Array.from({ length: requirement.target }, (_, index) => (
+                    <span key={index} />
+                  ))}
+                </span>
               </span>
               {(requirement.scriptPower > 0 || requirement.scriptBlock > 0) && (
                 <span
