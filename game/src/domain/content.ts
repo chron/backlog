@@ -179,6 +179,105 @@ const cards: readonly CardDefinition[] = [
     tags: ["character", "ai-assisted"],
   },
   {
+    id: "spike-it",
+    ownerId: "paul",
+    name: "Spike It",
+    cost: 1,
+    kind: "work",
+    discipline: "flexible",
+    amount: 5,
+    workKind: "unverified",
+    rules: "Any 5. Unverified.",
+    tags: ["character", "ai-assisted", "flexible", "reward"],
+  },
+  {
+    id: "one-more-diagram",
+    ownerId: "odin",
+    name: "One More Diagram",
+    cost: 1,
+    kind: "review",
+    amount: 6,
+    rules: "Verify 6 on one Task.",
+    tags: ["character", "review", "reward"],
+  },
+  {
+    id: "quietly-automated",
+    ownerId: "irene",
+    name: "Quietly Automated",
+    cost: 1,
+    kind: "work",
+    discipline: "flexible",
+    amount: 4,
+    workKind: "verified",
+    rules: "Any 4. Verified.",
+    tags: ["character", "automation", "flexible", "reward"],
+  },
+  {
+    id: "parallel-agents",
+    ownerId: "madi",
+    name: "Parallel Agents",
+    cost: 1,
+    kind: "work",
+    discipline: "backend",
+    amount: 6,
+    workKind: "unverified",
+    rules: "Backend 6. Unverified.",
+    tags: ["character", "ai-assisted", "reward"],
+  },
+  {
+    id: "pair-programming",
+    name: "Pair Programming",
+    cost: 1,
+    kind: "work",
+    discipline: "flexible",
+    amount: 3,
+    workKind: "verified",
+    rules: "Any 3. Verified.",
+    tags: ["flexible", "reward"],
+  },
+  {
+    id: "pixel-perfect",
+    name: "Pixel Perfect",
+    cost: 1,
+    kind: "work",
+    discipline: "frontend",
+    amount: 5,
+    workKind: "verified",
+    rules: "Frontend 5.",
+    tags: ["reward"],
+  },
+  {
+    id: "boring-api",
+    name: "Boring API",
+    cost: 1,
+    kind: "work",
+    discipline: "backend",
+    amount: 5,
+    workKind: "verified",
+    rules: "Backend 5.",
+    tags: ["reward"],
+  },
+  {
+    id: "green-build",
+    name: "Green Build",
+    cost: 1,
+    kind: "work",
+    discipline: "infra",
+    amount: 5,
+    workKind: "verified",
+    rules: "Infra 5.",
+    tags: ["automation", "reward"],
+  },
+  {
+    id: "second-pair-of-eyes",
+    name: "Second Pair of Eyes",
+    cost: 1,
+    kind: "review",
+    amount: 5,
+    rules: "Verify 5 on one Task.",
+    tags: ["review", "reward"],
+  },
+  {
     id: "tech-debt",
     name: "Tech Debt",
     cost: 0,
@@ -197,6 +296,22 @@ const cards: readonly CardDefinition[] = [
     tags: ["status"],
   },
 ] as const;
+
+export const squadRewardCardIds = cards
+  .filter((card) => card.tags.includes("reward") && card.ownerId)
+  .map((card) => card.id);
+
+export const teamRewardCardIds = cards
+  .filter((card) => card.tags.includes("reward") && !card.ownerId)
+  .map((card) => card.id);
+
+export function eligibleRewardCardIds(squad: readonly Developer["id"][]): string[] {
+  return cards
+    .filter(
+      (card) => card.tags.includes("reward") && (!card.ownerId || squad.includes(card.ownerId)),
+    )
+    .map((card) => card.id);
+}
 
 export const starterBasicCardIds = [
   "frontend-3",

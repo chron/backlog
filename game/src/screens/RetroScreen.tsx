@@ -1,4 +1,5 @@
 import type { DispatchProps } from "../app/types";
+import { createRunSeed } from "../game/random";
 
 interface RetroScreenProps extends DispatchProps {
   outcome: "victory" | "defeat";
@@ -33,7 +34,7 @@ export function RetroScreen({ dispatch, outcome }: RetroScreenProps) {
         <button
           className="button button--primary"
           type="button"
-          onClick={() => dispatch({ type: "START_RUN" })}
+          onClick={() => dispatch({ type: "START_RUN", seed: createRunSeed() })}
         >
           Again
         </button>

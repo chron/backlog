@@ -49,12 +49,10 @@ export function ReportScreen({ dispatch, report }: ReportScreenProps) {
         ))}
       </div>
 
-      {shipped && (
-        <div className="reward-placeholder">
-          <strong>Card reward next</strong>
-          <span>+{report.creditsGained} Credits</span>
-        </div>
-      )}
+      <div className="reward-placeholder">
+        <strong>Card reward next</strong>
+        <span>{report.creditsGained > 0 ? `+${report.creditsGained} Credits` : "No Credits"}</span>
+      </div>
 
       <div className="screen-actions">
         <button

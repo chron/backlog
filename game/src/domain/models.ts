@@ -14,6 +14,7 @@ type CardTag =
   | "character"
   | "flexible"
   | "review"
+  | "reward"
   | "status";
 
 export interface Developer {
@@ -100,14 +101,34 @@ export interface CycleState {
   temporaryCardCounter: number;
 }
 
+interface CardRewardState {
+  sourceNodeId: string;
+  cardIds: readonly [string, string, string];
+}
+
+type RunHistoryEvent =
+  | {
+      kind: "cycle-finished";
+      nodeId: string;
+      outcome: CycleReport["outcome"];
+      day: number;
+    }
+  | { kind: "card-added"; cardId: string; sourceNodeId: string }
+  | { kind: "card-skipped"; sourceNodeId: string };
+
 export interface RunState {
+  seed: number;
+  rngState: number;
   squad: DeveloperId[];
   deck: CardInstance[];
+  nextCardInstanceId: number;
   tools: string[];
   morale: number;
   credits: number;
   completedNodeIds: string[];
   cycle: CycleState | null;
+  pendingCardReward: CardRewardState | null;
+  history: RunHistoryEvent[];
 }
 
 interface TaskReport {

@@ -2030,6 +2030,142 @@ main:focus {
   border: 3px dashed color-mix(in srgb, var(--ink) 45%, transparent);
 }
 
+.reward-screen {
+  position: relative;
+  display: grid;
+  min-height: 100dvh;
+  padding-top: clamp(1.5rem, 4vh, 3rem);
+  padding-bottom: 1.5rem;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  place-items: center;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+.reward-screen::before {
+  position: absolute;
+  z-index: -2;
+  inset: 11% -18%;
+  border-top: 5px solid var(--ink);
+  border-bottom: 5px solid var(--ink);
+  content: "";
+  background: var(--yellow);
+  box-shadow: 0 12px 0 color-mix(in oklch, var(--ink) 24%, transparent);
+  transform: rotate(-6deg);
+}
+
+.reward-screen::after {
+  position: absolute;
+  z-index: -1;
+  top: 6%;
+  left: 50%;
+  width: min(1050px, 94vw);
+  height: 88%;
+  content: "";
+  background: repeating-conic-gradient(
+    from 18deg at 50% 54%,
+    color-mix(in oklch, var(--coral) 38%, transparent) 0deg 7deg,
+    transparent 7deg 15deg
+  );
+  clip-path: polygon(7% 4%, 96% 0, 100% 96%, 0 100%);
+  opacity: 0.52;
+  transform: translateX(-50%);
+}
+
+.reward-screen__title {
+  z-index: 2;
+  margin: 0;
+  color: var(--coral);
+  font-family: var(--display);
+  font-size: clamp(4rem, 11vw, 8rem);
+  font-weight: 900;
+  letter-spacing: -0.065em;
+  line-height: 0.82;
+  text-shadow: 6px 6px 0 var(--ink);
+  -webkit-text-stroke: 2px var(--ink);
+  transform: rotate(-2deg);
+}
+
+.reward-fan {
+  display: flex;
+  width: min(920px, 100%);
+  min-height: 390px;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(0.75rem, 3vw, 2rem);
+  perspective: 900px;
+}
+
+.reward-card {
+  position: relative;
+  animation: reward-deal 520ms var(--ease-out-expo) both;
+  animation-delay: calc(var(--reward-index) * 90ms);
+}
+
+.reward-card:nth-child(1) {
+  transform: translateY(22px) rotate(-4deg);
+}
+
+.reward-card:nth-child(2) {
+  transform: translateY(-4px) rotate(0.5deg);
+}
+
+.reward-card:nth-child(3) {
+  transform: translateY(20px) rotate(4deg);
+}
+
+.reward-card .game-card {
+  --card-rotation: 0deg;
+  --card-y: 0px;
+  width: clamp(210px, 23vw, 250px);
+  min-height: 340px;
+  padding: 1.15rem;
+  flex: none;
+  transform: none;
+}
+
+.reward-card .game-card:not(:disabled):hover,
+.reward-card .game-card:focus-visible {
+  z-index: 3;
+  box-shadow: 12px 12px 0 var(--ink);
+  transform: translateY(-18px) scale(1.035);
+}
+
+.reward-card .game-card > strong {
+  font-size: 1.45rem;
+}
+
+.reward-card .game-card__output b {
+  font-size: 5rem;
+}
+
+.reward-card .character-portrait--card {
+  right: -0.7rem;
+  width: 150px;
+  height: 220px;
+}
+
+.reward-screen__actions {
+  z-index: 2;
+  min-height: 54px;
+}
+
+.reward-skip {
+  min-width: 120px;
+  background: var(--panel);
+  box-shadow: 4px 4px 0 var(--ink);
+}
+
+@keyframes reward-deal {
+  from {
+    opacity: 0;
+    transform: translateY(90px) rotate(calc((var(--reward-index) - 1) * 8deg)) scale(0.82);
+  }
+  to {
+    opacity: 1;
+  }
+}
+
 .task-recap {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

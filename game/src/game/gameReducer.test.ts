@@ -1,17 +1,31 @@
 import { describe, expect, it } from "vitest";
+import { getCard } from "../domain/content";
 import type { DeveloperId, Discipline } from "../domain/models";
 import { gameReducer, initialGameState } from "./gameReducer";
 import type { GameState } from "./gameReducer";
 
 function startCycle(
   squad: readonly [DeveloperId, DeveloperId, DeveloperId] = ["paul", "irene", "madi"],
+  seed = 0x5eed1234,
 ): GameState {
-  let state = gameReducer(initialGameState, { type: "START_RUN" });
+  let state = gameReducer(initialGameState, { type: "START_RUN", seed });
   for (const developerId of squad) {
     state = gameReducer(state, { type: "TOGGLE_DEVELOPER", developerId });
   }
   state = gameReducer(state, { type: "CONFIRM_SQUAD" });
   return gameReducer(state, { type: "VISIT_NODE", nodeId: "cycle-1" });
+}
+
+function shipReadyCycle(seed = 0x5eed1234): GameState {
+  let state = startCycle(["paul", "irene", "madi"], seed);
+  state = playCard(state, "frontend-3", "status-composer", "frontend");
+  state = playCard(state, "frontend-3", "status-composer", "frontend");
+  state = playCard(state, "agent-swarm", "status-composer", "backend");
+  state = gameReducer(state, { type: "END_DAY" });
+  state = playCard(state, "backend-3", "reconnect-logic", "backend");
+  state = playCard(state, "infra-3", "reconnect-logic", "infra");
+  state = playCard(state, "infra-3", "reconnect-logic", "infra");
+  return gameReducer(state, { type: "SHIP_CYCLE" });
 }
 
 function playCard(
@@ -102,15 +116,7 @@ describe("gameReducer", () => {
   });
 
   it("ships every Ready Task with exact Defect, Morale, and credit consequences", () => {
-    let state = startCycle();
-    state = playCard(state, "frontend-3", "status-composer", "frontend");
-    state = playCard(state, "frontend-3", "status-composer", "frontend");
-    state = playCard(state, "agent-swarm", "status-composer", "backend");
-    state = gameReducer(state, { type: "END_DAY" });
-    state = playCard(state, "backend-3", "reconnect-logic", "backend");
-    state = playCard(state, "infra-3", "reconnect-logic", "infra");
-    state = playCard(state, "infra-3", "reconnect-logic", "infra");
-    state = gameReducer(state, { type: "SHIP_CYCLE" });
+    const state = shipReadyCycle();
 
     expect(state.screen.name).toBe("report");
     if (state.screen.name !== "report") throw new Error("Expected report");
@@ -124,6 +130,64 @@ describe("gameReducer", () => {
     expect(state.run?.morale).toBe(9);
     expect(state.run?.credits).toBe(65);
     expect(state.run?.completedNodeIds).toContain("cycle-1");
+    expect(state.run?.history.at(-1)).toMatchObject({
+      kind: "cycle-finished",
+      nodeId: "cycle-1",
+      outcome: "shipped",
+    });
+  });
+
+  it("creates a deterministic three-card reward with squad, team, and wildcard slots", () => {
+    const first = shipReadyCycle(123456);
+    const second = shipReadyCycle(123456);
+    const cardIds = first.run?.pendingCardReward?.cardIds;
+
+    expect(cardIds).toEqual(second.run?.pendingCardReward?.cardIds);
+    expect(cardIds).toHaveLength(3);
+    expect(new Set(cardIds).size).toBe(3);
+    if (!cardIds || !first.run) throw new Error("Expected a reward");
+
+    const [squadCard, teamCard, wildcardCard] = cardIds.map(getCard);
+    expect(squadCard.ownerId && first.run.squad.includes(squadCard.ownerId)).toBe(true);
+    expect(teamCard.ownerId).toBeUndefined();
+    expect(!wildcardCard.ownerId || first.run.squad.includes(wildcardCard.ownerId)).toBe(true);
+  });
+
+  it("adds a chosen reward card to the permanent deck", () => {
+    let state = shipReadyCycle(98765);
+    const initialDeckSize = state.run?.deck.length ?? 0;
+    const cardId = state.run?.pendingCardReward?.cardIds[0];
+    if (!cardId) throw new Error("Expected a reward card");
+
+    state = gameReducer(state, { type: "CONTINUE_REPORT" });
+    expect(state.screen.name).toBe("reward");
+    state = gameReducer(state, { type: "CHOOSE_CARD_REWARD", cardId });
+
+    expect(state.screen.name).toBe("map");
+    expect(state.run?.deck).toHaveLength(initialDeckSize + 1);
+    expect(state.run?.deck.at(-1)?.cardId).toBe(cardId);
+    expect(state.run?.pendingCardReward).toBeNull();
+    expect(state.run?.history.at(-1)).toEqual({
+      kind: "card-added",
+      cardId,
+      sourceNodeId: "cycle-1",
+    });
+  });
+
+  it("skips a reward without changing the permanent deck", () => {
+    let state = shipReadyCycle(45678);
+    const initialDeck = state.run?.deck;
+
+    state = gameReducer(state, { type: "CONTINUE_REPORT" });
+    state = gameReducer(state, { type: "SKIP_CARD_REWARD" });
+
+    expect(state.screen.name).toBe("map");
+    expect(state.run?.deck).toEqual(initialDeck);
+    expect(state.run?.pendingCardReward).toBeNull();
+    expect(state.run?.history.at(-1)).toEqual({
+      kind: "card-skipped",
+      sourceNodeId: "cycle-1",
+    });
   });
 
   it("misses at the final deadline, loses Morale, and adds Tech Debt", () => {
@@ -142,6 +206,7 @@ describe("gameReducer", () => {
     });
     expect(state.run?.morale).toBe(5);
     expect(state.run?.deck.at(-1)?.cardId).toBe("tech-debt");
+    expect(state.run?.pendingCardReward?.cardIds).toHaveLength(3);
   });
 
   it("does not allow more than three developers", () => {

@@ -1,4 +1,5 @@
 import type { DispatchProps } from "../app/types";
+import { createRunSeed } from "../game/random";
 
 export function TitleScreen({ dispatch }: DispatchProps) {
   return (
@@ -13,7 +14,7 @@ export function TitleScreen({ dispatch }: DispatchProps) {
         <button
           className="button button--primary"
           type="button"
-          onClick={() => dispatch({ type: "START_RUN" })}
+          onClick={() => dispatch({ type: "START_RUN", seed: createRunSeed() })}
         >
           New Run
         </button>

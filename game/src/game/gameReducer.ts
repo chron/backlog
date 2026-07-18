@@ -1,10 +1,14 @@
 import {
+  eligibleRewardCardIds,
   formatIntent,
+  getCard,
   getCycle,
   getDeveloper,
   isMapNodeAvailable,
   mapNodes,
+  squadRewardCardIds,
   starterBasicCardIds,
+  teamRewardCardIds,
 } from "../domain/content";
 import type {
   CardInstance,
@@ -26,6 +30,7 @@ import {
   verifyTask,
 } from "./rules";
 import type { CardTarget } from "./rules";
+import { normalizeSeed, sampleOne } from "./random";
 
 type Screen =
   | { name: "title" }
@@ -33,6 +38,7 @@ type Screen =
   | { name: "map" }
   | { name: "cycle"; nodeId: string; cycleId: string }
   | { name: "report"; report: CycleReport }
+  | { name: "reward" }
   | { name: "event"; nodeId: string }
   | { name: "shop"; nodeId: string }
   | {
@@ -47,7 +53,7 @@ export interface GameState {
 }
 
 export type GameAction =
-  | { type: "START_RUN" }
+  | { type: "START_RUN"; seed?: number }
   | { type: "TOGGLE_DEVELOPER"; developerId: DeveloperId }
   | { type: "CONFIRM_SQUAD" }
   | { type: "VISIT_NODE"; nodeId: string }
@@ -59,6 +65,8 @@ export type GameAction =
   | { type: "END_DAY" }
   | { type: "SHIP_CYCLE" }
   | { type: "CONTINUE_REPORT" }
+  | { type: "CHOOSE_CARD_REWARD"; cardId: string }
+  | { type: "SKIP_CARD_REWARD" }
   | { type: "CHOOSE_EVENT"; choice: "push-back" | "sure-easy" }
   | { type: "LEAVE_NODE" }
   | { type: "RETURN_TITLE" };
@@ -68,23 +76,57 @@ export const initialGameState: GameState = {
   run: null,
 };
 
-function createRun(): RunState {
+function createRun(seed = 0x5eed1234): RunState {
+  const normalizedSeed = normalizeSeed(seed);
   return {
+    seed: normalizedSeed,
+    rngState: normalizedSeed,
     squad: [],
     deck: [],
+    nextCardInstanceId: 1,
     tools: [],
     morale: 10,
     credits: 40,
     completedNodeIds: [],
     cycle: null,
+    pendingCardReward: null,
+    history: [],
   };
 }
 
-function createCardInstances(cardIds: readonly string[]): CardInstance[] {
+function createCardInstances(cardIds: readonly string[], startAt: number): CardInstance[] {
   return cardIds.map((cardId, index) => ({
-    instanceId: `${cardId}-${index + 1}`,
+    instanceId: `card-${startAt + index}`,
     cardId,
   }));
+}
+
+function createCardReward(run: RunState, sourceNodeId: string): RunState {
+  let rngState = run.rngState;
+  const squadPool = squadRewardCardIds.filter((cardId) => {
+    const ownerId = getCard(cardId).ownerId;
+    return ownerId ? run.squad.includes(ownerId) : false;
+  });
+  const squadPick = sampleOne(squadPool, rngState);
+  rngState = squadPick.rngState;
+
+  const teamPool = teamRewardCardIds.filter((cardId) => cardId !== squadPick.item);
+  const teamPick = sampleOne(teamPool, rngState);
+  rngState = teamPick.rngState;
+
+  const wildcardPool = eligibleRewardCardIds(run.squad).filter(
+    (cardId) => cardId !== squadPick.item && cardId !== teamPick.item,
+  );
+  const wildcardPick = sampleOne(wildcardPool, rngState);
+
+  return {
+    ...run,
+    rngState: wildcardPick.rngState,
+    pendingCardReward: {
+      sourceNodeId,
+      cardIds: [squadPick.item, teamPick.item, wildcardPick.item],
+    },
+  };
 }
 
 function completeNode(run: RunState, nodeId: string): RunState {
@@ -157,9 +199,10 @@ function addTechDebt(run: RunState): RunState {
       ...run.deck,
       {
         cardId: "tech-debt",
-        instanceId: `tech-debt-${run.deck.length + 1}`,
+        instanceId: `card-${run.nextCardInstanceId}`,
       },
     ],
+    nextCardInstanceId: run.nextCardInstanceId + 1,
   };
 }
 
@@ -176,6 +219,15 @@ function finishCycle(
     morale: finalMorale,
     credits: run.credits + creditsGained,
     cycle: null,
+    history: [
+      ...run.history,
+      {
+        kind: "cycle-finished",
+        nodeId: cycle.nodeId,
+        outcome: report.outcome,
+        day: report.day,
+      },
+    ],
   };
   if (techDebtAdded) nextRun = addTechDebt(nextRun);
 
@@ -190,6 +242,7 @@ function finishCycle(
     };
   }
 
+  nextRun = createCardReward(nextRun, cycle.nodeId);
   return { screen: { name: "report", report }, run: nextRun };
 }
 
@@ -340,7 +393,7 @@ function endDay(run: RunState, cycle: CycleState): GameState {
 export function gameReducer(state: GameState, action: GameAction): GameState {
   switch (action.type) {
     case "START_RUN":
-      return { screen: { name: "squad" }, run: createRun() };
+      return { screen: { name: "squad" }, run: createRun(action.seed) };
 
     case "TOGGLE_DEVELOPER": {
       if (state.screen.name !== "squad" || !state.run) return state;
@@ -361,9 +414,14 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         ...state.run.squad.map((id) => getDeveloper(id).startingCardId),
         ...starterBasicCardIds,
       ];
+      const deck = createCardInstances(cardIds, state.run.nextCardInstanceId);
       return {
         screen: { name: "map" },
-        run: { ...state.run, deck: createCardInstances(cardIds) },
+        run: {
+          ...state.run,
+          deck,
+          nextCardInstanceId: state.run.nextCardInstanceId + deck.length,
+        },
       };
     }
 
@@ -454,7 +512,50 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       return shipCycle(state.run, state.run.cycle);
 
     case "CONTINUE_REPORT":
-      return state.screen.name === "report" ? { ...state, screen: { name: "map" } } : state;
+      if (state.screen.name !== "report" || !state.run) return state;
+      return {
+        ...state,
+        screen: state.run.pendingCardReward ? { name: "reward" } : { name: "map" },
+      };
+
+    case "CHOOSE_CARD_REWARD": {
+      if (state.screen.name !== "reward" || !state.run?.pendingCardReward) return state;
+      const reward = state.run.pendingCardReward;
+      if (!reward.cardIds.includes(action.cardId)) return state;
+      const card: CardInstance = {
+        cardId: action.cardId,
+        instanceId: `card-${state.run.nextCardInstanceId}`,
+      };
+      return {
+        screen: { name: "map" },
+        run: {
+          ...state.run,
+          deck: [...state.run.deck, card],
+          nextCardInstanceId: state.run.nextCardInstanceId + 1,
+          pendingCardReward: null,
+          history: [
+            ...state.run.history,
+            { kind: "card-added", cardId: action.cardId, sourceNodeId: reward.sourceNodeId },
+          ],
+        },
+      };
+    }
+
+    case "SKIP_CARD_REWARD": {
+      if (state.screen.name !== "reward" || !state.run?.pendingCardReward) return state;
+      const reward = state.run.pendingCardReward;
+      return {
+        screen: { name: "map" },
+        run: {
+          ...state.run,
+          pendingCardReward: null,
+          history: [
+            ...state.run.history,
+            { kind: "card-skipped", sourceNodeId: reward.sourceNodeId },
+          ],
+        },
+      };
+    }
 
     case "CHOOSE_EVENT": {
       if (state.screen.name !== "event" || !state.run) return state;

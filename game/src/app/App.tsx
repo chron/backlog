@@ -4,6 +4,7 @@ import { CycleScreen } from "../screens/CycleScreen";
 import { EventScreen } from "../screens/EventScreen";
 import { MapScreen } from "../screens/MapScreen";
 import { ReportScreen } from "../screens/ReportScreen";
+import { RewardScreen } from "../screens/RewardScreen";
 import { RetroScreen } from "../screens/RetroScreen";
 import { ShopScreen } from "../screens/ShopScreen";
 import { SquadScreen } from "../screens/SquadScreen";
@@ -49,6 +50,9 @@ export function App() {
       break;
     case "report":
       screen = <ReportScreen dispatch={dispatch} report={state.screen.report} />;
+      break;
+    case "reward":
+      screen = <RewardScreen dispatch={dispatch} run={state.run} />;
       break;
     case "event":
       screen = <EventScreen dispatch={dispatch} run={state.run} />;
