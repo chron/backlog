@@ -90,7 +90,13 @@ describe("card glossary", () => {
     expect(termsFor("use-the-component")).toEqual(["Shared Components"]);
     expect(termsFor("design-system-migration")).toEqual(["Script", "Exhaust"]);
     expect(termsFor("polish-budget")).toEqual(["Finishing Touches", "Exhaust"]);
-    expect(termsFor("pixel-perfect")).toEqual(["Finishing Touches", "Overflow Review", "Exhaust"]);
+    expect(termsFor("pixel-perfect")).toEqual([
+      "Finishing Touches",
+      "Overflow Review",
+      "Clean",
+      "Exhaust",
+    ]);
+    expect(termsFor("no-rough-edges")).toContain("Clean");
   });
 
   it("explains Toby, Steph, and Elspeth's support mechanics", () => {

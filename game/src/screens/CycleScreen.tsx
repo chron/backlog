@@ -48,7 +48,7 @@ interface CeremonyItem {
   taskId?: string;
   taskName: string;
   label: string;
-  eyebrow: "Intent Resolves" | "Automation Runs" | "Intent Stunned";
+  eyebrow: "Intent Resolves" | "Automation Runs" | "Intent Cancelled";
 }
 
 interface CeremonyState {
@@ -310,8 +310,8 @@ export function CycleScreen({ dispatch, run, onInspectCards }: CycleScreenProps)
             {
               taskId: bossIntent.sourceTaskId,
               taskName: `${boss.stakeholder} · ${bossIntent.label}`,
-              label: bossIntent.summary,
-              eyebrow: bossIntent.stunned ? "Intent Stunned" : "Intent Resolves",
+              label: bossIntent.stunned ? `${bossIntent.summary} · No Effect` : bossIntent.summary,
+              eyebrow: bossIntent.stunned ? "Intent Cancelled" : "Intent Resolves",
             },
           ]
         : [];
@@ -323,8 +323,8 @@ export function CycleScreen({ dispatch, run, onInspectCards }: CycleScreenProps)
           {
             taskId: task.taskId,
             taskName: task.name ?? definitionTask?.name ?? task.taskId,
-            label: formatIntent(scheduledIntent),
-            eyebrow: "Intent Stunned" as const,
+            label: `${formatIntent(scheduledIntent)} · No Effect`,
+            eyebrow: "Intent Cancelled" as const,
           },
         ];
       }
@@ -901,8 +901,13 @@ export function CycleScreen({ dispatch, run, onInspectCards }: CycleScreenProps)
       )}
 
       {ceremonyItem && (
-        <output className="day-ceremony" aria-live="assertive">
-          <span>{ceremonyItem.eyebrow}</span>
+        <output
+          className={`day-ceremony${ceremonyItem.eyebrow === "Intent Cancelled" ? " day-ceremony--cancelled" : ""}`}
+          aria-live="assertive"
+        >
+          <span>
+            {ceremonyItem.eyebrow} · {ceremony.index + 1}/{ceremony.items.length}
+          </span>
           <strong>{ceremonyItem.taskName}</strong>
           <b>{ceremonyItem.label}</b>
         </output>

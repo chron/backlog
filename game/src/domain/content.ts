@@ -552,8 +552,8 @@ const cycles: readonly CycleDefinition[] = [
         name: "Restore Service",
         role: "primary",
         requirements: [
-          { discipline: "backend", target: 7 },
-          { discipline: "infra", target: 7 },
+          { discipline: "backend", target: 10 },
+          { discipline: "infra", target: 10 },
         ],
         intents: [
           { kind: "spawn", taskId: "pager-storm", taskName: "Pager Storm" },
@@ -566,7 +566,7 @@ const cycles: readonly CycleDefinition[] = [
         id: "pager-storm",
         name: "Pager Storm",
         role: "complication",
-        requirements: [{ discipline: "infra", target: 4 }],
+        requirements: [{ discipline: "infra", target: 6 }],
         intents: [
           { kind: "interruption" },
           { kind: "interruption" },
@@ -577,7 +577,7 @@ const cycles: readonly CycleDefinition[] = [
         id: "status-page",
         name: "Status Page",
         role: "complication",
-        requirements: [{ discipline: "frontend", target: 4 }],
+        requirements: [{ discipline: "frontend", target: 6 }],
         intents: [
           { kind: "crunch", moraleLoss: 2 },
           { kind: "scope", discipline: "frontend", amount: 3 },
@@ -597,9 +597,9 @@ const cycles: readonly CycleDefinition[] = [
         name: "Stabilise Platform",
         role: "primary",
         requirements: [
-          { discipline: "frontend", target: 4 },
-          { discipline: "backend", target: 8 },
-          { discipline: "infra", target: 8 },
+          { discipline: "frontend", target: 6 },
+          { discipline: "backend", target: 11 },
+          { discipline: "infra", target: 11 },
         ],
         intents: [
           { kind: "spawn", taskId: "memory-leak", taskName: "Mystery Memory Leak" },
@@ -612,7 +612,7 @@ const cycles: readonly CycleDefinition[] = [
         id: "memory-leak",
         name: "Mystery Memory Leak",
         role: "complication",
-        requirements: [{ discipline: "infra", target: 5 }],
+        requirements: [{ discipline: "infra", target: 8 }],
         intents: [
           { kind: "scope", discipline: "infra", amount: 3 },
           { kind: "crunch", moraleLoss: 3 },
@@ -624,8 +624,8 @@ const cycles: readonly CycleDefinition[] = [
         name: "Rollback Needed",
         role: "complication",
         requirements: [
-          { discipline: "backend", target: 4 },
-          { discipline: "infra", target: 3 },
+          { discipline: "backend", target: 7 },
+          { discipline: "infra", target: 5 },
         ],
         intents: [
           { kind: "blocked", discipline: "backend" },

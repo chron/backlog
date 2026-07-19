@@ -45,13 +45,23 @@ const candidateFiles = exactFiles?.length
       .filter((file) => /^run-.*\.jsonl$/.test(file))
       .map((file) => resolve(parsed.values.directory ?? "telemetry", file));
 
-const loaded = await Promise.all(
-  candidateFiles.map(async (file) => ({
-    file,
-    modifiedAt: (await stat(file)).mtimeMs,
-    result: summarizeHumanActionLog(basename(file), await readFile(file, "utf8")),
-  })),
-);
+const loaded: {
+  file: string;
+  modifiedAt: number;
+  result: ReturnType<typeof summarizeHumanActionLog>;
+}[] = [];
+for (const file of candidateFiles) {
+  try {
+    loaded.push({
+      file,
+      modifiedAt: (await stat(file)).mtimeMs,
+      result: summarizeHumanActionLog(basename(file), await readFile(file, "utf8")),
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.warn(`Skipping ${basename(file)} · ${message}`);
+  }
+}
 const eligible = parsed.values["include-incomplete"]
   ? loaded
   : loaded.filter(({ result }) => result.outcome !== "incomplete");
@@ -71,7 +81,9 @@ const report = createPlaytestReport(
 console.log(formatPlaytestReport(report));
 console.log("\nRUN FILES");
 for (const { file, result } of selected) {
-  console.log(`  ${basename(file)} · seed ${result.seed} · ${result.scenarioName}`);
+  const duration =
+    result.durationMs === undefined ? "" : ` · ${(result.durationMs / 60_000).toFixed(1)} min`;
+  console.log(`  ${basename(file)} · seed ${result.seed} · ${result.scenarioName}${duration}`);
 }
 
 if (parsed.values.json) {

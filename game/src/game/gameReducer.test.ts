@@ -318,7 +318,7 @@ describe("gameReducer", () => {
     expect(state.run?.cycle?.resolvedIntents).toContain("Crunch · −2 Morale");
   });
 
-  it("uses Block against Defects when shipping risky work", () => {
+  it("preserves Block when ordinary dirty shipping creates Defects", () => {
     let state = startCycleAt("cycle-2");
     if (!state.run?.cycle) throw new Error("Expected an active Cycle");
     state = {
@@ -333,7 +333,7 @@ describe("gameReducer", () => {
     state = gameReducer(state, { type: "SHIP_TASK", taskId: "status-composer" });
 
     expect(state.run?.morale).toBe(10);
-    expect(state.run?.cycle?.block).toBe(1);
+    expect(state.run?.cycle?.block).toBe(4);
     expect(state.run?.history.at(-1)).toMatchObject({
       kind: "task-shipped",
       defects: 3,
@@ -572,13 +572,13 @@ describe("gameReducer", () => {
     expect(taskShippingPreview(task)).toEqual({
       unverified: 3,
       defects: 1,
-      moraleLoss: 1,
+      moraleLoss: 0,
       techDebt: 2,
     });
 
     state = gameReducer(state, { type: "SHIP_TASK", taskId: "theme-clustering" });
     expect(state.run?.techDebt).toBe(2);
-    expect(state.run?.morale).toBe(9);
+    expect(state.run?.morale).toBe(10);
     expect(state.run?.cycle).toMatchObject({ defects: 1, techDebtAdded: 2 });
     expect(state.run?.history.at(-1)).toMatchObject({
       kind: "task-shipped",
@@ -605,6 +605,19 @@ describe("gameReducer", () => {
     expect(state.run?.cycle?.resolvedIntents).toContain("+1 Distraction");
   });
 
+  it("authors elite-sized Incident workloads when every complication appears", () => {
+    const totalWork = (cycleId: string) =>
+      getCycle(cycleId).tasks.reduce(
+        (cycleTotal, task) =>
+          cycleTotal +
+          task.requirements.reduce((taskTotal, requirement) => taskTotal + requirement.target, 0),
+        0,
+      );
+
+    expect(totalWork("production-incident")).toBe(32);
+    expect(totalWork("cascade-incident")).toBe(48);
+  });
+
   it("lets Stun cancel an Incident spawn intent", () => {
     let state = startCycleAt("incident-1", ["paul", "odin", "irene"]);
     state = playCard(state, "not-reproducible", "restore-service");
@@ -614,7 +627,7 @@ describe("gameReducer", () => {
     expect(state.run?.cycle?.resolvedIntents).toContain("Stunned · Spawn · Pager Storm");
   });
 
-  it("ends an Incident when its primary Task ships and queues Tool then card rewards", () => {
+  it("requires spawned Incident complications before queuing Tool then card rewards", () => {
     let state = startCycleAt("incident-1", ["paul", "odin", "irene"], 24680);
     state = gameReducer(state, { type: "END_DAY" });
     if (!state.run?.cycle) throw new Error("Expected an active Incident");
@@ -641,13 +654,41 @@ describe("gameReducer", () => {
     };
 
     state = gameReducer(state, { type: "SHIP_TASK", taskId: "restore-service" });
+    expect(state.screen.name).toBe("cycle");
+    expect(state.run?.cycle?.tasks.map((task) => [task.taskId, task.status])).toEqual([
+      ["restore-service", "shipped"],
+      ["pager-storm", "open"],
+    ]);
+    if (!state.run?.cycle) throw new Error("Expected the Incident to continue");
+    state = {
+      ...state,
+      run: {
+        ...state.run,
+        cycle: {
+          ...state.run.cycle,
+          tasks: state.run.cycle.tasks.map((task) =>
+            task.taskId === "pager-storm"
+              ? {
+                  ...task,
+                  status: "ready" as const,
+                  requirements: task.requirements.map((requirement) => ({
+                    ...requirement,
+                    verified: requirement.target,
+                  })),
+                }
+              : task,
+          ),
+        },
+      },
+    };
+    state = gameReducer(state, { type: "SHIP_TASK", taskId: "pager-storm" });
     expect(state.screen.name).toBe("report");
     if (state.screen.name !== "report") throw new Error("Expected an Incident report");
     expect(state.screen.report).toMatchObject({ outcome: "shipped", toolReward: true });
     expect(state.screen.report.tasks).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ taskId: "restore-service", completed: true }),
-        expect.objectContaining({ taskId: "pager-storm", completed: false, cleared: true }),
+        expect.objectContaining({ taskId: "pager-storm", completed: true, cleared: false }),
       ]),
     );
     expect(state.run?.pendingToolReward?.toolIds).toHaveLength(3);
@@ -781,7 +822,7 @@ describe("gameReducer", () => {
     expect(state.run?.cycle?.tasks.map((task) => task.requirements[0]?.verified)).toEqual([3, 3]);
   });
 
-  it("ships every Ready Task with exact Defect, Morale, and credit consequences", () => {
+  it("ships every Ready Task with explicit dirty-work and schedule consequences", () => {
     const state = shipReadyCycle();
 
     expect(state.screen.name).toBe("report");
@@ -789,13 +830,15 @@ describe("gameReducer", () => {
     expect(state.screen.report).toMatchObject({
       outcome: "shipped",
       defects: 3,
-      moraleDelta: -3,
-      creditsGained: 40,
+      moraleDelta: 0,
+      creditsGained: 35,
+      daysAhead: 4,
+      scheduleBonusCredits: 15,
       techDebtAdded: 4,
     });
-    expect(state.run?.morale).toBe(7);
+    expect(state.run?.morale).toBe(10);
     expect(state.run?.techDebt).toBe(4);
-    expect(state.run?.credits).toBe(80);
+    expect(state.run?.credits).toBe(75);
     expect(state.run?.completedNodeIds).toContain("cycle-1");
     expect(state.run?.history.at(-1)).toMatchObject({
       kind: "cycle-finished",
@@ -815,7 +858,7 @@ describe("gameReducer", () => {
     expect(taskShippingPreview(task)).toEqual({
       unverified: 8,
       defects: 3,
-      moraleLoss: 3,
+      moraleLoss: 0,
       techDebt: 4,
     });
   });
@@ -830,7 +873,7 @@ describe("gameReducer", () => {
     state = gameReducer(state, { type: "SHIP_TASK", taskId: "status-composer" });
 
     expect(state.screen.name).toBe("cycle");
-    expect(state.run?.morale).toBe(7);
+    expect(state.run?.morale).toBe(10);
     expect(state.run?.cycle?.defects).toBe(3);
     expect(state.run?.cycle?.tasks.map((task) => task.status)).toEqual(["shipped", "open"]);
     expect(state.run?.history.at(-1)).toEqual({
@@ -839,7 +882,7 @@ describe("gameReducer", () => {
       taskId: "status-composer",
       unverifiedWork: 8,
       defects: 3,
-      moraleLoss: 3,
+      moraleLoss: 0,
       techDebtAdded: 4,
       focusGained: 1,
     });
@@ -884,7 +927,7 @@ describe("gameReducer", () => {
 
     state = gameReducer(state, { type: "SHIP_TASK", taskId: "status-composer" });
 
-    expect(state.run?.morale).toBe(7);
+    expect(state.run?.morale).toBe(10);
     expect(state.run?.cycle).toMatchObject({ defects: 3, techDebtAdded: 4 });
     expect(state.run?.techDebt).toBe(4);
     expect(state.run?.deck).toHaveLength(initialDeckSize + 1);
@@ -1271,7 +1314,7 @@ describe("gameReducer", () => {
     expect(state.run?.cycle?.resolvedIntents).toEqual(["+1 Distraction"]);
   });
 
-  it("loses immediately when a risky Task ships away the last Morale", () => {
+  it("does not turn ordinary dirty shipping into an immediate Morale defeat", () => {
     let state = startCycle();
     state = playCard(state, "frontend-3", "status-composer", "frontend");
     state = playCard(state, "frontend-3", "status-composer", "frontend");
@@ -1281,14 +1324,10 @@ describe("gameReducer", () => {
 
     state = gameReducer(state, { type: "SHIP_TASK", taskId: "status-composer" });
 
-    expect(state.screen).toEqual({
-      name: "retro",
-      outcome: "defeat",
-      cause: "technically-shipped",
-    });
-    expect(state.run?.morale).toBe(-2);
+    expect(state.screen.name).toBe("report");
+    expect(state.run?.morale).toBe(1);
     expect(state.run?.cycle).toBeNull();
-    expect(state.run?.history.at(-1)).toMatchObject({
+    expect(state.run?.history.find((event) => event.kind === "task-shipped")).toMatchObject({
       kind: "task-shipped",
       taskId: "status-composer",
     });

@@ -69,6 +69,7 @@ import {
   resolveCardTarget,
   taskShippingPreview,
   taskShippingRewards,
+  taskUnverifiedWork,
 } from "./rules";
 import type { CardTarget } from "./rules";
 import { selectEventDefinition } from "./eventSelection";
@@ -560,7 +561,9 @@ function finishCycle(
 
 function completeShippedCycle(run: RunState, cycle: CycleState): GameState {
   const definition = getEncounterCycleDefinition(cycle);
-  const creditsGained = 20 + (definition.maxDays - cycle.day) * 5;
+  const daysAhead = Math.max(0, definition.maxDays - cycle.day);
+  const scheduleBonusCredits = Math.min(15, daysAhead * 5);
+  const creditsGained = 20 + scheduleBonusCredits;
   const moraleDelta = run.morale - cycle.startingMorale;
   const report = createCycleReport(
     cycle,
@@ -569,6 +572,7 @@ function completeShippedCycle(run: RunState, cycle: CycleState): GameState {
     creditsGained,
     cycle.techDebtAdded,
     definition.kind === "incident",
+    scheduleBonusCredits,
   );
 
   return finishCycle(run, cycle, report, run.morale, creditsGained);
@@ -608,7 +612,6 @@ function applyTaskShipping(
     run.tools.includes("noise-cancelling-headphones"),
     run.tools.includes("cat-tax"),
   );
-  const damage = absorbMoraleDamage(cycle.block, preview.moraleLoss);
   const nextCycle: CycleState = {
     ...cycle,
     tasks: cycle.tasks.map((candidate) =>
@@ -621,7 +624,7 @@ function applyTaskShipping(
     drawPile: nextDraw.drawPile,
     hand: [...cycle.hand, ...nextDraw.drawn],
     discardPile: nextDraw.discardPile,
-    block: damage.block,
+    block: cycle.block,
     triggeredPassiveIds:
       paulTriggers && !cycle.triggeredPassiveIds.includes("paul")
         ? [...cycle.triggeredPassiveIds, "paul"]
@@ -629,7 +632,7 @@ function applyTaskShipping(
   };
   let nextRun: RunState = {
     ...run,
-    morale: run.morale - damage.moraleLoss,
+    morale: run.morale,
     cycle: nextCycle,
     history: [
       ...run.history,
@@ -639,7 +642,7 @@ function applyTaskShipping(
         taskId,
         unverifiedWork: preview.unverified,
         defects: preview.defects,
-        moraleLoss: damage.moraleLoss,
+        moraleLoss: 0,
         techDebtAdded: preview.techDebt,
         focusGained: rewards.focusGained,
       },
@@ -683,6 +686,7 @@ function launchFinalRelease(run: RunState, cycle: CycleState): GameState | undef
   const completedRun = completeNode(launchedRun, cycle.nodeId);
   const finalRun: RunState = {
     ...completedRun,
+    morale: preview.finalMorale,
     cycle: null,
     pendingCardReward: null,
     pendingToolReward: null,
@@ -828,7 +832,7 @@ function applyStartDayRosterEffects(
       if (reviewed > 0) {
         mark("matt");
         if (run.tools.includes("test-suite")) block += reviewed;
-        if (run.squad.includes("odin")) {
+        if (run.squad.includes("odin") && taskUnverifiedWork(updated) === 0) {
           const tomorrow = { ...cycle, day: cycle.day + 1, tasks };
           if (getScheduledIntent(tomorrow, updated)) {
             updated = { ...updated, stunned: true };

@@ -421,7 +421,7 @@ export function getBossLaunchPreview(
   const defects = cycle.defects + previews.reduce((total, preview) => total + preview.defects, 0);
   const shippingDamage = absorbMoraleDamage(
     cycle.block,
-    previews.reduce((total, preview) => total + preview.moraleLoss, 0),
+    previews.reduce((total, preview) => total + preview.defects, 0),
   );
   const finalMorale = run.morale - shippingDamage.moraleLoss;
   const outcome =

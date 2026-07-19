@@ -505,6 +505,8 @@ export interface CycleReport {
   defects: number;
   moraleDelta: number;
   creditsGained: number;
+  daysAhead: number;
+  scheduleBonusCredits: number;
   techDebtAdded: number;
   toolReward: boolean;
   resolvedIntents: string[];

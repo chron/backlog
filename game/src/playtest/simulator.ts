@@ -142,6 +142,7 @@ export interface PlaytestRunResult {
   policy: PlaytestPilot;
   deckMode: PlaytestDeckMode;
   sourceId?: string;
+  durationMs?: number;
   seed: number;
   squad: readonly DeveloperId[];
   bossId: string;
@@ -164,6 +165,7 @@ export interface PlaytestRunResult {
   endingTechDebt: number;
   maxTechDebt: number;
   defects: number;
+  scheduleBonusCredits: number;
   tasksShipped: number;
   requirementsCompleted: number;
   automationInstalled: number;
@@ -191,6 +193,7 @@ export interface PlaytestMetrics {
   moraleLost: number;
   maxTechDebt: number;
   defects: number;
+  scheduleBonusCredits: number;
   tasksShipped: number;
   requirementsCompleted: number;
   automationInstalled: number;
@@ -227,6 +230,7 @@ export function createPlaytestMetrics(): PlaytestMetrics {
     moraleLost: 0,
     maxTechDebt: 0,
     defects: 0,
+    scheduleBonusCredits: 0,
     tasksShipped: 0,
     requirementsCompleted: 0,
     automationInstalled: 0,
@@ -502,6 +506,10 @@ export function updatePlaytestMetrics(
   const moraleBefore = before.run?.morale ?? after.run?.morale ?? 0;
   const moraleAfter = after.run?.morale ?? moraleBefore;
   metrics.moraleLost += Math.max(0, moraleBefore - moraleAfter);
+
+  if (before.screen.name === "cycle" && after.screen.name === "report") {
+    metrics.scheduleBonusCredits += after.screen.report.scheduleBonusCredits ?? 0;
+  }
 
   const newHistory = after.run?.history.slice(before.run?.history.length ?? 0) ?? [];
   for (const event of newHistory) {

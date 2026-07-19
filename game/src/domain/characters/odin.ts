@@ -9,7 +9,7 @@ export const odinContent = {
     name: "Odin",
     role: "Architect",
     passiveName: "I Have Concerns",
-    passiveRules: "Every Review also Stuns that Task's intent.",
+    passiveRules: "Review that clears all Unverified Work also Stuns that Task's Intent.",
     startingCardId: "design-review",
     accent: "oklch(0.55 0.19 292)",
     art: {

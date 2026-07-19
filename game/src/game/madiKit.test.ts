@@ -346,11 +346,9 @@ describe("Madi's automation engine", () => {
       expect.objectContaining({ discipline: "backend", verified: 3, scriptPower: 0 }),
     ]);
     expect(state.run?.cycle?.drawPile).toHaveLength(drawBefore - 1);
-    expect(state.run?.cycle?.triggeredPassiveIds).toEqual(
-      expect.arrayContaining(["odin", "irene"]),
-    );
+    expect(state.run?.cycle?.triggeredPassiveIds).toEqual(["irene"]);
     expect(state.run?.history.at(-1)).toMatchObject({
-      label: "Verify 3 · Script +1 · 1 bar · Run +1 · Stun · Draw 1",
+      label: "Verify 3 · Script +1 · 1 bar · Run +1 · Draw 1",
     });
   });
 

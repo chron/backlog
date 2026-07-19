@@ -1,7 +1,6 @@
 import { describeIntent, disciplineLabel, formatIntent } from "../domain/content";
 import type { CardInstance, Discipline, RunState, TaskState } from "../domain/models";
 import {
-  absorbMoraleDamage,
   getCurrentIntent,
   getScheduledIntent,
   requirementProgress,
@@ -52,7 +51,6 @@ export function TaskPanel({
           : undefined;
   const shipped = task.status === "shipped";
   const ship = taskShippingPreview(task);
-  const shippingDamage = absorbMoraleDamage(cycle.block, ship.moraleLoss);
   const defectLabel = `${ship.defects} Defect${ship.defects === 1 ? "" : "s"}`;
   const shippingRewards = taskShippingRewards(run, task.taskId);
   const intent = getCurrentIntent(cycle, task);
@@ -69,7 +67,7 @@ export function TaskPanel({
 
   return (
     <article
-      className={`task-panel${taskRole ? ` task-panel--${taskRole}` : ""}${ready ? " is-ready" : ""}${shipped ? " is-shipped" : ""}${resolving ? " is-resolving" : ""}`}
+      className={`task-panel${taskRole ? ` task-panel--${taskRole}` : ""}${ready ? " is-ready" : ""}${shipped ? " is-shipped" : ""}${task.stunned ? " is-stunned" : ""}${resolving ? " is-resolving" : ""}`}
     >
       <header className="task-panel__header">
         <div>
@@ -148,6 +146,7 @@ export function TaskPanel({
               <span className="requirement__line">
                 <strong>{disciplineLabel(requirement.discipline)}</strong>
                 <span>
+                  {legalTarget && <b>{preview.label}</b>}
                   {progress}/{requirement.target}
                 </span>
               </span>
@@ -188,14 +187,9 @@ export function TaskPanel({
                   <small>Each Day</small>
                 </span>
               )}
-              {(requirement.unverified > 0 || legalTarget) && (
+              {requirement.unverified > 0 && (
                 <span className="requirement__foot">
-                  <span>
-                    {requirement.unverified > 0
-                      ? `${requirement.unverified} Unverified`
-                      : undefined}
-                  </span>
-                  {legalTarget && <b>{preview.label}</b>}
+                  <span>{requirement.unverified} Unverified</span>
                 </span>
               )}
             </button>
@@ -219,9 +213,7 @@ export function TaskPanel({
         <div className="task-ship">
           <span>
             {[
-              ship.defects > 0
-                ? `${defectLabel} · ${shippingDamage.moraleLoss > 0 ? `−${shippingDamage.moraleLoss} Morale` : "Blocked"}`
-                : "Clean",
+              ship.defects > 0 ? `${defectLabel}` : "Clean",
               ship.techDebt > 0 ? `+${ship.techDebt} Debt` : undefined,
               shippingRewards.cardsDrawn > 0 ? `Draw ${shippingRewards.cardsDrawn}` : undefined,
               shippingRewards.focusGained > 0 ? `+${shippingRewards.focusGained} Focus` : undefined,
@@ -238,7 +230,7 @@ export function TaskPanel({
               type="button"
               disabled={shippingDisabled}
               onClick={() => onShip(task.taskId)}
-              aria-label={`Ship ${taskName}. ${ship.defects > 0 ? `${defectLabel}, ${shippingDamage.blocked} blocked and ${shippingDamage.moraleLoss} Morale lost` : "Clean ship"}${ship.techDebt > 0 ? `, plus ${ship.techDebt} Tech Debt` : ""}${shippingRewards.cardsDrawn > 0 ? `, draw ${shippingRewards.cardsDrawn} cards` : ""}${shippingRewards.focusGained > 0 ? `, gain ${shippingRewards.focusGained} Focus` : ""}${task.prototypeReward ? `, gain ${task.prototypeReward} Prototype` : ""}`}
+              aria-label={`Ship ${taskName}. ${ship.defects > 0 ? defectLabel : "Clean ship"}${ship.techDebt > 0 ? `, plus ${ship.techDebt} Tech Debt` : ""}${shippingRewards.cardsDrawn > 0 ? `, draw ${shippingRewards.cardsDrawn} cards` : ""}${shippingRewards.focusGained > 0 ? `, gain ${shippingRewards.focusGained} Focus` : ""}${task.prototypeReward ? `, gain ${task.prototypeReward} Prototype` : ""}`}
             >
               Ship Task
             </button>

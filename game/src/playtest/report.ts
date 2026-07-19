@@ -18,7 +18,9 @@ interface PlaytestScenarioSummary {
   averageBlockPrevented: number;
   averageDeadHands: number;
   averageDefects: number;
+  averageScheduleBonusCredits: number;
   loopGuardTrips: number;
+  averageDurationMinutes: number;
 }
 
 export interface PlaytestBatchReport {
@@ -64,7 +66,13 @@ function summarizeGroup(runs: readonly PlaytestRunResult[]): PlaytestScenarioSum
     averageBlockPrevented: round(average(runs.map((run) => run.blockPrevented))),
     averageDeadHands: round(average(runs.map((run) => run.deadHands))),
     averageDefects: round(average(runs.map((run) => run.defects))),
+    averageScheduleBonusCredits: round(average(runs.map((run) => run.scheduleBonusCredits))),
     loopGuardTrips: runs.reduce((sum, run) => sum + run.loopGuardTrips, 0),
+    averageDurationMinutes: round(
+      average(
+        runs.flatMap((run) => (run.durationMs === undefined ? [] : [run.durationMs / 60_000])),
+      ),
+    ),
   };
 }
 
@@ -157,6 +165,7 @@ function pad(value: string | number, width: number, align: "left" | "right" = "r
 }
 
 export function formatPlaytestReport(report: PlaytestBatchReport): string {
+  const human = report.runs.length > 0 && report.runs.every((run) => run.policy === "human");
   const rows = report.summaries.map((summary) => [
     pad(summary.scenarioName, 24, "left"),
     `${bar(summary.winRate)} ${pad(percent(summary.winRate), 4)}`,
@@ -170,6 +179,7 @@ export function formatPlaytestReport(report: PlaytestBatchReport): string {
     pad(summary.averageAutomation.toFixed(1), 7),
     pad(summary.averageBlockPrevented.toFixed(1), 7),
     pad(summary.averageDeadHands.toFixed(1), 6),
+    pad(summary.averageScheduleBonusCredits.toFixed(1), 7),
   ]);
   const header = [
     pad("BUILD", 24, "left"),
@@ -184,6 +194,7 @@ export function formatPlaytestReport(report: PlaytestBatchReport): string {
     pad("SCRIPT", 7),
     pad("BLOCKED", 7),
     pad("DEAD", 6),
+    pad("EARLY$", 7),
   ];
   const separator = header.map((column) => "─".repeat(column.length));
   const bossRows = report.bossWinRates.map(
@@ -198,7 +209,6 @@ export function formatPlaytestReport(report: PlaytestBatchReport): string {
     (outcome) =>
       `  ${pad(outcome.outcome, 24, "left")} ${pad(outcome.runs, 4)}  ${percent(outcome.runs / report.totalRuns)}`,
   );
-  const human = report.runs.length > 0 && report.runs.every((run) => run.policy === "human");
   const deckModes = [...new Set(report.runs.map((run) => run.deckMode))];
   const deckLabel = `${deckModes.join(" + ")} deck${deckModes.length === 1 ? "s" : " modes"}`;
 
@@ -209,6 +219,16 @@ export function formatPlaytestReport(report: PlaytestBatchReport): string {
     header.join("  "),
     separator.join("  "),
     ...rows.map((row) => row.join("  ")),
+    ...(human
+      ? [
+          "",
+          "WALL CLOCK",
+          ...report.summaries.map(
+            (summary) =>
+              `  ${pad(summary.scenarioName, 24, "left")} ${summary.averageDurationMinutes.toFixed(1)} min average`,
+          ),
+        ]
+      : []),
     "",
     "FINAL RELEASE BOSSES",
     ...bossRows,
@@ -219,6 +239,6 @@ export function formatPlaytestReport(report: PlaytestBatchReport): string {
     "SMOKE SIGNALS",
     ...diagnostics,
     "",
-    "Legend: SCRIPT = Script power installed · BLOCKED = Morale damage prevented · DEAD = dead hands",
+    "Legend: SCRIPT = Script power installed · BLOCKED = Morale damage prevented · DEAD = dead hands · EARLY$ = ahead-of-schedule Credits",
   ].join("\n");
 }

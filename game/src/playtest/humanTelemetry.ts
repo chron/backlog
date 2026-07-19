@@ -55,6 +55,11 @@ export function summarizeHumanActionLog(sourceId: string, contents: string): Pla
     .map((line, index) => parseEvent(line, sourceId, index + 1));
   if (events.length === 0) throw new Error(`${sourceId}: action log is empty.`);
 
+  const startEvent = events.find(
+    (event) => event.accepted && event.action.type === "START_RUN" && event.state.run,
+  );
+  if (!startEvent) throw new Error(`${sourceId}: action log has no accepted START_RUN.`);
+
   const metrics = createPlaytestMetrics();
   let previousState = initialGameState;
   for (const event of events) {
@@ -73,11 +78,17 @@ export function summarizeHumanActionLog(sourceId: string, contents: string): Pla
     previousState = event.state;
   }
 
-  const finalState = events.at(-1)!.state;
-  const run = finalState.run;
-  if (!run) throw new Error(`${sourceId}: action log never started a run.`);
+  const lastRunEvent = [...events].reverse().find((event) => event.state.run);
+  if (!lastRunEvent?.state.run) throw new Error(`${sourceId}: action log never started a run.`);
+  const terminalEvent = [...events]
+    .reverse()
+    .find((event) => event.state.run && event.state.screen.name === "retro");
+  const finalState = (terminalEvent ?? lastRunEvent).state;
+  const run = finalState.run!;
   const scenario = scenarioForSquad(run.squad);
   const terminal = finalState.screen.name === "retro" ? finalState.screen : undefined;
+  const startedAt = Date.parse(startEvent.at);
+  const endedAt = Date.parse((terminalEvent ?? lastRunEvent).at);
   const taskShipEvents = run.history.filter((event) => event.kind === "task-shipped");
   metrics.tasksShipped = taskShipEvents.length;
   metrics.defects = taskShipEvents.reduce((sum, event) => sum + event.defects, 0);
@@ -89,6 +100,8 @@ export function summarizeHumanActionLog(sourceId: string, contents: string): Pla
     policy: "human",
     deckMode: "starter",
     sourceId,
+    durationMs:
+      Number.isFinite(startedAt) && Number.isFinite(endedAt) ? Math.max(0, endedAt - startedAt) : 0,
     seed: run.seed,
     squad: run.squad,
     bossId: run.selectedBossId,

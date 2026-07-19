@@ -264,7 +264,7 @@ describe("getCardPresentation", () => {
           ...task,
           requirements: task.requirements.map((requirement, index) => ({
             ...requirement,
-            unverified: index === 0 ? 2 : 0,
+            unverified: index === 0 ? 1 : 0,
           })),
         })),
       },

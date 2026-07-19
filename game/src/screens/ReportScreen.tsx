@@ -62,9 +62,24 @@ export function ReportScreen({ dispatch, report }: ReportScreenProps) {
 
       <div className="reward-placeholder">
         <strong>
-          {shipped ? (report.toolReward ? "Tool and card next" : "Card reward next") : "No reward"}
+          {shipped
+            ? report.daysAhead > 0
+              ? `${report.daysAhead} Day${report.daysAhead === 1 ? "" : "s"} Ahead`
+              : report.toolReward
+                ? "Tool and card next"
+                : "Card reward next"
+            : "No reward"}
         </strong>
-        <span>{report.creditsGained > 0 ? `+${report.creditsGained} Credits` : "No Credits"}</span>
+        <span>
+          {report.creditsGained > 0
+            ? report.scheduleBonusCredits > 0
+              ? `+${report.creditsGained} Credits · ${report.scheduleBonusCredits} ahead-of-schedule bonus`
+              : `+${report.creditsGained} Credits`
+            : "No Credits"}
+        </span>
+        {shipped && report.daysAhead > 0 && (
+          <small>{report.toolReward ? "Tool + card next" : "Card next"}</small>
+        )}
       </div>
 
       <div className="screen-actions">

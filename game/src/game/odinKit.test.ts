@@ -188,7 +188,7 @@ describe("Odin's Review control engine", () => {
     expect(state.run?.cycle?.focus).toBe(4);
   });
 
-  it("generates two Comments that can distribute tiny Reviews and then Exhaust", () => {
+  it("generates two Comments whose tiny Reviews only Stun when they finish the cleanup", () => {
     let state = seedUnverified(startCycle(["odin", "madi", "paul"], "cycle-2"), 3);
     if (!state.run?.cycle) throw new Error("Expected an active Cycle");
     state = {
@@ -201,7 +201,7 @@ describe("Odin's Review control engine", () => {
     state = playOnTask(state, "comment", "reconnect-logic");
     state = playOnTask(state, "comment", "reconnect-logic");
 
-    expect(state.run?.cycle?.tasks.map((task) => task.stunned)).toEqual([true, true]);
+    expect(state.run?.cycle?.tasks.map((task) => task.stunned)).toEqual([true, false]);
     expect(state.run?.cycle?.tasks[1]?.requirements[0]).toMatchObject({
       verified: 2,
       unverified: 1,

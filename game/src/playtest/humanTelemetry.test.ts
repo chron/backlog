@@ -46,4 +46,43 @@ describe("human playtest telemetry", () => {
   it("rejects malformed JSONL with a useful source line", () => {
     expect(() => summarizeHumanActionLog("bad.jsonl", "{nope}")).toThrow("bad.jsonl:1");
   });
+
+  it("keeps the terminal run after returning to title and reports wall-clock duration", () => {
+    const actions = [{ type: "START_RUN", seed: 42 } as const, { type: "RETURN_TITLE" } as const];
+    let state = initialGameState;
+    const events = actions.map((action, index) => {
+      const before = state;
+      state = gameReducer(state, action);
+      return createGameActionLogEvent(action, before, state, {
+        at: `2026-07-19T00:0${index}:00.000Z`,
+        runId: "human-42",
+        sessionId: "session-1",
+        sequence: index + 1,
+      });
+    });
+
+    expect(
+      summarizeHumanActionLog(
+        "returned-to-title.jsonl",
+        events.map((event) => JSON.stringify(event)).join("\n"),
+      ),
+    ).toMatchObject({ seed: 42, durationMs: 0, cause: "incomplete-on-squad" });
+  });
+
+  it("rejects traces without a run start so directory reports can skip them", () => {
+    const event = createGameActionLogEvent(
+      { type: "RETURN_TITLE" },
+      initialGameState,
+      initialGameState,
+      {
+        at: "2026-07-19T00:00:00.000Z",
+        runId: "no-run",
+        sessionId: "session-1",
+        sequence: 1,
+      },
+    );
+    expect(() => summarizeHumanActionLog("no-run.jsonl", JSON.stringify(event))).toThrow(
+      "no accepted START_RUN",
+    );
+  });
 });

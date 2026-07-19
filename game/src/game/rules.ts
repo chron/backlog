@@ -173,7 +173,10 @@ export function isCycleShipped(cycle: CycleState): boolean {
     const sideQuestsShipped = cycle.tasks
       .filter((task) => task.role === "side-quest")
       .every((task) => task.status === "shipped");
-    return primaryShipped && sideQuestsShipped;
+    const spawnedComplicationsShipped = cycle.tasks
+      .filter((task) => task.role === "complication")
+      .every((task) => task.status === "shipped");
+    return primaryShipped && spawnedComplicationsShipped && sideQuestsShipped;
   }
   return cycle.tasks
     .filter((task) => task.role !== "bounty")
@@ -186,7 +189,7 @@ export function refreshTaskStatus(task: TaskState): TaskState {
   return { ...task, status: ready ? "ready" : "open" };
 }
 
-function taskUnverifiedWork(task: TaskState): number {
+export function taskUnverifiedWork(task: TaskState): number {
   return task.requirements.reduce((total, requirement) => total + requirement.unverified, 0);
 }
 
@@ -261,7 +264,7 @@ export function taskShippingPreview(task: TaskState): {
   return {
     unverified,
     defects,
-    moraleLoss: defects,
+    moraleLoss: 0,
     techDebt,
   };
 }
@@ -797,6 +800,7 @@ export function resolveCardTarget(
         stun:
           run.squad.includes("odin") &&
           !task.stunned &&
+          taskUnverifiedWork(reviewedTask) === 0 &&
           Boolean(getTargetableIntent(run, cycle, task)),
         scriptInstallations: reviewedTask.requirements
           .filter((requirement) => scriptPower > 0 && remainingWork(requirement) > 0)
@@ -1324,7 +1328,12 @@ export function applyRosterBoardEffects(
       const task = tasks[taskIndex];
       if (!task || task.status === "shipped") continue;
       const review = reviewOverflowOnTask(task, overflow);
-      if (review.reviewed > 0 && run.squad.includes("odin") && !review.task.stunned) {
+      if (
+        review.reviewed > 0 &&
+        review.cleaned &&
+        run.squad.includes("odin") &&
+        !review.task.stunned
+      ) {
         const scheduled = getTargetableIntent(run, run.cycle!, review.task);
         if (scheduled) {
           review.task = { ...review.task, stunned: true };
@@ -1706,6 +1715,7 @@ export function createCycleReport(
   creditsGained: number,
   techDebtAdded: number,
   toolReward = false,
+  scheduleBonusCredits = 0,
 ): CycleReport {
   const definition = getEncounterCycleDefinition(cycle);
   return {
@@ -1732,6 +1742,8 @@ export function createCycleReport(
     defects: cycle.defects,
     moraleDelta,
     creditsGained,
+    daysAhead: outcome === "shipped" ? Math.max(0, definition.maxDays - cycle.day) : 0,
+    scheduleBonusCredits,
     techDebtAdded,
     toolReward,
     resolvedIntents: cycle.resolvedIntents,

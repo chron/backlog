@@ -57,6 +57,14 @@ const glossary: readonly GlossaryDefinition[] = [
     appliesTo: (card) => card.kind === "review",
   },
   {
+    id: "clean",
+    term: "Clean",
+    description: "A Task is Clean when it has no Unverified Work remaining.",
+    appliesTo: (card) =>
+      card.id === "no-rough-edges" ||
+      Boolean(card.frontendSpreadIfTaskClean || card.cardsDrawnPerTaskCleaned),
+  },
+  {
     id: "retain",
     term: "Retain",
     description: "If unplayed, this card stays in hand when the next Day begins.",
