@@ -76,4 +76,13 @@ describe("card glossary", () => {
     expect(termsFor("quick-study")).toEqual(["Printed Work", "Generated", "Exhaust"]);
     expect(termsFor("all-sorted")).toEqual(["Complete", "Exhaust"]);
   });
+
+  it("explains Card Storm, hand planning, and Chain cards without extra card copy", () => {
+    expect(termsFor("second-attempt")).toEqual(["Exhaust Return", "Exhaust"]);
+    expect(termsFor("it-all-adds-up")).toEqual(["Card Storm", "Any"]);
+    expect(termsFor("put-a-pin-in-it")).toEqual(["Retain", "Exhaust"]);
+    expect(termsFor("prioritise-ruthlessly")).toEqual(["Draw Order", "Exhaust"]);
+    expect(termsFor("heads-down")).toEqual(["Chain"]);
+    expect(termsFor("flow-state")).toEqual(["Chain", "Exhaust"]);
+  });
 });

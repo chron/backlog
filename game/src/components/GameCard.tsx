@@ -14,6 +14,7 @@ interface GameCardProps {
   onPointerMove?: PointerEventHandler<HTMLButtonElement>;
   onPointerUp?: PointerEventHandler<HTMLButtonElement>;
   onPointerCancel?: PointerEventHandler<HTMLButtonElement>;
+  cardTarget?: { key: string; kind: "hand-card"; instanceId: string };
 }
 
 export function GameCard({
@@ -26,6 +27,7 @@ export function GameCard({
   onPointerMove,
   onPointerUp,
   onPointerCancel,
+  cardTarget,
 }: GameCardProps) {
   const card = getCardForInstance(instance);
   const glossaryId = useId();
@@ -87,6 +89,9 @@ export function GameCard({
           ? `${card.name}. ${card.rules}`
           : `${selected ? "Selected: " : ""}${card.name}, costs ${effectiveCost} Focus. ${card.rules}`
       }
+      data-card-target={cardTarget?.key}
+      data-target-kind={cardTarget?.kind}
+      data-target-instance-id={cardTarget?.instanceId}
     >
       {!unplayable && (
         <span className="game-card__cost" aria-label={`${effectiveCost} Focus`}>

@@ -1,4 +1,16 @@
-export type DeveloperId = "paul" | "odin" | "irene" | "madi";
+export type DeveloperId =
+  | "paul"
+  | "odin"
+  | "irene"
+  | "madi"
+  | "seb"
+  | "toby"
+  | "steph"
+  | "elspeth"
+  | "kirsten"
+  | "matt"
+  | "nick"
+  | "levi";
 
 export type CharacterMood = "idle" | "thinking" | "success";
 
@@ -81,6 +93,25 @@ export interface CardDefinition {
   focusOnRequirementComplete?: number;
   spilloverVerifiedOnCompletion?: number;
   generateLastWorkCopy?: boolean;
+  generateLastNonGeneratedCopy?: boolean;
+  retrieveGeneratedFromExhaust?: boolean;
+  exhaustHandTarget?: boolean;
+  retainHandTarget?: boolean;
+  targetCostReduction?: number;
+  exhaustHandTags?: readonly CardTag[];
+  exhaustOtherHand?: boolean;
+  drawEntireDrawPile?: boolean;
+  returnDrawnToTop?: number;
+  blockPerExhaustedThisDay?: number;
+  workPerRetainedCard?: number;
+  amountPerGeneratedCardPlayed?: number;
+  focusPerGeneratedCardsPlayed?: number;
+  additionalChain?: number;
+  drawIfContinuesChain?: number;
+  blockPerChain?: number;
+  generatedCardsPerChain?: { cardId: string; divisor: number };
+  doubleChain?: boolean;
+  transferChainThisDay?: boolean;
   completeRequirementsAtMost?: number;
   scriptPowerPerIncompleteRequirement?: number;
   triggerTargetScriptAfterWork?: boolean;
@@ -108,6 +139,8 @@ export interface CardInstance {
     cause: "played" | "effect";
     sourceCardId?: string;
   };
+  retained?: boolean;
+  costReduction?: number;
 }
 
 export interface ToolDefinition {
@@ -199,6 +232,10 @@ export interface CycleState {
     instanceId: string;
     generated: boolean;
   };
+  lastNonGeneratedCard?: {
+    definition: CardDefinition;
+    sourceInstanceId: string;
+  };
   lastTargetedTaskId?: string;
   chain: {
     taskId?: string;
@@ -206,6 +243,11 @@ export interface CycleState {
     transfersBetweenTasks: boolean;
   };
   peakChain: number;
+  pendingCardChoice?: {
+    kind: "return-to-draw";
+    remaining: number;
+    selected: CardInstance[];
+  };
   prototypePower: number;
   fullStackPower: number;
   cardTagWorkBonuses: Partial<Record<CardTag, number>>;

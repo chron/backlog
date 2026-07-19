@@ -29,7 +29,22 @@ interface DisciplineCardTarget {
   discipline: Discipline;
 }
 
-export type CardTarget = TaskCardTarget | SquadCardTarget | DisciplineCardTarget;
+interface HandCardTarget {
+  kind: "hand-card";
+  instanceId: string;
+}
+
+interface ExhaustCardTarget {
+  kind: "exhaust-card";
+  instanceId: string;
+}
+
+export type CardTarget =
+  | TaskCardTarget
+  | SquadCardTarget
+  | DisciplineCardTarget
+  | HandCardTarget
+  | ExhaustCardTarget;
 
 interface ResolvedCardBase {
   legal: true;
@@ -46,12 +61,18 @@ interface ResolvedCardBase {
     amount: number;
   }[];
   discardedCardInstanceIds: string[];
+  exhaustedCardInstanceIds: string[];
+  retainedCard?: { instanceId: string; costReduction: number };
+  retrievedExhaustCardInstanceId?: string;
+  drawEntireDrawPile: boolean;
+  returnDrawnToTop: number;
   queuedDistractions: number;
   cycleWorkBonus?: { tag: CardTag; amount: number };
   dayWorkBonus?: { amount: number; excludedTags: readonly CardTag[] };
   dayReviewStunFocusAdded: number;
   fullStackAdded: number;
   triggeredPassiveIds: DeveloperId[];
+  chainAfterPlay: CycleState["chain"];
   label: string;
 }
 
@@ -104,7 +125,7 @@ export function isGeneratedCardInstance(instance: CardInstance): boolean {
   return instance.generated === true || Boolean(instance.generatedBy);
 }
 
-export function advanceChain(cycle: CycleState, taskId: string | undefined): CycleState["chain"] {
+function advanceChain(cycle: CycleState, taskId: string | undefined): CycleState["chain"] {
   if (!taskId) return cycle.chain;
   if (cycle.chain.taskId === taskId) {
     return { ...cycle.chain, count: cycle.chain.count + 1 };
@@ -260,6 +281,7 @@ export function effectiveCardCost(
   card: CardDefinition,
   cycle: CycleState,
   _squad: readonly DeveloperId[],
+  instance?: CardInstance,
 ): number {
   const blockedCost =
     card.discipline &&
@@ -268,7 +290,7 @@ export function effectiveCardCost(
       ? 1
       : 0;
 
-  return card.cost + blockedCost;
+  return Math.max(0, card.cost + blockedCost - (instance?.costReduction ?? 0));
 }
 
 function addTriggeredPassive(passiveIds: DeveloperId[], id: DeveloperId): DeveloperId[] {
@@ -298,6 +320,18 @@ function createStudiedWorkCard(
   };
 }
 
+function createLearnedCard(card: CardDefinition): CardDefinition {
+  return {
+    ...card,
+    id: `learned-${card.id}`,
+    name: `Learned ${card.name}`,
+    cost: 0,
+    exhaust: true,
+    rules: `${card.rules} Costs 0. Generated. Exhaust.`,
+    tags: [...new Set([...card.tags, "generated" as const, "exhaust" as const])],
+  };
+}
+
 export function resolveCardTarget(
   run: RunState,
   instance: CardInstance,
@@ -311,7 +345,7 @@ export function resolveCardTarget(
     return { legal: false, reason: `${card.name} is unplayable.` };
   }
 
-  const cost = effectiveCardCost(card, cycle, run.squad);
+  const cost = effectiveCardCost(card, cycle, run.squad, instance);
   if (cost > cycle.focus) return { legal: false, reason: "Not enough Focus." };
 
   const generatedCardSpecs = card.generatedCards
@@ -327,18 +361,70 @@ export function resolveCardTarget(
     const dynamicDefinition = createStudiedWorkCard(cycle.lastWorkCard);
     generatedCards.push({ cardId: dynamicDefinition.id, dynamicDefinition });
   }
+  if (card.generateLastNonGeneratedCopy && cycle.lastNonGeneratedCard) {
+    const dynamicDefinition = createLearnedCard(cycle.lastNonGeneratedCard.definition);
+    generatedCards.push({ cardId: dynamicDefinition.id, dynamicDefinition });
+  }
+  if (card.generatedCardsPerChain) {
+    const count = Math.floor(cycle.chain.count / card.generatedCardsPerChain.divisor);
+    generatedCards.push(
+      ...Array.from({ length: count }, () => ({
+        cardId: card.generatedCardsPerChain!.cardId,
+      })),
+    );
+  }
+  const generatedOutputBonus =
+    run.squad.includes("kirsten") && isGeneratedCardInstance(instance) ? 1 : 0;
+  const exhaustedCardInstanceIds = card.exhaustHandTags
+    ? cycle.hand
+        .filter(
+          (candidate) =>
+            candidate.instanceId !== instance.instanceId &&
+            card.exhaustHandTags?.some((tag) => getCardForInstance(candidate).tags.includes(tag)),
+        )
+        .map((candidate) => candidate.instanceId)
+    : card.exhaustOtherHand
+      ? cycle.hand
+          .filter((candidate) => candidate.instanceId !== instance.instanceId)
+          .map((candidate) => candidate.instanceId)
+      : [];
+  const chainedTaskBeforePlay =
+    "taskId" in target && target.taskId ? cycle.chain.taskId === target.taskId : false;
+  let chainAfterPlay =
+    "taskId" in target && target.taskId ? advanceChain(cycle, target.taskId) : cycle.chain;
+  if (card.additionalChain && chainAfterPlay.taskId) {
+    chainAfterPlay = { ...chainAfterPlay, count: chainAfterPlay.count + card.additionalChain };
+  }
+  if (card.doubleChain && cycle.chain.count > 0) {
+    chainAfterPlay = {
+      ...cycle.chain,
+      count: cycle.chain.count * 2,
+      transfersBetweenTasks: card.transferChainThisDay || cycle.chain.transfersBetweenTasks,
+    };
+  }
   const tacticBlock = cardBlockWithTools(
     run,
-    (card.block ?? 0) + (card.blockPerCardPlayed ?? 0) * cycle.cardsPlayedThisDay,
+    (card.block ?? 0) +
+      ((card.block ?? 0) > 0 ? generatedOutputBonus : 0) +
+      (card.blockPerCardPlayed ?? 0) * cycle.cardsPlayedThisDay +
+      (card.blockPerExhaustedThisDay ?? 0) * cycle.cardsExhaustedThisDay +
+      (card.blockPerChain ?? 0) * cycle.chain.count,
   );
   const tacticBase: Omit<ResolvedCardBase, "label"> = {
     legal: true,
     cost,
     blockGained: tacticBlock,
     techDebtAdded: card.techDebtAdded ?? 0,
-    cardsDrawn: card.cardsDrawn ?? 0,
+    cardsDrawn:
+      (card.cardsDrawn ?? 0) +
+      (card.drawIfContinuesChain && chainedTaskBeforePlay ? card.drawIfContinuesChain : 0) +
+      (card.exhaustHandTags ? exhaustedCardInstanceIds.length : 0),
     nextDayCardsDrawn: card.nextDayCardsDrawn ?? 0,
-    focusGained: card.focusGained ?? 0,
+    focusGained:
+      (card.focusGained ?? 0) +
+      (card.focusPerGeneratedCardsPlayed
+        ? Math.floor(cycle.generatedCardsPlayedThisDay / card.focusPerGeneratedCardsPlayed)
+        : 0),
     generatedCards,
     verifiedWorkHits: [],
     discardedCardInstanceIds: card.discardedHandTags
@@ -352,6 +438,9 @@ export function resolveCardTarget(
           )
           .map((candidate) => candidate.instanceId)
       : [],
+    exhaustedCardInstanceIds,
+    drawEntireDrawPile: card.drawEntireDrawPile ?? false,
+    returnDrawnToTop: card.returnDrawnToTop ?? 0,
     queuedDistractions: card.queuedDistractions ?? 0,
     cycleWorkBonus: card.cycleWorkBonus,
     dayWorkBonus: card.dayWorkBonus
@@ -359,8 +448,54 @@ export function resolveCardTarget(
       : undefined,
     dayReviewStunFocusAdded: card.dayReviewStunFocusBonus ?? 0,
     fullStackAdded: card.fullStackAdded ?? 0,
-    triggeredPassiveIds: [],
+    triggeredPassiveIds: generatedOutputBonus > 0 ? ["kirsten"] : [],
+    chainAfterPlay,
   };
+
+  if (card.exhaustHandTarget || card.retainHandTarget) {
+    if (target.kind !== "hand-card") {
+      return { legal: false, reason: "Choose another card in hand." };
+    }
+    const handTarget = cycle.hand.find(
+      (candidate) =>
+        candidate.instanceId === target.instanceId && candidate.instanceId !== instance.instanceId,
+    );
+    if (!handTarget) return { legal: false, reason: "Choose another card in hand." };
+    return {
+      ...tacticBase,
+      kind: "tactic",
+      stun: false,
+      exhaustedCardInstanceIds: card.exhaustHandTarget
+        ? [...tacticBase.exhaustedCardInstanceIds, handTarget.instanceId]
+        : tacticBase.exhaustedCardInstanceIds,
+      retainedCard: card.retainHandTarget
+        ? { instanceId: handTarget.instanceId, costReduction: card.targetCostReduction ?? 0 }
+        : undefined,
+      label: card.exhaustHandTarget
+        ? `Exhaust ${getCardForInstance(handTarget).name} · Draw ${tacticBase.cardsDrawn}`
+        : `Retain ${getCardForInstance(handTarget).name} · Cost −${card.targetCostReduction ?? 0}`,
+    };
+  }
+
+  if (card.retrieveGeneratedFromExhaust) {
+    if (target.kind !== "exhaust-card") {
+      return { legal: false, reason: "Choose a Generated card from Exhaust." };
+    }
+    const exhaustTarget = cycle.exhaustPile.find(
+      (candidate) =>
+        candidate.instanceId === target.instanceId && isGeneratedCardInstance(candidate),
+    );
+    if (!exhaustTarget) {
+      return { legal: false, reason: "Choose a Generated card from Exhaust." };
+    }
+    return {
+      ...tacticBase,
+      kind: "tactic",
+      stun: false,
+      retrievedExhaustCardInstanceId: exhaustTarget.instanceId,
+      label: `Return ${getCardForInstance(exhaustTarget).name}`,
+    };
+  }
 
   if (card.spawnSideQuest) {
     if (target.kind !== "discipline") {
@@ -384,6 +519,36 @@ export function resolveCardTarget(
     }
     if (card.generateLastWorkCopy && !cycle.lastWorkCard) {
       return { legal: false, reason: "Play a Work card first." };
+    }
+    if (card.generateLastNonGeneratedCopy && !cycle.lastNonGeneratedCard) {
+      return { legal: false, reason: "Play a non-Generated card first." };
+    }
+    if (card.amountPerGeneratedCardPlayed && cycle.generatedCardsPlayedThisDay === 0) {
+      return { legal: false, reason: "Play a Generated card first." };
+    }
+    if (
+      card.focusPerGeneratedCardsPlayed &&
+      cycle.generatedCardsPlayedThisDay < card.focusPerGeneratedCardsPlayed
+    ) {
+      return {
+        legal: false,
+        reason: `Play ${card.focusPerGeneratedCardsPlayed} Generated cards first.`,
+      };
+    }
+    if (card.generatedCardsPerChain && generatedCards.length === 0) {
+      return { legal: false, reason: "Build more Chain first." };
+    }
+    if ((card.doubleChain || card.blockPerChain) && cycle.chain.count === 0) {
+      return { legal: false, reason: "Build Chain first." };
+    }
+    if (card.returnDrawnToTop) {
+      const availableAfterDraw =
+        cycle.hand.length -
+        1 +
+        Math.min(card.cardsDrawn ?? 0, cycle.drawPile.length + cycle.discardPile.length);
+      if (availableAfterDraw < card.returnDrawnToTop) {
+        return { legal: false, reason: "Not enough cards to reorder." };
+      }
     }
     if (card.completeRequirementsAtMost) {
       const verifiedWorkHits = cycle.tasks.flatMap((task) =>
@@ -430,6 +595,13 @@ export function resolveCardTarget(
       card.nextDayCardsDrawn ? `Next Day · Draw +${card.nextDayCardsDrawn}` : undefined,
       card.queuedDistractions ? `Next Day · ${card.queuedDistractions} Distractions` : undefined,
       card.techDebtAdded ? `Debt +${card.techDebtAdded}` : undefined,
+      card.amountPerGeneratedCardPlayed
+        ? `Any ${cycle.generatedCardsPlayedThisDay * card.amountPerGeneratedCardPlayed}`
+        : undefined,
+      card.focusPerGeneratedCardsPlayed
+        ? `Focus +${Math.floor(cycle.generatedCardsPlayedThisDay / card.focusPerGeneratedCardsPlayed)}`
+        : undefined,
+      card.doubleChain ? `Chain ×2` : undefined,
       card.cycleWorkBonus
         ? `${card.cycleWorkBonus.tag === "ai-assisted" ? "AI Assisted" : card.cycleWorkBonus.tag} Work +${card.cycleWorkBonus.amount}`
         : undefined,
@@ -451,14 +623,12 @@ export function resolveCardTarget(
     };
   }
 
-  let triggeredPassiveIds: DeveloperId[] = [];
+  let triggeredPassiveIds: DeveloperId[] = generatedOutputBonus > 0 ? ["kirsten"] : [];
 
   if (card.kind === "review") {
-    if (
-      card.reviewEveryTask
-        ? target.kind !== "squad"
-        : target.kind !== undefined && target.kind !== "task"
-    ) {
+    const reviewTargetId =
+      target.kind === undefined || target.kind === "task" ? target.taskId : undefined;
+    if (card.reviewEveryTask ? target.kind !== "squad" : !reviewTargetId) {
       return {
         legal: false,
         reason: card.reviewEveryTask ? "Aim this at the squad." : "Choose a Task.",
@@ -468,9 +638,7 @@ export function resolveCardTarget(
       ? cycle.tasks.filter((task) => task.status !== "shipped" && taskUnverifiedWork(task) > 0)
       : cycle.tasks.filter(
           (task) =>
-            target.kind !== "squad" &&
-            target.kind !== "discipline" &&
-            task.taskId === target.taskId &&
+            task.taskId === reviewTargetId &&
             task.status !== "shipped" &&
             taskUnverifiedWork(task) > 0,
         );
@@ -485,7 +653,7 @@ export function resolveCardTarget(
 
     const scriptPower = card.scriptPowerPerIncompleteRequirement ?? 0;
     const reviews = targetTasks.map((task) => {
-      const amount = Math.min(taskUnverifiedWork(task), card.amount);
+      const amount = Math.min(taskUnverifiedWork(task), card.amount + generatedOutputBonus);
       const reviewedTask = verifyTask(task, amount);
       return {
         taskId: task.taskId,
@@ -572,7 +740,12 @@ export function resolveCardTarget(
     };
   }
 
-  if (target.kind === "squad" || target.kind === "discipline") {
+  if (
+    target.kind === "squad" ||
+    target.kind === "discipline" ||
+    target.kind === "hand-card" ||
+    target.kind === "exhaust-card"
+  ) {
     return { legal: false, reason: "Choose a Task." };
   }
 
@@ -629,13 +802,30 @@ export function resolveCardTarget(
     : pitchedIn
       ? "unverified"
       : (card.workKind ?? "verified");
-  const countsAsWorkPlay = card.amount > 0 && card.automation?.kind !== "trigger";
+  const countsAsWorkPlay =
+    (card.amount > 0 ||
+      Boolean(card.amountPerGeneratedCardPlayed) ||
+      Boolean(card.workPerRetainedCard)) &&
+    card.automation?.kind !== "trigger";
   let amount =
     card.automation?.kind === "trigger"
       ? triggeredAutomationAmount(run, requirement.scriptPower)
       : pitchedIn
         ? 1
         : card.amount;
+
+  if (countsAsWorkPlay) {
+    amount += generatedOutputBonus;
+    amount += (card.amountPerGeneratedCardPlayed ?? 0) * cycle.generatedCardsPlayedThisDay;
+    amount +=
+      (card.workPerRetainedCard ?? 0) *
+      cycle.hand.filter((candidate) => candidate.retained || getCardForInstance(candidate).retain)
+        .length;
+    if (run.squad.includes("levi")) {
+      amount += chainAfterPlay.count;
+      triggeredPassiveIds = addTriggeredPassive(triggeredPassiveIds, "levi");
+    }
+  }
 
   const aiAssisted = card.tags.includes("ai-assisted");
   if (countsAsWorkPlay) {
@@ -726,7 +916,7 @@ export function resolveCardTarget(
   if (passiveCardsDrawn) {
     triggeredPassiveIds = addTriggeredPassive(triggeredPassiveIds, "irene");
   }
-  const cardsDrawn = passiveCardsDrawn + (card.cardsDrawn ?? 0);
+  const cardsDrawn = passiveCardsDrawn + tacticBase.cardsDrawn;
   const focusGained =
     (card.focusGained ?? 0) + (verifiedCompletion ? (card.focusOnRequirementComplete ?? 0) : 0);
   const techDebtAdded =

@@ -1,11 +1,22 @@
 import type { CardDefinition, Developer } from "../models";
 import { ireneContent } from "./irene";
+import { kirstenContent } from "./kirsten";
+import { leviContent } from "./levi";
 import { madiContent } from "./madi";
+import { nickContent } from "./nick";
 import { odinContent } from "./odin";
 import { paulContent } from "./paul";
 import type { CharacterContent } from "./types";
 
-export const characterContents = [paulContent, odinContent, ireneContent, madiContent] as const;
+export const characterContents = [
+  paulContent,
+  odinContent,
+  ireneContent,
+  madiContent,
+  kirstenContent,
+  nickContent,
+  leviContent,
+] as const;
 
 const characterContentCatalog: readonly CharacterContent[] = characterContents;
 

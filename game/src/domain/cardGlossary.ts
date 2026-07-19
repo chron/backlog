@@ -33,7 +33,46 @@ const glossary: readonly GlossaryDefinition[] = [
     id: "retain",
     term: "Retain",
     description: "If unplayed, this card stays in hand when the next Day begins.",
-    appliesTo: (card) => Boolean(card.retain),
+    appliesTo: (card) => Boolean(card.retain || card.retainHandTarget),
+  },
+  {
+    id: "chain",
+    term: "Chain",
+    description: "Consecutive targeted cards on one Task build Chain; changing Tasks resets it.",
+    appliesTo: (card) =>
+      Boolean(
+        card.additionalChain ||
+        card.drawIfContinuesChain ||
+        card.blockPerChain ||
+        card.generatedCardsPerChain ||
+        card.doubleChain,
+      ),
+  },
+  {
+    id: "hand-exhaust",
+    term: "Hand Exhaust",
+    description: "Choose or remove cards from your hand for the rest of this Cycle.",
+    appliesTo: (card) =>
+      Boolean(card.exhaustHandTarget || card.exhaustHandTags || card.exhaustOtherHand),
+  },
+  {
+    id: "exhaust-retrieval",
+    term: "Exhaust Return",
+    description: "Returns a Generated card from the Exhaust pile; it Exhausts again when played.",
+    appliesTo: (card) => Boolean(card.retrieveGeneratedFromExhaust),
+  },
+  {
+    id: "card-storm",
+    term: "Card Storm",
+    description: "Scales from Generated cards played earlier this Day.",
+    appliesTo: (card) =>
+      Boolean(card.amountPerGeneratedCardPlayed || card.focusPerGeneratedCardsPlayed),
+  },
+  {
+    id: "draw-order",
+    term: "Draw Order",
+    description: "Choose cards to place on top of Draw in the order selected.",
+    appliesTo: (card) => Boolean(card.returnDrawnToTop),
   },
   {
     id: "precise-target",

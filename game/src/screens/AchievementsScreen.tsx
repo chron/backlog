@@ -1,6 +1,9 @@
 import {
   Bot,
+  BookOpen,
+  CalendarCheck,
   CheckCheck,
+  GitCommitHorizontal,
   LockKeyhole,
   Network,
   Rocket,
@@ -22,6 +25,9 @@ const achievementIcons: Readonly<Record<AchievementId, LucideIcon>> = {
   "win-odin": Network,
   "win-irene": CheckCheck,
   "win-madi": Bot,
+  "win-kirsten": BookOpen,
+  "win-nick": CalendarCheck,
+  "win-levi": GitCommitHorizontal,
 };
 
 export function AchievementsScreen({ unlocked, onBack }: AchievementsScreenProps) {

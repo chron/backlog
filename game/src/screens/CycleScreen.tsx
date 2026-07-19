@@ -201,6 +201,22 @@ export function CycleScreen({ dispatch, run, onInspectCards }: CycleScreenProps)
         target: { kind: "discipline", discipline } as CardTarget,
       };
     }
+    if (target.dataset.targetKind === "hand-card") {
+      const instanceId = target.dataset.targetInstanceId;
+      if (!instanceId) return undefined;
+      return {
+        key: target.dataset.cardTarget,
+        target: { kind: "hand-card", instanceId } as CardTarget,
+      };
+    }
+    if (target.dataset.targetKind === "exhaust-card") {
+      const instanceId = target.dataset.targetInstanceId;
+      if (!instanceId) return undefined;
+      return {
+        key: target.dataset.cardTarget,
+        target: { kind: "exhaust-card", instanceId } as CardTarget,
+      };
+    }
     const taskId = target.dataset.taskId;
     if (!taskId) return undefined;
     return {
@@ -374,6 +390,17 @@ export function CycleScreen({ dispatch, run, onInspectCards }: CycleScreenProps)
   const sideQuestTargetable = Boolean(
     selectedDefinition?.spawnSideQuest && sideQuestTargets.length,
   );
+  const exhaustCardTargets = selectedCard
+    ? cycle.exhaustPile
+        .map((instance) => ({
+          instance,
+          resolution: resolveCardTarget(run, selectedCard, {
+            kind: "exhaust-card",
+            instanceId: instance.instanceId,
+          }),
+        }))
+        .filter(({ resolution }) => resolution.legal)
+    : [];
   const visibleTasks = cycle.tasks.filter(
     (task) => !(task.role === "side-quest" && task.status === "shipped"),
   );
@@ -558,6 +585,25 @@ export function CycleScreen({ dispatch, run, onInspectCards }: CycleScreenProps)
                 ))}
               </span>
             )}
+            {exhaustCardTargets.length > 0 && (
+              <span className="side-quest-targets" aria-label="Choose a Generated card">
+                {exhaustCardTargets.map(({ instance, resolution }) => (
+                  <button
+                    className={`side-quest-target${aim?.hoveredTargetKey === `exhaust:${instance.instanceId}` ? " is-aimed" : ""}`}
+                    type="button"
+                    key={instance.instanceId}
+                    data-card-target={`exhaust:${instance.instanceId}`}
+                    data-target-kind="exhaust-card"
+                    data-target-instance-id={instance.instanceId}
+                    aria-label={
+                      resolution.legal ? resolution.label : getCardForInstance(instance).name
+                    }
+                  >
+                    {getCardForInstance(instance).name}
+                  </button>
+                ))}
+              </span>
+            )}
             {squadTargetable && <b>{squadResolution.label}</b>}
           </div>
         </div>
@@ -595,7 +641,9 @@ export function CycleScreen({ dispatch, run, onInspectCards }: CycleScreenProps)
               selectedCard={selectedCard}
               hoveredTargetKey={aim?.hoveredTargetKey}
               resolving={ceremonyItem?.taskId === task.taskId}
-              shippingDisabled={resolvingDay || resolvingCard || resolvingBoss}
+              shippingDisabled={
+                resolvingDay || resolvingCard || resolvingBoss || Boolean(cycle.pendingCardChoice)
+              }
               onTarget={() => undefined}
               onShip={shipTask}
             />
@@ -621,8 +669,15 @@ export function CycleScreen({ dispatch, run, onInspectCards }: CycleScreenProps)
         <div className="hand" aria-label="Cards in hand" data-tutorial-anchor="hand">
           {cycle.hand.map((instance) => {
             const card = getCardForInstance(instance);
-            const cost = effectiveCardCost(card, cycle, run.squad);
+            const cost = effectiveCardCost(card, cycle, run.squad, instance);
             const unplayable = card.kind === "status";
+            const handTargetResolution = selectedCard
+              ? resolveCardTarget(run, selectedCard, {
+                  kind: "hand-card",
+                  instanceId: instance.instanceId,
+                })
+              : undefined;
+            const handTargetable = handTargetResolution?.legal === true;
             return (
               <GameCard
                 key={instance.instanceId}
@@ -630,7 +685,21 @@ export function CycleScreen({ dispatch, run, onInspectCards }: CycleScreenProps)
                 effectiveCost={cost}
                 selected={activeInstanceId === instance.instanceId}
                 disabled={
-                  unplayable || resolvingDay || resolvingCard || resolvingBoss || cost > cycle.focus
+                  unplayable ||
+                  resolvingDay ||
+                  resolvingCard ||
+                  resolvingBoss ||
+                  Boolean(cycle.pendingCardChoice) ||
+                  cost > cycle.focus
+                }
+                cardTarget={
+                  handTargetable
+                    ? {
+                        key: `hand:${instance.instanceId}`,
+                        kind: "hand-card",
+                        instanceId: instance.instanceId,
+                      }
+                    : undefined
                 }
                 onPointerDown={
                   unplayable ? undefined : (event) => beginAim(instance.instanceId, event)
@@ -653,7 +722,9 @@ export function CycleScreen({ dispatch, run, onInspectCards }: CycleScreenProps)
               className="button button--secondary cycle-action"
               type="button"
               data-tutorial-anchor="end-day"
-              disabled={resolvingDay || resolvingCard || resolvingBoss}
+              disabled={
+                resolvingDay || resolvingCard || resolvingBoss || Boolean(cycle.pendingCardChoice)
+              }
               onClick={startEndDay}
             >
               <strong>End Day</strong>
@@ -686,6 +757,31 @@ export function CycleScreen({ dispatch, run, onInspectCards }: CycleScreenProps)
           endY={aim.endY}
           locked={Boolean(aim.hoveredTargetKey)}
         />
+      )}
+
+      {cycle.pendingCardChoice && (
+        <dialog className="cycle-card-choice" open aria-labelledby="cycle-card-choice-title">
+          <span>Prioritise Ruthlessly</span>
+          <h2 id="cycle-card-choice-title">
+            Put {cycle.pendingCardChoice.remaining} card
+            {cycle.pendingCardChoice.remaining === 1 ? "" : "s"} on Draw
+          </h2>
+          <p>Choose in the order you want to draw them.</p>
+          <div>
+            {cycle.hand.map((instance) => (
+              <button
+                className="button button--secondary"
+                type="button"
+                key={instance.instanceId}
+                onClick={() =>
+                  dispatch({ type: "CHOOSE_CYCLE_CARD", instanceId: instance.instanceId })
+                }
+              >
+                {getCardForInstance(instance).name}
+              </button>
+            ))}
+          </div>
+        </dialog>
       )}
 
       {ceremonyItem && (

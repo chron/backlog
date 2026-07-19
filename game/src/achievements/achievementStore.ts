@@ -30,6 +30,24 @@ export const achievementDefinitions = [
     rules: "Win with Madi.",
     developerId: "madi",
   },
+  {
+    id: "win-kirsten",
+    name: "Ship With Kirsten",
+    rules: "Win with Kirsten.",
+    developerId: "kirsten",
+  },
+  {
+    id: "win-nick",
+    name: "Ship With Nick",
+    rules: "Win with Nick.",
+    developerId: "nick",
+  },
+  {
+    id: "win-levi",
+    name: "Ship With Levi",
+    rules: "Win with Levi.",
+    developerId: "levi",
+  },
 ] as const satisfies readonly {
   id: string;
   name: string;
@@ -97,7 +115,12 @@ export function unlockVictoryAchievements(
 ): readonly AchievementId[] {
   const unlocked = new Set<AchievementId>(current);
   unlocked.add("game-won");
-  for (const developerId of squad) unlocked.add(`win-${developerId}`);
+  for (const developerId of squad) {
+    const achievement = achievementDefinitions.find(
+      (candidate) => "developerId" in candidate && candidate.developerId === developerId,
+    );
+    if (achievement) unlocked.add(achievement.id);
+  }
   return achievementDefinitions
     .map((achievement) => achievement.id)
     .filter((id) => unlocked.has(id));
