@@ -49,6 +49,7 @@ function createAppInitialState(base: GameState): GameState {
       "cycle",
       "retro",
       "final",
+      "shop",
     ].includes(qa ?? "")
   ) {
     return base;
@@ -277,6 +278,21 @@ function createAppInitialState(base: GameState): GameState {
     if (state.screen.name === "event") return state;
     return gameReducer(state, { type: "VISIT_NODE", nodeId: "event-1" });
   }
+  if (qa === "shop" && state.run) {
+    const requestedCredits = Number(searchParams.get("credits"));
+    const shopMap: GameState = {
+      screen: { name: "map" },
+      run: {
+        ...state.run,
+        credits:
+          Number.isFinite(requestedCredits) && requestedCredits >= 0 ? requestedCredits : 260,
+        techDebt: 3,
+        currentNodeId: "cycle-safe-1",
+        completedNodeIds: ["cycle-1", "event-1", "cycle-2", "cycle-safe-1"],
+      },
+    };
+    return gameReducer(shopMap, { type: "VISIT_NODE", nodeId: "shop-1" });
+  }
   if ((qa === "odin" || qa === "irene") && state.run) {
     state = {
       ...state,
@@ -485,6 +501,7 @@ export function App() {
           <ShopScreen
             dispatch={dispatch}
             run={state.run}
+            inventory={state.screen.inventory}
             onInspectDeck={() =>
               state.run && setCardCollection({ title: "Deck", cards: state.run.deck })
             }

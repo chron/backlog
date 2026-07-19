@@ -479,7 +479,7 @@ export interface CycleReport {
   peakChain: number;
 }
 
-export type MapNodeKind = "cycle" | "incident" | "boss" | "event" | "shop" | "retro";
+type MapNodeKind = "cycle" | "incident" | "boss" | "event" | "shop" | "retro";
 
 type EncounterLineupSlot =
   | "opener"

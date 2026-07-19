@@ -15,6 +15,15 @@ import {
 } from "../domain/content";
 import { getEvent } from "../domain/events";
 import {
+  canDuplicateCard,
+  canRefactorCard,
+  createShopInventory,
+  shopRefreshPrice,
+  shopServicePrices,
+  type ShopInventoryState,
+  type ShopServiceId,
+} from "../domain/shop";
+import {
   getBossDefinition,
   getEncounterCycleDefinition,
   selectBossDefinition,
@@ -26,7 +35,6 @@ import type {
   CycleDefinition,
   DeveloperId,
   Discipline,
-  MapNodeKind,
   RunState,
   TaskDefinition,
   TaskState,
@@ -84,7 +92,7 @@ type Screen =
         pending: EventPendingSelection;
       };
     }
-  | { name: "shop"; nodeId: string }
+  | { name: "shop"; nodeId: string; inventory: ShopInventoryState }
   | {
       name: "retro";
       outcome: "victory" | "defeat";
@@ -118,6 +126,14 @@ export type GameAction =
   | { type: "CHOOSE_TOOL_REWARD"; toolId: ToolId }
   | { type: "CHOOSE_EVENT"; choiceId: string }
   | { type: "CHOOSE_EVENT_OPTION"; optionId: string }
+  | { type: "BUY_SHOP_CARD"; offerId: string }
+  | { type: "BUY_SHOP_TOOL"; offerId: string }
+  | {
+      type: "BUY_SHOP_SERVICE";
+      serviceId: ShopServiceId;
+      instanceId?: string;
+    }
+  | { type: "REFRESH_SHOP" }
   | { type: "LEAVE_NODE" }
   | { type: "RETURN_TITLE" };
 
@@ -1069,13 +1085,18 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         };
       }
 
-      return {
-        screen: { name: node.kind, nodeId: node.id } as Extract<
-          Screen,
-          { name: Exclude<MapNodeKind, "cycle" | "incident" | "boss" | "retro"> }
-        >,
-        run: runAtNode,
-      };
+      if (node.kind === "shop") {
+        return {
+          screen: {
+            name: "shop",
+            nodeId: node.id,
+            inventory: createShopInventory(runAtNode, node.id),
+          },
+          run: runAtNode,
+        };
+      }
+
+      return state;
     }
 
     case "PLAY_CARD": {
@@ -1491,6 +1512,153 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
           },
         },
         run: progress.run,
+      };
+    }
+
+    case "BUY_SHOP_CARD": {
+      if (state.screen.name !== "shop" || !state.run) return state;
+      const offer = state.screen.inventory.cardOffers.find(
+        (candidate) => candidate.id === action.offerId,
+      );
+      if (
+        !offer ||
+        state.screen.inventory.purchasedOfferIds.includes(offer.id) ||
+        state.run.credits < offer.price
+      ) {
+        return state;
+      }
+      const card: CardInstance = {
+        cardId: offer.cardId,
+        instanceId: `card-${state.run.nextCardInstanceId}`,
+      };
+      return {
+        screen: {
+          ...state.screen,
+          inventory: {
+            ...state.screen.inventory,
+            purchasedOfferIds: [...state.screen.inventory.purchasedOfferIds, offer.id],
+          },
+        },
+        run: {
+          ...state.run,
+          credits: state.run.credits - offer.price,
+          deck: [...state.run.deck, card],
+          nextCardInstanceId: state.run.nextCardInstanceId + 1,
+          history: [
+            ...state.run.history,
+            { kind: "card-added", cardId: offer.cardId, sourceNodeId: state.screen.nodeId },
+          ],
+        },
+      };
+    }
+
+    case "BUY_SHOP_TOOL": {
+      if (state.screen.name !== "shop" || !state.run) return state;
+      const offer = state.screen.inventory.toolOffers.find(
+        (candidate) => candidate.id === action.offerId,
+      );
+      if (
+        !offer ||
+        state.screen.inventory.purchasedOfferIds.includes(offer.id) ||
+        state.run.tools.includes(offer.toolId) ||
+        state.run.credits < offer.price
+      ) {
+        return state;
+      }
+      return {
+        screen: {
+          ...state.screen,
+          inventory: {
+            ...state.screen.inventory,
+            purchasedOfferIds: [...state.screen.inventory.purchasedOfferIds, offer.id],
+          },
+        },
+        run: {
+          ...state.run,
+          credits: state.run.credits - offer.price,
+          tools: [...state.run.tools, offer.toolId],
+          history: [
+            ...state.run.history,
+            { kind: "tool-added", toolId: offer.toolId, sourceNodeId: state.screen.nodeId },
+          ],
+        },
+      };
+    }
+
+    case "BUY_SHOP_SERVICE": {
+      if (state.screen.name !== "shop" || !state.run) return state;
+      const price = shopServicePrices[action.serviceId];
+      if (state.run.credits < price) return state;
+      if (
+        action.serviceId !== "debt-cleanup" &&
+        state.screen.inventory.usedServiceIds.includes(action.serviceId)
+      ) {
+        return state;
+      }
+
+      if (action.serviceId === "debt-cleanup") {
+        if (state.run.techDebt <= 0) return state;
+        return {
+          ...state,
+          run: reconcileTechDebt({ ...state.run, credits: state.run.credits - price }, -1),
+        };
+      }
+
+      const instance = state.run.deck.find(
+        (candidate) => candidate.instanceId === action.instanceId,
+      );
+      if (!instance) return state;
+      const eligible =
+        action.serviceId === "refactor"
+          ? canRefactorCard(state.run, instance)
+          : canDuplicateCard(instance);
+      if (!eligible) return state;
+
+      const nextDeck =
+        action.serviceId === "refactor"
+          ? state.run.deck.filter((card) => card.instanceId !== instance.instanceId)
+          : [
+              ...state.run.deck,
+              {
+                cardId: instance.cardId,
+                dynamicDefinition: instance.dynamicDefinition,
+                instanceId: `card-${state.run.nextCardInstanceId}`,
+              },
+            ];
+      return {
+        screen: {
+          ...state.screen,
+          inventory: {
+            ...state.screen.inventory,
+            usedServiceIds: [...state.screen.inventory.usedServiceIds, action.serviceId],
+          },
+        },
+        run: {
+          ...state.run,
+          credits: state.run.credits - price,
+          deck: nextDeck,
+          nextCardInstanceId:
+            state.run.nextCardInstanceId + (action.serviceId === "duplicate" ? 1 : 0),
+        },
+      };
+    }
+
+    case "REFRESH_SHOP": {
+      if (state.screen.name !== "shop" || !state.run) return state;
+      const price = shopRefreshPrice(state.screen.inventory.refreshCount);
+      if (state.run.credits < price) return state;
+      const refreshCount = state.screen.inventory.refreshCount + 1;
+      return {
+        screen: {
+          ...state.screen,
+          inventory: createShopInventory(
+            state.run,
+            state.screen.nodeId,
+            refreshCount,
+            state.screen.inventory.usedServiceIds,
+          ),
+        },
+        run: { ...state.run, credits: state.run.credits - price },
       };
     }
 
