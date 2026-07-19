@@ -24,6 +24,7 @@ import { developers } from "../domain/content";
 import type { CardInstance } from "../domain/models";
 import { logGameAction } from "../game/actionLog";
 import type { GameAction } from "../game/gameReducer";
+import type { GameState } from "../game/gameReducer";
 
 interface OpenCardCollection {
   cards: readonly CardInstance[];
@@ -31,8 +32,46 @@ interface OpenCardCollection {
   title: string;
 }
 
+function createAppInitialState(base: GameState): GameState {
+  if (!import.meta.env.DEV || new URLSearchParams(window.location.search).get("qa") !== "paul") {
+    return base;
+  }
+
+  let state = gameReducer(base, { type: "START_RUN", seed: 0x0facade });
+  for (const developerId of ["paul", "odin", "madi"] as const) {
+    state = gameReducer(state, { type: "TOGGLE_DEVELOPER", developerId });
+  }
+  state = gameReducer(state, { type: "CONFIRM_SQUAD" });
+  state = gameReducer(state, { type: "VISIT_NODE", nodeId: "cycle-1" });
+  if (!state.run?.cycle) return state;
+
+  const cardIds = [
+    "side-quest",
+    "full-stack",
+    "new-model-dropped",
+    "post-through-it",
+    "spike-it",
+    "ebb-and-flow",
+    "vibe-code",
+  ];
+  return {
+    ...state,
+    run: {
+      ...state.run,
+      cycle: {
+        ...state.run.cycle,
+        focus: 10,
+        hand: cardIds.map((cardId, index) => ({
+          cardId,
+          instanceId: `qa-paul-${index + 1}`,
+        })),
+      },
+    },
+  };
+}
+
 export function App() {
-  const [state, reducerDispatch] = useReducer(gameReducer, initialGameState);
+  const [state, reducerDispatch] = useReducer(gameReducer, initialGameState, createAppInitialState);
   const stateRef = useRef(state);
   stateRef.current = state;
   const dispatch = useCallback((action: GameAction) => {

@@ -31,14 +31,18 @@ export function GameCard({
   const unplayable = card.kind === "status";
   const cardAccent = owner?.accent ?? disciplineAccent(card.discipline);
   const familyTags = [
+    card.tags.includes("rare") ? "Rare" : undefined,
     card.tags.includes("ai-assisted") ? "AI Assisted" : undefined,
     card.tags.includes("automation") ? "Automation" : undefined,
+    card.tags.includes("generated") ? "Generated" : undefined,
+    card.tags.includes("exhaust") ? "Exhaust" : undefined,
     card.tags.includes("review") ? "Review" : undefined,
     card.tags.includes("defense") ? "Defense" : undefined,
     card.tags.includes("stun") ? "Stun" : undefined,
   ].filter((tag): tag is string => Boolean(tag));
   const outputLabel =
-    card.kind === "tactic"
+    card.display?.label ??
+    (card.kind === "tactic"
       ? card.stun
         ? "Stun"
         : "Block"
@@ -54,7 +58,7 @@ export function GameCard({
               ? "Any"
               : card.kind === "work"
                 ? "Work"
-                : "Status";
+                : "Status");
   const disciplineTag =
     card.kind === "work" && card.discipline && card.discipline !== "flexible"
       ? disciplineLabel(card.discipline)
@@ -83,23 +87,33 @@ export function GameCard({
           {effectiveCost}
         </span>
       )}
-      <span className="game-card__owner">{owner?.name ?? "Basic"}</span>
+      <span className="game-card__owner">
+        {owner?.name ??
+          (card.tags.includes("generated")
+            ? "Generated"
+            : card.tags.includes("basic")
+              ? "Basic"
+              : "Team")}
+      </span>
       <strong>{card.name}</strong>
       <span className="game-card__output" aria-hidden="true">
         <b>
-          {card.kind === "tactic"
-            ? card.stun
-              ? "!"
-              : card.block
-            : card.automation?.kind === "install"
-              ? card.automation.power || card.automation.blockPower
-              : card.automation?.kind === "trigger"
-                ? "▶"
-                : card.amount || "×"}
+          {card.display?.value ??
+            (card.kind === "tactic"
+              ? card.stun
+                ? "!"
+                : card.block
+              : card.automation?.kind === "install"
+                ? card.automation.power || card.automation.blockPower
+                : card.automation?.kind === "trigger"
+                  ? "▶"
+                  : card.amount || "×")}
         </b>
         <small>{outputLabel}</small>
       </span>
-      {card.kind === "status" && <span className="game-card__rules">{card.rules}</span>}
+      {(card.kind === "status" || card.display) && (
+        <span className="game-card__rules">{card.rules}</span>
+      )}
       {(disciplineTag || card.workKind || familyTags.length > 0) && (
         <span className="game-card__tags">
           {familyTags.map((tag) => (

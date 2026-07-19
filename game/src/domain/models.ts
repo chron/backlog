@@ -22,7 +22,10 @@ type CardTag =
   | "basic"
   | "character"
   | "defense"
+  | "exhaust"
   | "flexible"
+  | "generated"
+  | "rare"
   | "review"
   | "reward"
   | "status"
@@ -49,8 +52,19 @@ export interface CardDefinition {
   amount: number;
   workKind?: WorkKind;
   block?: number;
+  blockPerCardPlayed?: number;
   stun?: boolean;
   automation?: { kind: "install"; power: number; blockPower?: number } | { kind: "trigger" };
+  exhaust?: boolean;
+  generatedCards?: { cardId: string; count: number };
+  focusGained?: number;
+  cardsDrawn?: number;
+  techDebtAdded?: number;
+  queuedDistractions?: number;
+  fullStackAdded?: number;
+  spawnSideQuest?: boolean;
+  display?: { value: string; label: string };
+  rarity?: "normal" | "rare";
   rules: string;
   tags: readonly CardTag[];
 }
@@ -59,6 +73,7 @@ export interface CardInstance {
   instanceId: string;
   cardId: string;
   temporary?: boolean;
+  generated?: boolean;
 }
 
 export interface ToolDefinition {
@@ -109,9 +124,12 @@ export interface RequirementState {
 
 export interface TaskState {
   taskId: string;
+  name?: string;
+  role?: "primary" | "complication" | "side-quest";
   status: "open" | "ready" | "shipped";
   stunned: boolean;
   spawnedDay: number;
+  prototypeReward?: number;
   requirements: RequirementState[];
 }
 
@@ -126,10 +144,17 @@ export interface CycleState {
   drawPile: CardInstance[];
   hand: CardInstance[];
   discardPile: CardInstance[];
+  exhaustPile: CardInstance[];
   blockedDisciplines: Discipline[];
   triggeredPassiveIds: DeveloperId[];
   resolvedIntents: string[];
   temporaryCardCounter: number;
+  sideQuestCounter: number;
+  cardsPlayedThisDay: number;
+  prototypePower: number;
+  fullStackPower: number;
+  lastWorkDiscipline?: Discipline;
+  queuedDistractions: number;
   defects: number;
   techDebtAdded: number;
 }

@@ -1388,6 +1388,7 @@ main:focus {
 .game-card.has-owner .game-card__owner,
 .game-card.has-owner > strong,
 .game-card.has-owner .game-card__output,
+.game-card.has-owner .game-card__rules,
 .game-card.has-owner .game-card__tags {
   position: relative;
   z-index: 2;
@@ -1435,6 +1436,9 @@ main:focus {
 }
 
 .game-card__rules {
+  position: relative;
+  z-index: 2;
+  max-width: 66%;
   font-size: 0.76rem;
   font-weight: 700;
   line-height: 1.25;
@@ -1698,7 +1702,75 @@ main:focus {
 }
 
 .status-buff {
+  position: relative;
+  color: var(--ink);
   background: var(--blue);
+  cursor: help;
+  font-family: inherit;
+}
+
+.status-buff--prototype {
+  background: var(--mint);
+}
+
+.status-buff--variety {
+  background: var(--yellow);
+}
+
+.status-buff:hover .game-tooltip,
+.status-buff:focus-visible .game-tooltip {
+  display: block;
+}
+
+.status-buff:focus-visible {
+  outline: 3px solid var(--blue);
+  outline-offset: 3px;
+}
+
+.status-buff .game-tooltip {
+  top: calc(100% + 0.5rem);
+  width: 220px;
+  text-transform: none;
+}
+
+.status-counter {
+  padding: 0.2rem 0.32rem;
+  border: 0;
+  color: color-mix(in oklch, var(--ink) 72%, var(--panel));
+  background: transparent;
+  font-size: 0.54rem;
+  font-weight: 900;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.status-counter--button {
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 2px;
+}
+
+.side-quest-targets {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.side-quest-target {
+  min-height: 34px;
+  padding: 0.35rem 0.5rem;
+  border: 2px solid var(--ink);
+  background: color-mix(in oklch, var(--yellow) 52%, var(--panel));
+  box-shadow: 2px 2px 0 var(--ink);
+  font-size: 0.56rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.side-quest-target.is-aimed {
+  background: var(--mint);
+  transform: translateY(-2px);
 }
 
 .status-incident {
@@ -1805,6 +1877,19 @@ main:focus {
   padding: 0.8rem 0.9rem;
   border-radius: 0.8rem 0.4rem 0.9rem 0.5rem;
   box-shadow: 5px 5px 0 var(--ink);
+}
+
+.task-panel--side-quest {
+  background: color-mix(in oklch, var(--yellow) 24%, var(--panel));
+  box-shadow: 5px 5px 0 var(--coral);
+}
+
+.task-panel--side-quest .task-panel__state {
+  color: var(--coral);
+}
+
+.task-panel--side-quest .intent-badge {
+  background: color-mix(in oklch, var(--yellow) 48%, var(--panel));
 }
 
 .task-panel__header {
@@ -2029,6 +2114,18 @@ main:focus {
 
   .cycle-bottom .hand .game-card + .game-card {
     margin-left: -8px;
+  }
+
+  .cycle-bottom .hand:has(> .game-card:nth-child(6)) > .game-card + .game-card {
+    margin-left: -57px;
+  }
+
+  .cycle-bottom .hand:has(> .game-card:nth-child(8)) > .game-card + .game-card {
+    margin-left: -72px;
+  }
+
+  .cycle-bottom .hand:has(> .game-card:nth-child(10)) > .game-card + .game-card {
+    margin-left: -84px;
   }
 
   .cycle-bottom .hand .game-card:hover,

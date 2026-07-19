@@ -67,4 +67,36 @@ describe("getCardPresentation", () => {
       title: "Quietly Done",
     });
   });
+
+  it("gives Paul's squad tactics compact reactions and his rare a hero moment", () => {
+    const state = startCycle(["paul", "odin", "irene"]);
+    const baseRun = state.run;
+    if (!baseRun?.cycle) throw new Error("Expected an active Cycle");
+    const run = {
+      ...baseRun,
+      cycle: {
+        ...baseRun.cycle,
+        hand: [
+          ...baseRun.cycle.hand,
+          { cardId: "full-stack", instanceId: "test-full-stack" },
+          { cardId: "ebb-and-flow", instanceId: "test-ebb-and-flow" },
+        ],
+      },
+    };
+
+    const fullStack = run.cycle.hand.find((card) => card.instanceId === "test-full-stack");
+    const ebbAndFlow = run.cycle.hand.find((card) => card.instanceId === "test-ebb-and-flow");
+    if (!fullStack || !ebbAndFlow) throw new Error("Expected Paul's tactics in hand");
+
+    expect(getCardPresentation(run, fullStack, { kind: "squad" })?.cue).toMatchObject({
+      developerId: "paul",
+      level: "micro",
+      title: "Full Stack",
+    });
+    expect(getCardPresentation(run, ebbAndFlow, { kind: "squad" })?.cue).toMatchObject({
+      developerId: "paul",
+      level: "hero",
+      title: "Ebb & Flow",
+    });
+  });
 });

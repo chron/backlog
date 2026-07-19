@@ -208,6 +208,8 @@ function drawCards(
 function createTaskState(task: TaskDefinition, spawnedDay: number): TaskState {
   return {
     taskId: task.id,
+    name: task.name,
+    role: task.role,
     status: "open",
     stunned: false,
     spawnedDay,
@@ -218,6 +220,37 @@ function createTaskState(task: TaskDefinition, spawnedDay: number): TaskState {
       scriptPower: 0,
       scriptBlock: 0,
     })),
+  };
+}
+
+const sideQuestNames = [
+  "Dark Mode for Sharkimedes",
+  "Emoji Picker",
+  "Confetti Mode",
+  "Slack Bot Upgrade",
+  "Tiny Internal Tool",
+] as const;
+
+function createSideQuestState(cycle: CycleState, discipline: Discipline): TaskState {
+  const index = cycle.sideQuestCounter;
+  return {
+    taskId: `side-quest-${index + 1}`,
+    name: sideQuestNames[index % sideQuestNames.length],
+    role: "side-quest",
+    status: "open",
+    stunned: false,
+    spawnedDay: cycle.day,
+    prototypeReward: 1,
+    requirements: [
+      {
+        discipline,
+        target: 3,
+        verified: 0,
+        unverified: 0,
+        scriptPower: 0,
+        scriptBlock: 0,
+      },
+    ],
   };
 }
 
@@ -237,10 +270,16 @@ function createCycleState(run: RunState, nodeId: string, cycleId: string): Cycle
     drawPile: firstDraw.drawPile,
     hand: firstDraw.drawn,
     discardPile: firstDraw.discardPile,
+    exhaustPile: [],
     blockedDisciplines: [],
     triggeredPassiveIds: [],
     resolvedIntents: [],
     temporaryCardCounter: 0,
+    sideQuestCounter: 0,
+    cardsPlayedThisDay: 0,
+    prototypePower: 0,
+    fullStackPower: 0,
+    queuedDistractions: 0,
     defects: 0,
     techDebtAdded: 0,
   };
@@ -375,6 +414,7 @@ function applyTaskShipping(
     defects: cycle.defects + preview.defects,
     techDebtAdded: cycle.techDebtAdded + preview.techDebt,
     focus: cycle.focus + rewards.focusGained,
+    prototypePower: cycle.prototypePower + (task.prototypeReward ?? 0),
     drawPile: nextDraw.drawPile,
     hand: [...cycle.hand, ...nextDraw.drawn],
     discardPile: nextDraw.discardPile,
@@ -576,7 +616,8 @@ function endDay(run: RunState, cycle: CycleState): GameState {
     return missCycle(deadlineRun, deadlineCycle);
   }
 
-  const distractions: CardInstance[] = Array.from({ length: interruptions }, (_, index) => ({
+  const totalDistractions = interruptions + cycle.queuedDistractions;
+  const distractions: CardInstance[] = Array.from({ length: totalDistractions }, (_, index) => ({
     cardId: "distraction",
     instanceId: `distraction-${cycle.temporaryCardCounter + index + 1}`,
     temporary: true,
@@ -600,7 +641,10 @@ function endDay(run: RunState, cycle: CycleState): GameState {
     discardPile: nextDraw.discardPile,
     blockedDisciplines,
     triggeredPassiveIds: [],
-    temporaryCardCounter: cycle.temporaryCardCounter + interruptions,
+    temporaryCardCounter: cycle.temporaryCardCounter + totalDistractions,
+    cardsPlayedThisDay: 0,
+    lastWorkDiscipline: undefined,
+    queuedDistractions: 0,
   };
 
   return {
@@ -697,7 +741,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       const resolution = resolveCardTarget(state.run, instance, action.target);
       if (!resolution.legal) return state;
 
-      const tasks = cycle.tasks.map((task) => {
+      let tasks = cycle.tasks.map((task) => {
         if (task.taskId !== resolution.taskId) return task;
         if (resolution.kind === "review") {
           return {
@@ -728,12 +772,15 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
           ),
         });
       });
+      if (resolution.kind === "tactic" && resolution.sideQuestDiscipline) {
+        tasks = [...tasks, createSideQuestState(cycle, resolution.sideQuestDiscipline)];
+      }
       const triggeredPassiveIds = [
         ...cycle.triggeredPassiveIds,
         ...resolution.triggeredPassiveIds.filter((id) => !cycle.triggeredPassiveIds.includes(id)),
       ];
-      const passiveDraw =
-        resolution.kind === "work" && resolution.cardsDrawn > 0
+      const cardDraw =
+        resolution.cardsDrawn > 0
           ? drawCards(
               cycle.drawPile,
               cycle.discardPile,
@@ -741,19 +788,40 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
               state.run.tools.includes("noise-cancelling-headphones"),
             )
           : undefined;
+      const generatedCards: CardInstance[] = resolution.generatedCardIds.map((cardId, index) => ({
+        cardId,
+        instanceId: `generated-${cycle.temporaryCardCounter + index + 1}`,
+        generated: true,
+      }));
+      const definition = getCard(instance.cardId);
       const nextCycle: CycleState = {
         ...cycle,
-        focus: cycle.focus - resolution.cost,
+        focus: cycle.focus - resolution.cost + resolution.focusGained,
         block: cycle.block + resolution.blockGained,
         techDebtAdded: cycle.techDebtAdded + resolution.techDebtAdded,
         tasks,
-        drawPile: passiveDraw?.drawPile ?? cycle.drawPile,
+        drawPile: cardDraw?.drawPile ?? cycle.drawPile,
         hand: [
           ...cycle.hand.filter((candidate) => candidate.instanceId !== instance.instanceId),
-          ...(passiveDraw?.drawn ?? []),
+          ...(cardDraw?.drawn ?? []),
+          ...generatedCards,
         ],
-        discardPile: [...(passiveDraw?.discardPile ?? cycle.discardPile), instance],
+        discardPile: definition.exhaust
+          ? (cardDraw?.discardPile ?? cycle.discardPile)
+          : [...(cardDraw?.discardPile ?? cycle.discardPile), instance],
+        exhaustPile: definition.exhaust ? [...cycle.exhaustPile, instance] : cycle.exhaustPile,
         triggeredPassiveIds,
+        temporaryCardCounter: cycle.temporaryCardCounter + generatedCards.length,
+        sideQuestCounter:
+          resolution.kind === "tactic" && resolution.sideQuestDiscipline
+            ? cycle.sideQuestCounter + 1
+            : cycle.sideQuestCounter,
+        cardsPlayedThisDay: cycle.cardsPlayedThisDay + 1,
+        prototypePower: cycle.prototypePower,
+        fullStackPower: cycle.fullStackPower + resolution.fullStackAdded,
+        lastWorkDiscipline:
+          resolution.kind === "work" ? resolution.discipline : cycle.lastWorkDiscipline,
+        queuedDistractions: cycle.queuedDistractions + resolution.queuedDistractions,
       };
       let nextRun: RunState = { ...state.run, cycle: nextCycle };
       nextRun = addTechDebt(nextRun, resolution.techDebtAdded);

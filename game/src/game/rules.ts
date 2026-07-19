@@ -22,13 +22,30 @@ interface SquadCardTarget {
   kind: "squad";
 }
 
-export type CardTarget = TaskCardTarget | SquadCardTarget;
+interface DisciplineCardTarget {
+  kind: "discipline";
+  discipline: Discipline;
+}
+
+export type CardTarget = TaskCardTarget | SquadCardTarget | DisciplineCardTarget;
+
+interface ResolvedCardBase {
+  legal: true;
+  cost: number;
+  blockGained: number;
+  techDebtAdded: number;
+  cardsDrawn: number;
+  focusGained: number;
+  generatedCardIds: string[];
+  queuedDistractions: number;
+  fullStackAdded: number;
+  triggeredPassiveIds: DeveloperId[];
+  label: string;
+}
 
 export type CardResolution =
-  | {
+  | (ResolvedCardBase & {
       kind: "work";
-      legal: true;
-      cost: number;
       taskId: string;
       discipline: Discipline;
       amount: number;
@@ -36,36 +53,20 @@ export type CardResolution =
       scriptPowerAdded: number;
       scriptBlockAdded: number;
       scriptRunAmount: number;
-      blockGained: number;
-      techDebtAdded: number;
-      cardsDrawn: number;
       pitchedIn: boolean;
-      triggeredPassiveIds: DeveloperId[];
-      label: string;
-    }
-  | {
+    })
+  | (ResolvedCardBase & {
       kind: "review";
-      legal: true;
-      cost: number;
       taskId: string;
       amount: number;
-      blockGained: number;
-      techDebtAdded: number;
       stun: boolean;
-      triggeredPassiveIds: DeveloperId[];
-      label: string;
-    }
-  | {
+    })
+  | (ResolvedCardBase & {
       kind: "tactic";
-      legal: true;
-      cost: number;
       taskId?: string;
-      blockGained: number;
-      techDebtAdded: number;
       stun: boolean;
-      triggeredPassiveIds: DeveloperId[];
-      label: string;
-    }
+      sideQuestDiscipline?: Discipline;
+    })
   | { legal: false; reason: string };
 
 const disciplineOrder: readonly Discipline[] = ["frontend", "backend", "infra"];
@@ -85,7 +86,13 @@ export function isTaskReady(task: TaskState): boolean {
 export function isCycleShipped(cycle: CycleState): boolean {
   const primaryTaskId = getCycle(cycle.cycleId).primaryTaskId;
   if (primaryTaskId) {
-    return cycle.tasks.some((task) => task.taskId === primaryTaskId && task.status === "shipped");
+    const primaryShipped = cycle.tasks.some(
+      (task) => task.taskId === primaryTaskId && task.status === "shipped",
+    );
+    const sideQuestsShipped = cycle.tasks
+      .filter((task) => task.role === "side-quest")
+      .every((task) => task.status === "shipped");
+    return primaryShipped && sideQuestsShipped;
   }
   return cycle.tasks.every((task) => task.status === "shipped");
 }
@@ -170,11 +177,13 @@ export function taskShippingRewards(
 ): { cardsDrawn: number; focusGained: number; paulTriggers: boolean } {
   const cycle = run.cycle;
   if (!cycle) return { cardsDrawn: 0, focusGained: 0, paulTriggers: false };
-  const nonTerminal = cycle.tasks.some(
-    (candidate) => candidate.taskId !== taskId && candidate.status !== "shipped",
-  );
-  const endsIncident = getCycle(cycle.cycleId).primaryTaskId === taskId;
-  const paulTriggers = run.squad.includes("paul") && nonTerminal && !endsIncident;
+  const cycleAfterShip: CycleState = {
+    ...cycle,
+    tasks: cycle.tasks.map((task) =>
+      task.taskId === taskId ? { ...task, status: "shipped" } : task,
+    ),
+  };
+  const paulTriggers = run.squad.includes("paul") && !isCycleShipped(cycleAfterShip);
   const mergeQueue = run.tools.includes("merge-queue");
   return {
     cardsDrawn: mergeQueue ? 2 : 0,
@@ -218,23 +227,63 @@ export function resolveCardTarget(
   const cost = effectiveCardCost(card, cycle, run.squad);
   if (cost > cycle.focus) return { legal: false, reason: "Not enough Focus." };
 
+  const generatedCardIds = card.generatedCards
+    ? Array.from({ length: card.generatedCards.count }, () => card.generatedCards?.cardId ?? "")
+    : [];
+  const tacticBlock = (card.block ?? 0) + (card.blockPerCardPlayed ?? 0) * cycle.cardsPlayedThisDay;
+  const tacticBase: Omit<ResolvedCardBase, "label"> = {
+    legal: true,
+    cost,
+    blockGained: tacticBlock,
+    techDebtAdded: card.techDebtAdded ?? 0,
+    cardsDrawn: card.cardsDrawn ?? 0,
+    focusGained: card.focusGained ?? 0,
+    generatedCardIds,
+    queuedDistractions: card.queuedDistractions ?? 0,
+    fullStackAdded: card.fullStackAdded ?? 0,
+    triggeredPassiveIds: [],
+  };
+
+  if (card.spawnSideQuest) {
+    if (target.kind !== "discipline") {
+      return { legal: false, reason: "Choose a Side Quest discipline." };
+    }
+    if (cycle.tasks.some((task) => task.role === "side-quest" && task.status !== "shipped")) {
+      return { legal: false, reason: "Ship the current Side Quest first." };
+    }
+    return {
+      ...tacticBase,
+      kind: "tactic",
+      stun: false,
+      sideQuestDiscipline: target.discipline,
+      label: `Add ${disciplineLabel(target.discipline)} Side Quest`,
+    };
+  }
+
   if (card.kind === "tactic" && !card.stun) {
     if (target.kind !== "squad") {
       return { legal: false, reason: "Aim this at the squad." };
     }
+    const label = [
+      card.fullStackAdded ? `Full Stack +${card.fullStackAdded}` : undefined,
+      generatedCardIds.length ? `Generate ${generatedCardIds.length}` : undefined,
+      tacticBlock ? `Block ${tacticBlock}` : undefined,
+      card.focusGained ? `Focus +${card.focusGained}` : undefined,
+      card.cardsDrawn ? `Draw ${card.cardsDrawn}` : undefined,
+      card.queuedDistractions ? `Next Day · ${card.queuedDistractions} Distractions` : undefined,
+      card.techDebtAdded ? `Debt +${card.techDebtAdded}` : undefined,
+    ]
+      .filter(Boolean)
+      .join(" · ");
     return {
+      ...tacticBase,
       kind: "tactic",
-      legal: true,
-      cost,
-      blockGained: card.block ?? 0,
-      techDebtAdded: 0,
       stun: false,
-      triggeredPassiveIds: [],
-      label: card.block ? `Block ${card.block}` : card.name,
+      label: label || card.name,
     };
   }
 
-  if (target.kind === "squad") {
+  if (target.kind === "squad" || target.kind === "discipline") {
     return { legal: false, reason: "Choose a Task." };
   }
 
@@ -266,6 +315,11 @@ export function resolveCardTarget(
       amount,
       blockGained,
       techDebtAdded: 0,
+      cardsDrawn: card.cardsDrawn ?? 0,
+      focusGained: card.focusGained ?? 0,
+      generatedCardIds,
+      queuedDistractions: card.queuedDistractions ?? 0,
+      fullStackAdded: card.fullStackAdded ?? 0,
       stun,
       triggeredPassiveIds,
       label: [
@@ -292,6 +346,11 @@ export function resolveCardTarget(
       taskId: task.taskId,
       blockGained: card.block ?? 0,
       techDebtAdded: 0,
+      cardsDrawn: card.cardsDrawn ?? 0,
+      focusGained: card.focusGained ?? 0,
+      generatedCardIds,
+      queuedDistractions: card.queuedDistractions ?? 0,
+      fullStackAdded: card.fullStackAdded ?? 0,
       stun: card.stun ?? false,
       triggeredPassiveIds,
       label: [card.stun ? "Stun" : undefined, card.block ? `Block ${card.block}` : undefined]
@@ -327,6 +386,13 @@ export function resolveCardTarget(
         ? 1
         : card.amount;
 
+  const prototypeBonus = cycle.prototypePower;
+  const fullStackBonus =
+    cycle.lastWorkDiscipline && cycle.lastWorkDiscipline !== target.discipline
+      ? cycle.fullStackPower
+      : 0;
+  amount += prototypeBonus + fullStackBonus;
+
   const aiAssisted = card.tags.includes("ai-assisted");
   if (aiAssisted && run.tools.includes("enterprise-ai-licence")) {
     amount += 2;
@@ -350,14 +416,16 @@ export function resolveCardTarget(
           Math.max(0, remainingWork(requirement) - amount),
         )
       : 0;
-  const cardsDrawn =
+  const passiveCardsDrawn =
     amount > 0 && workKind === "verified" && amount === workRemaining && run.squad.includes("irene")
       ? 1
       : 0;
-  if (cardsDrawn) {
+  if (passiveCardsDrawn) {
     triggeredPassiveIds = addTriggeredPassive(triggeredPassiveIds, "irene");
   }
-  const techDebtAdded = aiAssisted && run.tools.includes("enterprise-ai-licence") ? 1 : 0;
+  const cardsDrawn = passiveCardsDrawn + (card.cardsDrawn ?? 0);
+  const techDebtAdded =
+    (aiAssisted && run.tools.includes("enterprise-ai-licence") ? 1 : 0) + (card.techDebtAdded ?? 0);
   const pitchLabel = pairedPitchIn
     ? `Pairing · ${amount} Verified`
     : `Pitch In · ${amount} Unverified`;
@@ -405,6 +473,10 @@ export function resolveCardTarget(
     blockGained,
     techDebtAdded,
     cardsDrawn,
+    focusGained: card.focusGained ?? 0,
+    generatedCardIds,
+    queuedDistractions: card.queuedDistractions ?? 0,
+    fullStackAdded: card.fullStackAdded ?? 0,
     pitchedIn,
     triggeredPassiveIds,
     label,
@@ -447,9 +519,12 @@ export function createCycleReport(
       const taskDefinition = definition.tasks.find((candidate) => candidate.id === task.taskId);
       return {
         taskId: task.taskId,
-        name: taskDefinition?.name ?? task.taskId,
+        name: task.name ?? taskDefinition?.name ?? task.taskId,
         completed: task.status === "shipped",
-        cleared: toolReward && taskDefinition?.role === "complication" && task.status !== "shipped",
+        cleared:
+          toolReward &&
+          (task.role ?? taskDefinition?.role) === "complication" &&
+          task.status !== "shipped",
         verifiedWork: task.requirements.reduce((sum, requirement) => sum + requirement.verified, 0),
         unverifiedWork: taskUnverifiedWork(task),
       };

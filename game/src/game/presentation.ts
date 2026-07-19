@@ -24,12 +24,21 @@ export function getCardPresentation(
   if (!cycle) return undefined;
   const resolution = resolveCardTarget(run, instance, target);
   if (!resolution.legal) return undefined;
+  const card = getCard(instance.cardId);
 
   if (!resolution.taskId) {
-    return { triggeredPassiveIds: resolution.triggeredPassiveIds };
+    if (!card.ownerId) return { triggeredPassiveIds: resolution.triggeredPassiveIds };
+    return {
+      triggeredPassiveIds: resolution.triggeredPassiveIds,
+      cue: {
+        developerId: card.ownerId,
+        detail: resolution.label,
+        level: card.rarity === "rare" ? "hero" : "micro",
+        title: card.name,
+      },
+    };
   }
 
-  const card = getCard(instance.cardId);
   const task = cycle.tasks.find((candidate) => candidate.taskId === resolution.taskId);
   if (!task) return undefined;
   const resolvedTask = applyResolution(task, resolution);

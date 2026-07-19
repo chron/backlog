@@ -104,6 +104,19 @@ function playCardOnSquad(state: GameState, cardId: string): GameState {
   });
 }
 
+function playCardOnDiscipline(state: GameState, cardId: string, discipline: Discipline): GameState {
+  if (!state.run?.cycle?.hand.some((card) => card.cardId === cardId)) {
+    state = addCardToHand(state, cardId);
+  }
+  const instance = state.run?.cycle?.hand.find((card) => card.cardId === cardId);
+  if (!instance) throw new Error(`${cardId} is not in hand`);
+  return gameReducer(state, {
+    type: "PLAY_CARD",
+    instanceId: instance.instanceId,
+    target: { kind: "discipline", discipline },
+  });
+}
+
 function addCardToHand(state: GameState, cardId: string): GameState {
   if (!state.run?.cycle) throw new Error("Expected an active Cycle");
   const instance = {
@@ -369,6 +382,51 @@ describe("gameReducer", () => {
     expect(state.run?.pendingCardReward).not.toBeNull();
     state = gameReducer(state, { type: "SKIP_CARD_REWARD" });
     expect(state.screen.name).toBe("map");
+  });
+
+  it("makes an Incident Side Quest required before the primary Task can end the Cycle", () => {
+    let state = startCycleAt("incident-1", ["paul", "odin", "irene"], 24680);
+    state = playCardOnDiscipline(state, "side-quest", "frontend");
+    if (!state.run?.cycle) throw new Error("Expected an active Incident");
+    const sideQuest = state.run.cycle.tasks.find((task) => task.role === "side-quest");
+    if (!sideQuest) throw new Error("Expected a Side Quest");
+    state = {
+      ...state,
+      run: {
+        ...state.run,
+        cycle: {
+          ...state.run.cycle,
+          tasks: state.run.cycle.tasks.map((task) => ({
+            ...task,
+            status: "ready" as const,
+            requirements: task.requirements.map((requirement) => ({
+              ...requirement,
+              verified: requirement.target,
+            })),
+          })),
+        },
+      },
+    };
+
+    state = gameReducer(state, { type: "SHIP_TASK", taskId: "restore-service" });
+    expect(state.screen.name).toBe("cycle");
+    expect(state.run?.cycle).toMatchObject({ focus: 3, prototypePower: 0 });
+
+    state = gameReducer(state, { type: "SHIP_TASK", taskId: sideQuest.taskId });
+    expect(state.screen.name).toBe("report");
+    if (state.screen.name !== "report") throw new Error("Expected an Incident report");
+    expect(state.screen.report).toMatchObject({ outcome: "shipped", toolReward: true });
+    expect(state.screen.report.tasks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ taskId: "restore-service", completed: true }),
+        expect.objectContaining({ taskId: sideQuest.taskId, completed: true }),
+      ]),
+    );
+    expect(state.run?.history.at(-2)).toMatchObject({
+      kind: "task-shipped",
+      taskId: sideQuest.taskId,
+      focusGained: 0,
+    });
   });
 
   it("applies the larger Incident miss penalty without offering rewards", () => {
@@ -729,6 +787,126 @@ describe("gameReducer", () => {
     expect(state.run?.cycle?.focus).toBe(4);
     expect(state.run?.cycle?.triggeredPassiveIds).toContain("paul");
     expect(state.run?.history.at(-1)).toMatchObject({ focusGained: 1 });
+  });
+
+  it("authors Paul's complete Starter, five-card normal pool, and rare", () => {
+    const paulRewards = eligibleRewardCardIds(["paul"])
+      .map(getCard)
+      .filter((card) => card.ownerId === "paul");
+
+    expect(getCard("vibe-code")).toMatchObject({ ownerId: "paul" });
+    expect(paulRewards.map((card) => card.id)).toEqual([
+      "spike-it",
+      "side-quest",
+      "full-stack",
+      "new-model-dropped",
+      "post-through-it",
+      "ebb-and-flow",
+    ]);
+    expect(paulRewards.filter((card) => card.rarity === "normal")).toHaveLength(5);
+    expect(paulRewards.filter((card) => card.rarity === "rare")).toHaveLength(1);
+  });
+
+  it("turns shipped Side Quest scope into stackable Prototype Work", () => {
+    let state = startCycleAt("cycle-2", ["paul", "odin", "irene"]);
+    state = playCardOnDiscipline(state, "side-quest", "frontend");
+
+    const sideQuest = state.run?.cycle?.tasks.find((task) => task.role === "side-quest");
+    expect(sideQuest).toMatchObject({
+      name: "Dark Mode for Sharkimedes",
+      prototypeReward: 1,
+      status: "open",
+      requirements: [{ discipline: "frontend", target: 3 }],
+    });
+    expect(state.run?.cycle?.exhaustPile.map((card) => card.cardId)).toContain("side-quest");
+
+    state = playCard(state, "frontend-3", sideQuest?.taskId ?? "missing", "frontend");
+    state = gameReducer(state, { type: "SHIP_TASK", taskId: sideQuest?.taskId ?? "missing" });
+
+    expect(state.run?.cycle).toMatchObject({ prototypePower: 1, focus: 2 });
+    expect(state.run?.cycle?.triggeredPassiveIds).toContain("paul");
+
+    state = playCard(state, "flexible-2", "status-composer", "frontend");
+    expect(state.run?.cycle?.tasks[0]?.requirements[0]).toMatchObject({ verified: 3 });
+  });
+
+  it("makes Full Stack reward switching actual target disciplines", () => {
+    let state = startCycleAt("cycle-2", ["paul", "odin", "irene"]);
+    state = playCardOnSquad(state, "full-stack");
+    state = playCard(state, "frontend-3", "status-composer", "frontend");
+    state = playCard(state, "backend-3", "reconnect-logic", "backend");
+
+    expect(state.run?.cycle).toMatchObject({
+      fullStackPower: 1,
+      lastWorkDiscipline: "backend",
+      cardsPlayedThisDay: 3,
+    });
+    expect(state.run?.cycle?.tasks[1]?.requirements[0]).toMatchObject({ verified: 4 });
+  });
+
+  it("generates risky Quick Fixes and Exhausts them after play", () => {
+    let state = startCycleAt("cycle-2", ["paul", "odin", "madi"]);
+    state = playCardOnSquad(state, "new-model-dropped");
+
+    expect(state.run).toMatchObject({ techDebt: 1 });
+    expect(state.run?.cycle?.hand.filter((card) => card.cardId === "quick-fix")).toEqual([
+      expect.objectContaining({ generated: true }),
+      expect.objectContaining({ generated: true }),
+    ]);
+
+    state = playCard(state, "quick-fix", "status-composer", "frontend");
+    expect(state.run?.cycle?.exhaustPile.map((card) => card.cardId)).toContain("quick-fix");
+    expect(state.run?.cycle?.tasks[0]?.requirements[0]).toMatchObject({
+      unverified: 2,
+      scriptPower: 1,
+    });
+  });
+
+  it("scales Post Through It from cards already played today", () => {
+    let state = startCycleAt("cycle-2", ["paul", "odin", "irene"]);
+    state = playCard(state, "spike-it", "status-composer", "frontend");
+    state = playCard(state, "vibe-code", "reconnect-logic", "backend");
+    state = playCardOnSquad(state, "post-through-it");
+
+    expect(state.run?.cycle).toMatchObject({ block: 4, cardsPlayedThisDay: 3 });
+    expect(state.run?.cycle?.exhaustPile.map((card) => card.cardId)).toContain("spike-it");
+  });
+
+  it("front-loads Ebb & Flow and puts its hangover into the next hand", () => {
+    let state = startCycleAt("cycle-2", ["paul", "odin", "irene"]);
+    if (!state.run?.cycle) throw new Error("Expected an active Cycle");
+    state = {
+      ...state,
+      run: {
+        ...state.run,
+        cycle: {
+          ...state.run.cycle,
+          focus: 0,
+          drawPile: [
+            { cardId: "frontend-3", instanceId: "ebb-draw-1" },
+            { cardId: "backend-3", instanceId: "ebb-draw-2" },
+            { cardId: "infra-3", instanceId: "ebb-draw-3" },
+          ],
+          discardPile: [],
+        },
+      },
+    };
+
+    state = playCardOnSquad(state, "ebb-and-flow");
+    expect(state.run?.cycle).toMatchObject({ focus: 3, queuedDistractions: 3 });
+    expect(state.run?.cycle?.hand.map((card) => card.instanceId)).toEqual(
+      expect.arrayContaining(["ebb-draw-1", "ebb-draw-2", "ebb-draw-3"]),
+    );
+    expect(state.run?.cycle?.exhaustPile.map((card) => card.cardId)).toContain("ebb-and-flow");
+
+    state = gameReducer(state, { type: "END_DAY" });
+    expect(state.run?.cycle).toMatchObject({
+      day: 2,
+      cardsPlayedThisDay: 0,
+      queuedDistractions: 0,
+    });
+    expect(state.run?.cycle?.hand.filter((card) => card.cardId === "distraction")).toHaveLength(4);
+    expect(state.run?.cycle?.resolvedIntents).toContain("+1 Distraction");
   });
 
   it("does not restore Focus for the final Task in a Cycle", () => {

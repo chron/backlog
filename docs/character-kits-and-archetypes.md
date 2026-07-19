@@ -110,10 +110,26 @@ The current four have implemented first-pass Starters and passives. Their full k
 
 - **Fantasy:** prototype at alarming speed, get it over the line, make tomorrow's problem tomorrow.
 - **Passive:** **Move Fast** — whenever a non-final Task ships, gain 1 Focus.
-- **Starter:** **Vibe Code** — Flexible 4, Unverified, AI Assisted.
-- **Core space:** early shipping, Unverified bursts, AI Assisted work, Debt-for-power bargains.
+- **Core space:** side projects, discipline variety, card storms, Unverified bursts, AI Assisted work, and Debt-for-power bargains.
 - **Bridges:** Card Storm through Focus refunds; Automation through AI Assisted; Review through cleanup after the sprint.
-- **Rare direction:** a dramatic zero-to-production turn that rewards shipping multiple Tasks or converts accumulated risk into a huge burst.
+
+Paul's catalogue is **LOCKED** for its first playable pass. Values may still move during playtesting.
+
+| Slot | Card | Cost | Effect |
+| --- | --- | ---: | --- |
+| Starter | **Vibe Code** | 1 | Flexible 4, Unverified, AI Assisted. |
+| Normal | **Side Quest** | 1 | Add a required 3-Work Task in a chosen discipline. When it ships, gain Prototype 1 for the rest of the Cycle. Exhaust. |
+| Normal | **Full Stack** | 1 | For the rest of this Cycle, Work cards gain +1 Work when their actual target discipline differs from the previous Work card's target discipline. |
+| Normal | **New Model Dropped** | 1 | Generate 2 Quick Fixes. Gain 1 Tech Debt. |
+| Normal | **Post Through It** | 1 | Gain 2 Block for every card played before this card today. |
+| Normal | **Spike It** | 0 | Flexible 3, Unverified, AI Assisted. Exhaust. |
+| Rare | **Ebb & Flow** | 0 | Gain 3 Focus. Draw 3. Add 3 Distractions at the start of the next Day. Exhaust. |
+
+**Prototype** is a stackable Cycle status: all Work cards gain +1 Work per stack. A shipped Side Quest leaves the task board so another can be created without permanently crowding the encounter, but it remains visible in the Cycle report. A Side Quest has no intent, only one can be active at once, and it must ship before the Cycle can end. Its first deterministic flavour-name pool is **Dark Mode for Sharkimedes**, **Emoji Picker**, **Confetti Mode**, **Slack Bot Upgrade**, and **Tiny Internal Tool**.
+
+**Full Stack** compares where the player actually puts the Work, including Flexible cards, rather than the discipline printed on the card. The previous discipline and both Cycle statuses are public state in the squad rack.
+
+**Quick Fix** is the shared generated token: cost 0, Flexible 2, Unverified, AI Assisted, Exhaust. **Post Through It** reads the public `cards played this Day` counter before counting itself. **Ebb & Flow's** Distractions only arrive if another Day begins; ending the Cycle first cleanly dodges the hangover.
 
 ### Odin — review control
 

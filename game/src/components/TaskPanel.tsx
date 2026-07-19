@@ -14,7 +14,7 @@ interface TaskPanelProps {
   run: RunState;
   task: TaskState;
   taskName: string;
-  taskRole?: "primary" | "complication";
+  taskRole?: "primary" | "complication" | "side-quest";
   selectedCard?: CardInstance;
   hoveredTargetKey?: string;
   resolving?: boolean;
@@ -62,7 +62,7 @@ export function TaskPanel({
       <header className="task-panel__header">
         <div>
           <span className="task-panel__state">
-            {taskRole ? `${taskRole} · ` : ""}
+            {taskRole ? `${taskRole === "side-quest" ? "Side Quest" : taskRole} · ` : ""}
             {shipped ? "Shipped" : ready ? "Ready" : "Open"}
           </span>
           <h2>{taskName}</h2>
@@ -79,7 +79,9 @@ export function TaskPanel({
               ? `Stunned · ${formatIntent(scheduledIntent)}`
               : intent
                 ? formatIntent(intent)
-                : "Cancelled"}
+                : taskRole === "side-quest"
+                  ? "None"
+                  : "Cancelled"}
           </strong>
           {intentForHelp && (
             <span className="game-tooltip" id={intentTooltipId} role="tooltip">
@@ -204,6 +206,7 @@ export function TaskPanel({
               ship.techDebt > 0 ? `+${ship.techDebt} Debt` : undefined,
               shippingRewards.cardsDrawn > 0 ? `Draw ${shippingRewards.cardsDrawn}` : undefined,
               shippingRewards.focusGained > 0 ? `+${shippingRewards.focusGained} Focus` : undefined,
+              task.prototypeReward ? `Prototype +${task.prototypeReward}` : undefined,
             ]
               .filter(Boolean)
               .join(" · ")}
@@ -213,7 +216,7 @@ export function TaskPanel({
             type="button"
             disabled={shippingDisabled}
             onClick={() => onShip(task.taskId)}
-            aria-label={`Ship ${taskName}. ${ship.defects > 0 ? `${defectLabel}, ${shippingDamage.blocked} blocked and ${shippingDamage.moraleLoss} Morale lost` : "Clean ship"}${ship.techDebt > 0 ? `, plus ${ship.techDebt} Tech Debt` : ""}${shippingRewards.cardsDrawn > 0 ? `, draw ${shippingRewards.cardsDrawn} cards` : ""}${shippingRewards.focusGained > 0 ? `, gain ${shippingRewards.focusGained} Focus` : ""}`}
+            aria-label={`Ship ${taskName}. ${ship.defects > 0 ? `${defectLabel}, ${shippingDamage.blocked} blocked and ${shippingDamage.moraleLoss} Morale lost` : "Clean ship"}${ship.techDebt > 0 ? `, plus ${ship.techDebt} Tech Debt` : ""}${shippingRewards.cardsDrawn > 0 ? `, draw ${shippingRewards.cardsDrawn} cards` : ""}${shippingRewards.focusGained > 0 ? `, gain ${shippingRewards.focusGained} Focus` : ""}${task.prototypeReward ? `, gain ${task.prototypeReward} Prototype` : ""}`}
           >
             Ship Task
           </button>

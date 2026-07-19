@@ -170,6 +170,14 @@ export function CycleScreen({ dispatch, run, onInspectCards }: CycleScreenProps)
         target: { kind: "squad" } as CardTarget,
       };
     }
+    if (target.dataset.targetKind === "discipline") {
+      const discipline = target.dataset.targetDiscipline as Discipline | undefined;
+      if (!discipline) return undefined;
+      return {
+        key: target.dataset.cardTarget,
+        target: { kind: "discipline", discipline } as CardTarget,
+      };
+    }
     const taskId = target.dataset.taskId;
     if (!taskId) return undefined;
     return {
@@ -253,7 +261,7 @@ export function CycleScreen({ dispatch, run, onInspectCards }: CycleScreenProps)
         return [
           {
             taskId: task.taskId,
-            taskName: definitionTask?.name ?? task.taskId,
+            taskName: task.name ?? definitionTask?.name ?? task.taskId,
             label: formatIntent(scheduledIntent),
             eyebrow: "Intent Stunned" as const,
           },
@@ -265,7 +273,7 @@ export function CycleScreen({ dispatch, run, onInspectCards }: CycleScreenProps)
       return [
         {
           taskId: task.taskId,
-          taskName: definitionTask?.name ?? task.taskId,
+          taskName: task.name ?? definitionTask?.name ?? task.taskId,
           label: formatIntent(intent),
           eyebrow: "Intent Resolves" as const,
         },
@@ -296,7 +304,7 @@ export function CycleScreen({ dispatch, run, onInspectCards }: CycleScreenProps)
             );
             return scripted.map((label) => ({
               taskId: task.taskId,
-              taskName: definitionTask?.name ?? task.taskId,
+              taskName: task.name ?? definitionTask?.name ?? task.taskId,
               label,
               eyebrow: "Automation Runs" as const,
             }));
@@ -324,10 +332,25 @@ export function CycleScreen({ dispatch, run, onInspectCards }: CycleScreenProps)
 
   const ceremonyItem = ceremony?.items[ceremony.index];
   playCardRef.current = commitCardPlay;
+  const selectedDefinition = selectedCard ? getCard(selectedCard.cardId) : undefined;
   const squadResolution = selectedCard
     ? resolveCardTarget(run, selectedCard, { kind: "squad" })
     : undefined;
   const squadTargetable = squadResolution?.legal && squadResolution.kind === "tactic";
+  const sideQuestTargets = selectedCard
+    ? (["frontend", "backend", "infra"] as const)
+        .map((discipline) => ({
+          discipline,
+          resolution: resolveCardTarget(run, selectedCard, { kind: "discipline", discipline }),
+        }))
+        .filter(({ resolution }) => resolution.legal)
+    : [];
+  const sideQuestTargetable = Boolean(
+    selectedDefinition?.spawnSideQuest && sideQuestTargets.length,
+  );
+  const visibleTasks = cycle.tasks.filter(
+    (task) => !(task.role === "side-quest" && task.status === "shipped"),
+  );
 
   function portraitMood(developerId: DeveloperId): CharacterMood {
     if (reaction?.developerId === developerId) return "success";
@@ -338,7 +361,7 @@ export function CycleScreen({ dispatch, run, onInspectCards }: CycleScreenProps)
   return (
     <section className="screen cycle-screen" aria-label={definition.name}>
       <header
-        className={`cycle-hud${squadTargetable ? " is-squad-targetable" : ""}${aim?.hoveredTargetKey === "squad" ? " is-aimed" : ""}`}
+        className={`cycle-hud${squadTargetable || sideQuestTargetable ? " is-squad-targetable" : ""}${aim?.hoveredTargetKey === "squad" ? " is-aimed" : ""}`}
         data-card-target={squadTargetable ? "squad" : undefined}
         data-target-kind={squadTargetable ? "squad" : undefined}
       >
@@ -366,11 +389,64 @@ export function CycleScreen({ dispatch, run, onInspectCards }: CycleScreenProps)
           >
             {definition.kind === "incident" && <span className="status-incident">Incident</span>}
             {cycle.block > 0 && <span className="status-buff">Block {cycle.block}</span>}
+            {cycle.prototypePower > 0 && (
+              <button
+                className="status-buff status-buff--prototype"
+                type="button"
+                aria-label={`Prototype ${cycle.prototypePower}. Every Work card gains ${cycle.prototypePower} Work this Cycle.`}
+              >
+                Prototype +{cycle.prototypePower}
+                <span className="game-tooltip" role="tooltip">
+                  Every Work card gains +{cycle.prototypePower} Work this Cycle.
+                </span>
+              </button>
+            )}
+            {cycle.fullStackPower > 0 && (
+              <button
+                className="status-buff status-buff--variety"
+                type="button"
+                aria-label={`Full Stack ${cycle.fullStackPower}. Switching target discipline adds ${cycle.fullStackPower} Work.`}
+              >
+                Full Stack +{cycle.fullStackPower}
+                <span className="game-tooltip" role="tooltip">
+                  Switching target discipline adds +{cycle.fullStackPower} Work.
+                </span>
+              </button>
+            )}
+            {cycle.cardsPlayedThisDay > 0 && (
+              <span className="status-counter">Plays {cycle.cardsPlayedThisDay}</span>
+            )}
+            {cycle.exhaustPile.length > 0 && (
+              <button
+                className="status-counter status-counter--button"
+                type="button"
+                onClick={() => onInspectCards("Exhaust", cycle.exhaustPile)}
+              >
+                Exhaust {cycle.exhaustPile.length}
+              </button>
+            )}
             {cycle.blockedDisciplines.map((discipline) => (
               <span className="status-debuff" key={discipline}>
                 {disciplineLabel(discipline)} +1 Cost
               </span>
             ))}
+            {sideQuestTargetable && (
+              <span className="side-quest-targets" aria-label="Choose Side Quest discipline">
+                {sideQuestTargets.map(({ discipline, resolution }) => (
+                  <button
+                    className={`side-quest-target${aim?.hoveredTargetKey === `discipline:${discipline}` ? " is-aimed" : ""}`}
+                    type="button"
+                    key={discipline}
+                    data-card-target={`discipline:${discipline}`}
+                    data-target-kind="discipline"
+                    data-target-discipline={discipline}
+                    aria-label={resolution.legal ? resolution.label : disciplineLabel(discipline)}
+                  >
+                    {disciplineLabel(discipline)}
+                  </button>
+                ))}
+              </span>
+            )}
             {squadTargetable && <b>{squadResolution.label}</b>}
           </div>
         </div>
@@ -390,21 +466,21 @@ export function CycleScreen({ dispatch, run, onInspectCards }: CycleScreenProps)
       </header>
 
       <div
-        className={`task-board task-board--${Math.min(cycle.tasks.length, 4)}${squadTargetable ? " is-squad-targetable" : ""}${aim?.hoveredTargetKey === "squad" ? " is-aimed" : ""}`}
+        className={`task-board task-board--${Math.min(visibleTasks.length, 4)}${squadTargetable ? " is-squad-targetable" : ""}${aim?.hoveredTargetKey === "squad" ? " is-aimed" : ""}`}
         aria-label={definition.kind === "incident" ? "Incident Tasks" : "Cycle Tasks"}
         data-card-target={squadTargetable ? "squad" : undefined}
         data-target-kind={squadTargetable ? "squad" : undefined}
         data-tutorial-anchor="tasks"
       >
-        {cycle.tasks.map((task) => {
+        {visibleTasks.map((task) => {
           const taskDefinition = definition.tasks.find((candidate) => candidate.id === task.taskId);
           return (
             <TaskPanel
               key={task.taskId}
               run={run}
               task={task}
-              taskName={taskDefinition?.name ?? task.taskId}
-              taskRole={taskDefinition?.role}
+              taskName={task.name ?? taskDefinition?.name ?? task.taskId}
+              taskRole={task.role ?? taskDefinition?.role}
               selectedCard={selectedCard}
               hoveredTargetKey={aim?.hoveredTargetKey}
               resolving={ceremonyItem?.taskId === task.taskId}
