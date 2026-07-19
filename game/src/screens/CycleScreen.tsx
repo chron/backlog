@@ -59,6 +59,10 @@ interface ReactionState extends CharacterCue {
   id: number;
 }
 
+export function taskBoardLayoutClass(taskCount: number): string {
+  return taskCount >= 5 ? "compact" : String(Math.max(1, taskCount));
+}
+
 function cardTagLabel(tag: CardTag): string {
   return tag === "ai-assisted"
     ? "AI Assisted"
@@ -561,7 +565,7 @@ export function CycleScreen({ dispatch, run, onInspectCards }: CycleScreenProps)
       </header>
 
       <div
-        className={`task-board task-board--${Math.min(visibleTasks.length, 4)}${squadTargetable ? " is-squad-targetable" : ""}${aim?.hoveredTargetKey === "squad" ? " is-aimed" : ""}`}
+        className={`task-board task-board--${taskBoardLayoutClass(visibleTasks.length)}${squadTargetable ? " is-squad-targetable" : ""}${aim?.hoveredTargetKey === "squad" ? " is-aimed" : ""}`}
         aria-label={definition.kind === "incident" ? "Incident Tasks" : "Cycle Tasks"}
         data-card-target={squadTargetable ? "squad" : undefined}
         data-target-kind={squadTargetable ? "squad" : undefined}

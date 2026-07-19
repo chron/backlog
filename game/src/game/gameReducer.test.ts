@@ -348,7 +348,7 @@ describe("gameReducer", () => {
     const scopeIntents = ["quick-win", "presence-upgrade", "growth-spurt", "final-release"]
       .flatMap((cycleId) => getCycle(cycleId).tasks)
       .flatMap((task) => task.intents)
-      .filter((intent) => intent.kind === "scope");
+      .filter((intent) => intent?.kind === "scope");
     expect(scopeIntents.length).toBeGreaterThan(0);
     expect(scopeIntents.every((intent) => intent.amount >= 3)).toBe(true);
     expect(formatIntent({ kind: "interruption" })).toBe("+1 Distraction");

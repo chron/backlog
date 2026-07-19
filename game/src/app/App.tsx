@@ -20,9 +20,9 @@ import { ShopScreen } from "../screens/ShopScreen";
 import { SquadScreen } from "../screens/SquadScreen";
 import { TitleScreen } from "../screens/TitleScreen";
 import { ToolRewardScreen } from "../screens/ToolRewardScreen";
-import { developers } from "../domain/content";
+import { developers, getCycle } from "../domain/content";
 import { eventDefinitions } from "../domain/events";
-import type { CardInstance } from "../domain/models";
+import type { CardInstance, TaskState } from "../domain/models";
 import { logGameAction } from "../game/actionLog";
 import type { GameAction } from "../game/gameReducer";
 import type { GameState } from "../game/gameReducer";
@@ -38,7 +38,7 @@ function createAppInitialState(base: GameState): GameState {
   const qa = searchParams.get("qa");
   if (
     !import.meta.env.DEV ||
-    !["paul", "madi", "odin", "irene", "basics", "event", "boss"].includes(qa ?? "")
+    !["paul", "madi", "odin", "irene", "basics", "event", "boss", "cycle"].includes(qa ?? "")
   ) {
     return base;
   }
@@ -67,6 +67,62 @@ function createAppInitialState(base: GameState): GameState {
     state = gameReducer(state, { type: "TOGGLE_DEVELOPER", developerId });
   }
   state = gameReducer(state, { type: "CONFIRM_SQUAD" });
+  if (qa === "cycle" && state.run) {
+    const requestedCycleId = searchParams.get("cycle") ?? "every-methodology";
+    let cycleState = gameReducer(state, { type: "VISIT_NODE", nodeId: "cycle-1" });
+    if (!cycleState.run?.cycle) return cycleState;
+    const definition = getCycle(requestedCycleId);
+    const tasks: TaskState[] = definition.tasks
+      .filter((task) => task.role !== "complication")
+      .map((task) => ({
+        taskId: task.id,
+        name: task.name,
+        role: task.role,
+        status: "open" as const,
+        stunned: false,
+        spawnedDay: 1,
+        requirements: task.requirements.map((requirement) => ({
+          ...requirement,
+          verified: 0,
+          unverified: 0,
+          scriptPower: 0,
+          scriptBlock: 0,
+        })),
+      }));
+    if (searchParams.get("temporary") === "1") {
+      tasks.push({
+        taskId: "qa-side-quest",
+        name: "Dark Mode for Sharkimedes",
+        role: "side-quest",
+        status: "open",
+        stunned: false,
+        spawnedDay: 1,
+        requirements: [
+          {
+            discipline: "frontend",
+            target: 3,
+            verified: 0,
+            unverified: 0,
+            scriptPower: 0,
+            scriptBlock: 0,
+          },
+        ],
+      });
+    }
+    return {
+      ...cycleState,
+      screen: { name: "cycle", nodeId: "cycle-1", cycleId: definition.id },
+      run: {
+        ...cycleState.run,
+        cycle: {
+          ...cycleState.run.cycle,
+          cycleId: definition.id,
+          focus: 10,
+          tasks,
+        },
+      },
+    };
+  }
   if (qa === "boss" && state.run) {
     const bossMap: GameState = {
       screen: { name: "map" },

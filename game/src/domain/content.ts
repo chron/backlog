@@ -9,6 +9,7 @@ import type {
   MapNode,
   ToolDefinition,
 } from "./models";
+import { authoredCycleCatalogue } from "./encounters";
 import {
   characterGeneratedCards,
   characterRewardCards,
@@ -505,55 +506,7 @@ const cycles: readonly CycleDefinition[] = [
       },
     ],
   },
-  {
-    id: "ai-results-analysis",
-    name: "AI Results Analysis",
-    maxDays: 5,
-    tasks: [
-      {
-        id: "theme-clustering",
-        name: "Theme Clustering",
-        requirements: [{ discipline: "backend", target: 8 }],
-        intents: [
-          { kind: "ai-assist", discipline: "backend", amount: 3 },
-          { kind: "crunch", moraleLoss: 2 },
-          { kind: "scope", discipline: "backend", amount: 4 },
-          { kind: "regression", discipline: "backend", amount: 3 },
-          { kind: "crunch", moraleLoss: 4 },
-        ],
-      },
-      {
-        id: "insight-summaries",
-        name: "Insight Summaries",
-        requirements: [
-          { discipline: "frontend", target: 6 },
-          { discipline: "backend", target: 4 },
-        ],
-        intents: [
-          { kind: "interruption" },
-          { kind: "ai-assist", discipline: "frontend", amount: 3 },
-          { kind: "crunch", moraleLoss: 3 },
-          { kind: "scope", discipline: "backend", amount: 4 },
-          { kind: "crunch", moraleLoss: 4 },
-        ],
-      },
-      {
-        id: "evidence-links",
-        name: "Evidence Links",
-        requirements: [
-          { discipline: "frontend", target: 4 },
-          { discipline: "infra", target: 3 },
-        ],
-        intents: [
-          { kind: "blocked", discipline: "infra" },
-          { kind: "crunch", moraleLoss: 2 },
-          { kind: "ai-assist", discipline: "frontend", amount: 3 },
-          { kind: "regression", discipline: "infra", amount: 3 },
-          { kind: "crunch", moraleLoss: 4 },
-        ],
-      },
-    ],
-  },
+  ...authoredCycleCatalogue,
   {
     id: "production-incident",
     name: "Production Incident",

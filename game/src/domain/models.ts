@@ -6,6 +6,8 @@ type CharacterArtwork = Readonly<Record<CharacterMood, string>>;
 
 export type Discipline = "frontend" | "backend" | "infra";
 export type WorkKind = "verified" | "unverified";
+export type EncounterTier = "early" | "mid" | "late" | "safe-incident";
+export type EncounterShape = "balanced" | "tall" | "wide" | "crunch" | "verification" | "volatile";
 export type ToolId =
   | "pairing-session"
   | "ci-runner"
@@ -124,13 +126,15 @@ export interface TaskDefinition {
   name: string;
   role?: "primary" | "complication";
   requirements: readonly RequirementDefinition[];
-  intents: readonly IntentDefinition[];
+  intents: readonly (IntentDefinition | null)[];
 }
 
 export interface CycleDefinition {
   id: string;
   name: string;
   kind?: "incident";
+  tier?: EncounterTier;
+  shape?: EncounterShape;
   primaryTaskId?: string;
   maxDays: number;
   tasks: readonly TaskDefinition[];

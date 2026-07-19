@@ -2106,6 +2106,50 @@ main:focus {
   grid-template-rows: repeat(2, minmax(0, 1fr));
 }
 
+.task-board--compact {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-rows: repeat(2, minmax(0, 1fr));
+}
+
+.task-board--compact .task-panel {
+  padding: 0.55rem 0.65rem;
+}
+
+.task-board--compact .task-panel__header {
+  gap: 0.4rem;
+  padding-bottom: 0.35rem;
+}
+
+.task-board--compact .task-panel__header h2 {
+  font-size: clamp(0.96rem, 1.35vw, 1.2rem);
+}
+
+.task-board--compact .intent-badge {
+  min-width: 128px;
+  max-width: 58%;
+}
+
+.task-board--compact .intent-badge > strong,
+.task-board--compact .intent-badge__label {
+  padding: 0.35rem 0.4rem;
+  font-size: 0.54rem;
+}
+
+.task-board--compact .requirement-stack {
+  gap: 0.15rem;
+  margin-top: 0.25rem;
+  padding-bottom: 0.2rem;
+}
+
+.task-board--compact .requirement {
+  padding: 0.2rem 0.3rem;
+}
+
+.task-board--compact .requirement__track {
+  height: 9px;
+  margin: 0.2rem 0;
+}
+
 .task-board::before {
   display: none;
 }
@@ -2347,6 +2391,10 @@ main:focus {
   }
 
   .task-board--4 {
+    height: min(100%, 470px);
+  }
+
+  .task-board--compact {
     height: min(100%, 470px);
   }
 

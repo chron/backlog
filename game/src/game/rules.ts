@@ -164,7 +164,7 @@ export function getScheduledIntent(cycle: CycleState, task: TaskState) {
   const definition = getEncounterCycleDefinition(cycle).tasks.find(
     (candidate) => candidate.id === task.taskId,
   );
-  return definition?.intents[cycle.day - task.spawnedDay];
+  return definition?.intents[cycle.day - task.spawnedDay] ?? undefined;
 }
 
 export function getCurrentIntent(cycle: CycleState, task: TaskState) {
