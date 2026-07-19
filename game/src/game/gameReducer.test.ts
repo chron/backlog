@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { eligibleRewardCardIds, formatIntent, getCard, getCycle, tools } from "../domain/content";
-import { getEvent, resolveEventChoice } from "../domain/events";
+import { getEvent } from "../domain/events";
 import type { DeveloperId, Discipline, ToolId } from "../domain/models";
 import { gameReducer, initialGameState } from "./gameReducer";
 import type { GameState } from "./gameReducer";
+import { resolveEventChoice } from "./eventResolution";
 import { taskShippingPreview } from "./rules";
 
 function startCycle(

@@ -1,5 +1,6 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
+import { RunVitals } from "../components/RunVitals";
 import { gameReducer, initialGameState } from "../game/gameReducer";
 import { EventScreen } from "./EventScreen";
 import { MapScreen } from "./MapScreen";
@@ -54,5 +55,65 @@ describe("EventScreen", () => {
     expect(markup).not.toContain("One Tiny Thing");
     expect(markup).not.toContain("Ship It Friday");
     expect(markup).toContain("Event, Locked");
+  });
+
+  it("renders a secondary selection without leaving the Event", () => {
+    const run = {
+      ...testRun(),
+      credits: 40,
+      deck: [{ cardId: "frontend-3", instanceId: "test-basic" }],
+    };
+    const pending = gameReducer(
+      {
+        screen: { name: "event", nodeId: "event-1", eventId: "karaoke-night" },
+        run,
+      },
+      { type: "CHOOSE_EVENT", choiceId: "duet" },
+    );
+    if (pending.screen.name !== "event" || !pending.screen.resolution) {
+      throw new Error("Expected a pending Event selection");
+    }
+    const markup = renderToStaticMarkup(
+      <EventScreen
+        dispatch={() => undefined}
+        run={pending.run}
+        eventId="karaoke-night"
+        resolution={pending.screen.resolution}
+        onInspectDeck={() => undefined}
+      />,
+    );
+
+    expect(markup).toContain("Duplicate a card");
+    expect(markup).toContain("−15 Credits");
+    expect(markup).toContain("Frontend");
+    expect(markup).not.toContain("Power Ballad");
+  });
+
+  it("reveals requested encounter titles without revealing Event identities", () => {
+    const run = {
+      ...testRun(),
+      mapModifiers: [{ kind: "reveal" as const, nodeIds: ["cycle-2", "event-2"] }],
+    };
+    const markup = renderToStaticMarkup(
+      <MapScreen dispatch={() => undefined} run={run} onInspectDeck={() => undefined} />,
+    );
+
+    expect(markup).toContain("Release Candidate");
+    expect(markup).not.toContain("One Tiny Thing");
+  });
+
+  it("keeps queued reward and map modifiers visible in the run HUD", () => {
+    const markup = renderToStaticMarkup(
+      <RunVitals
+        run={{
+          ...testRun(),
+          nextRewardModifiers: [{ choiceCount: 4 }],
+          mapModifiers: [{ kind: "reveal", nodeIds: ["cycle-2", "incident-1"] }],
+        }}
+      />,
+    );
+
+    expect(markup).toContain("Next reward modified");
+    expect(markup).toContain("2 nodes revealed");
   });
 });

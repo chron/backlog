@@ -14,7 +14,7 @@ interface TaskPanelProps {
   run: RunState;
   task: TaskState;
   taskName: string;
-  taskRole?: "primary" | "complication" | "side-quest";
+  taskRole?: "primary" | "complication" | "side-quest" | "bounty";
   selectedCard?: CardInstance;
   hoveredTargetKey?: string;
   resolving?: boolean;
@@ -38,6 +38,14 @@ export function TaskPanel({
   const cycle = run.cycle;
   if (!cycle) return null;
   const ready = task.status === "ready";
+  const bountyReward =
+    task.bountyReward?.kind === "credits"
+      ? `${task.bountyReward.amount} Credits`
+      : task.bountyReward?.kind === "tool-offer"
+        ? "Tool Offer"
+        : task.bountyReward?.kind === "rare-card-offer"
+          ? "Rare Card Offer"
+          : undefined;
   const shipped = task.status === "shipped";
   const ship = taskShippingPreview(task);
   const shippingDamage = absorbMoraleDamage(cycle.block, ship.moraleLoss);
@@ -62,10 +70,15 @@ export function TaskPanel({
       <header className="task-panel__header">
         <div>
           <span className="task-panel__state">
-            {taskRole ? `${taskRole === "side-quest" ? "Side Quest" : taskRole} · ` : ""}
+            {taskRole
+              ? `${taskRole === "side-quest" ? "Side Quest" : taskRole === "bounty" ? "Bounty" : taskRole} · `
+              : ""}
             {shipped ? "Shipped" : ready ? "Ready" : "Open"}
           </span>
           <h2>{taskName}</h2>
+          {bountyReward && (
+            <span className="task-panel__bounty-reward">Reward · {bountyReward}</span>
+          )}
         </div>
         <button
           className={`intent-badge intent-badge--${task.stunned ? "stunned" : (intent?.kind ?? "cancelled")}`}
@@ -79,7 +92,7 @@ export function TaskPanel({
               ? `Stunned · ${formatIntent(scheduledIntent)}`
               : intent
                 ? formatIntent(intent)
-                : taskRole === "side-quest"
+                : taskRole === "side-quest" || taskRole === "bounty"
                   ? "None"
                   : "Cancelled"}
           </strong>

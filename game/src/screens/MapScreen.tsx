@@ -2,8 +2,9 @@ import { useEffect, useRef } from "react";
 import type { DispatchProps, RunProps } from "../app/types";
 import { CardCollectionEntry } from "../components/CardCollectionBrowser";
 import { CharacterToken } from "../components/CharacterToken";
-import { isMapNodeAvailable, mapEdges, mapNodes } from "../domain/content";
+import { isMapNodeAvailable, mapNodes } from "../domain/content";
 import type { MapNode, RunState } from "../domain/models";
+import { effectiveMapEdges, revealedMapNodeIds } from "../game/eventResolution";
 
 type MapScreenProps = DispatchProps &
   RunProps & {
@@ -17,7 +18,9 @@ const mapNodeById = new Map(mapNodes.map((node) => [node.id, node]));
 function getNodeState(node: MapNode, run: RunState): MapNodeState {
   if (node.id === run.currentNodeId) return "current";
   if (run.completedNodeIds.includes(node.id)) return "visited";
-  return isMapNodeAvailable(node, run.currentNodeId, run.completedNodeIds) ? "available" : "locked";
+  return isMapNodeAvailable(node, run.currentNodeId, run.completedNodeIds, effectiveMapEdges(run))
+    ? "available"
+    : "locked";
 }
 
 function nodeGlyph(node: MapNode): string {
@@ -43,8 +46,15 @@ function nodeTypeLabel(node: MapNode): string {
     : `${node.kind.slice(0, 1).toUpperCase()}${node.kind.slice(1)}`;
 }
 
-function visibleNodeLabel(node: MapNode, state: MapNodeState): string {
-  if (node.kind === "event" || state === "available" || state === "locked") {
+function visibleNodeLabel(
+  node: MapNode,
+  state: MapNodeState,
+  revealed: ReadonlySet<string>,
+): string {
+  if (
+    node.kind === "event" ||
+    (!revealed.has(node.id) && (state === "available" || state === "locked"))
+  ) {
     return nodeTypeLabel(node);
   }
   return node.title;
@@ -52,6 +62,8 @@ function visibleNodeLabel(node: MapNode, state: MapNodeState): string {
 
 export function MapScreen({ dispatch, run, onInspectDeck }: MapScreenProps) {
   const viewportRef = useRef<HTMLDivElement>(null);
+  const edges = run ? effectiveMapEdges(run) : [];
+  const revealed = run ? revealedMapNodeIds(run) : new Set<string>();
 
   useEffect(() => {
     const viewport = viewportRef.current;
@@ -92,7 +104,7 @@ export function MapScreen({ dispatch, run, onInspectDeck }: MapScreenProps) {
             preserveAspectRatio="none"
             aria-hidden="true"
           >
-            {mapEdges.map((edge) => {
+            {edges.map((edge) => {
               const from = mapNodeById.get(edge.fromNodeId);
               const to = mapNodeById.get(edge.toNodeId);
               if (!from || !to) return null;
@@ -120,7 +132,7 @@ export function MapScreen({ dispatch, run, onInspectDeck }: MapScreenProps) {
           {mapNodes.map((node) => {
             const state = run ? getNodeState(node, run) : "locked";
             const typeLabel = nodeTypeLabel(node);
-            const visibleLabel = visibleNodeLabel(node, state);
+            const visibleLabel = visibleNodeLabel(node, state, revealed);
             const showsEncounterTitle = visibleLabel !== typeLabel;
             const stateLabel =
               state === "current"

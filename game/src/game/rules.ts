@@ -127,7 +127,9 @@ export function isCycleShipped(cycle: CycleState): boolean {
       .every((task) => task.status === "shipped");
     return primaryShipped && sideQuestsShipped;
   }
-  return cycle.tasks.every((task) => task.status === "shipped");
+  return cycle.tasks
+    .filter((task) => task.role !== "bounty")
+    .every((task) => task.status === "shipped");
 }
 
 export function refreshTaskStatus(task: TaskState): TaskState {

@@ -1,33 +1,86 @@
-import type { RunState } from "./models";
+import type {
+  CardTag,
+  Discipline,
+  EventBountyTask,
+  EventNextCycleModifier,
+  EventRewardModifier,
+  MapEdge,
+  RunState,
+  ToolId,
+} from "./models";
 
 type EventArtTreatment = "scope" | "karaoke" | "call-grid" | "pull-request";
 type EventChoiceTone = "steady" | "build" | "risk";
 type EventOutcomeTone = "good" | "neutral" | "risk";
-type EventLedgerResource = "credits" | "morale" | "tech-debt";
-type DeferredEventPrimitive =
-  | "deck-surgery"
-  | "filtered-draft"
-  | "tool-offer"
-  | "next-cycle-modifier"
-  | "temporary-guest-card";
+type EventLedgerResource = "credits" | "morale" | "max-morale" | "tech-debt";
 
-interface EventOutcomeChip {
+export interface EventOutcomeChip {
   text: string;
   tone: EventOutcomeTone;
 }
+
+export interface EventCardFilter {
+  cardIds?: readonly string[];
+  tagsAny?: readonly CardTag[];
+  tagsAll?: readonly CardTag[];
+  excludedTags?: readonly CardTag[];
+  disciplines?: readonly (Discipline | "flexible")[];
+  rarities?: readonly ("normal" | "rare")[];
+  owner?: "squad" | "non-squad";
+  startersOnly?: boolean;
+}
+
+export type EventDeckSurgeryEffect =
+  | { kind: "deck-surgery"; operation: "add"; cardId: string }
+  | {
+      kind: "deck-surgery";
+      operation: "remove" | "duplicate";
+      filter: EventCardFilter;
+    }
+  | {
+      kind: "deck-surgery";
+      operation: "transform";
+      filter: EventCardFilter;
+      transform: { kind: "verify" } | { kind: "replace"; cardId: string };
+    };
 
 export type EventEffect =
   | {
       kind: "ledger";
       resource: EventLedgerResource;
       amount: number;
-      cap?: number;
+    }
+  | EventDeckSurgeryEffect
+  | {
+      kind: "filtered-draft";
+      count: number;
+      filter: EventCardFilter;
     }
   | {
-      kind: "deferred";
-      primitive: DeferredEventPrimitive;
-      preview: readonly EventOutcomeChip[];
-      reason: string;
+      kind: "tool-offer";
+      count: number;
+      toolIds?: readonly ToolId[];
+    }
+  | {
+      kind: "next-cycle-modifier";
+      modifier: EventNextCycleModifier;
+    }
+  | {
+      kind: "temporary-guest-card";
+      count: number;
+      cardIds?: readonly string[];
+    }
+  | {
+      kind: "bounty-task";
+      bounty: EventBountyTask;
+    }
+  | {
+      kind: "reward-modifier";
+      modifier: EventRewardModifier;
+    }
+  | {
+      kind: "map-modifier";
+      modifier: { kind: "reveal-upcoming"; count: number } | { kind: "connection"; edge: MapEdge };
     };
 
 interface EventRequirement {
@@ -55,15 +108,8 @@ export interface EventDefinition {
   choices: readonly EventChoiceDefinition[];
 }
 
-export interface ResolvedEventChoice {
-  disabledReason?: string;
-  effects: readonly Extract<EventEffect, { kind: "ledger" }>[];
-  outcome: readonly EventOutcomeChip[];
-}
-
 const alwaysEligible = () => true;
 const ordinaryWeight = () => 1;
-const notInDemo = "Not in this demo";
 
 export const eventDefinitions: readonly EventDefinition[] = [
   {
@@ -79,7 +125,7 @@ export const eventDefinitions: readonly EventDefinition[] = [
         id: "push-back",
         label: "Push Back",
         tone: "steady",
-        effects: [{ kind: "ledger", resource: "morale", amount: 2, cap: 10 }],
+        effects: [{ kind: "ledger", resource: "morale", amount: 2 }],
       },
       {
         id: "sure-easy",
@@ -105,7 +151,7 @@ export const eventDefinitions: readonly EventDefinition[] = [
         id: "solo",
         label: "Solo",
         tone: "steady",
-        effects: [{ kind: "ledger", resource: "morale", amount: 4, cap: 10 }],
+        effects: [{ kind: "ledger", resource: "morale", amount: 4 }],
       },
       {
         id: "duet",
@@ -113,14 +159,11 @@ export const eventDefinitions: readonly EventDefinition[] = [
         tone: "build",
         requirements: [{ kind: "credits-at-least", amount: 15, reason: "Need 15 Credits" }],
         effects: [
+          { kind: "ledger", resource: "credits", amount: -15 },
           {
-            kind: "deferred",
-            primitive: "deck-surgery",
-            preview: [
-              { text: "−15 Credits", tone: "risk" },
-              { text: "Duplicate 1 non-Rare", tone: "good" },
-            ],
-            reason: notInDemo,
+            kind: "deck-surgery",
+            operation: "duplicate",
+            filter: { rarities: ["normal"] },
           },
         ],
       },
@@ -129,14 +172,10 @@ export const eventDefinitions: readonly EventDefinition[] = [
         label: "Power Ballad",
         tone: "risk",
         effects: [
+          { kind: "ledger", resource: "max-morale", amount: 2 },
           {
-            kind: "deferred",
-            primitive: "next-cycle-modifier",
-            preview: [
-              { text: "+2 Max Morale", tone: "good" },
-              { text: "+1 Distraction next Cycle", tone: "risk" },
-            ],
-            reason: notInDemo,
+            kind: "next-cycle-modifier",
+            modifier: { kind: "queued-status", cardId: "distraction", count: 1 },
           },
         ],
       },
@@ -150,26 +189,19 @@ export const eventDefinitions: readonly EventDefinition[] = [
     artTreatment: "call-grid",
     eligibility: alwaysEligible,
     weight: (run) =>
-      run.squad.some((developerId) => ["kirsten", "paul", "odin"].includes(developerId)) ? 3 : 1,
+      run.squad.some((developerId) => ["paul", "odin"].includes(developerId)) ? 3 : 1,
     choices: [
       {
         id: "wave-hello",
         label: "Wave Hello",
         tone: "steady",
-        effects: [{ kind: "ledger", resource: "morale", amount: 3, cap: 10 }],
+        effects: [{ kind: "ledger", resource: "morale", amount: 3 }],
       },
       {
         id: "keyboard-review",
         label: "Keyboard Review",
         tone: "build",
-        effects: [
-          {
-            kind: "deferred",
-            primitive: "deck-surgery",
-            preview: [{ text: "−2 Tech Debt", tone: "good" }],
-            reason: notInDemo,
-          },
-        ],
+        effects: [{ kind: "ledger", resource: "tech-debt", amount: -2 }],
       },
       {
         id: "make-them-mascot",
@@ -177,15 +209,8 @@ export const eventDefinitions: readonly EventDefinition[] = [
         tone: "risk",
         requirements: [{ kind: "credits-at-least", amount: 15, reason: "Need 15 Credits" }],
         effects: [
-          {
-            kind: "deferred",
-            primitive: "tool-offer",
-            preview: [
-              { text: "−15 Credits", tone: "risk" },
-              { text: "Gain Cat Tax", tone: "good" },
-            ],
-            reason: notInDemo,
-          },
+          { kind: "ledger", resource: "credits", amount: -15 },
+          { kind: "tool-offer", count: 1, toolIds: [] },
         ],
       },
     ],
@@ -203,14 +228,7 @@ export const eventDefinitions: readonly EventDefinition[] = [
         id: "pair-up",
         label: "Pair Up",
         tone: "build",
-        effects: [
-          {
-            kind: "deferred",
-            primitive: "deck-surgery",
-            preview: [{ text: "Add Pair Programming", tone: "good" }],
-            reason: notInDemo,
-          },
-        ],
+        effects: [{ kind: "deck-surgery", operation: "add", cardId: "pair-programming" }],
       },
       {
         id: "review-together",
@@ -218,10 +236,13 @@ export const eventDefinitions: readonly EventDefinition[] = [
         tone: "steady",
         effects: [
           {
-            kind: "deferred",
-            primitive: "deck-surgery",
-            preview: [{ text: "Verify 1 discipline Basic", tone: "good" }],
-            reason: notInDemo,
+            kind: "deck-surgery",
+            operation: "transform",
+            filter: {
+              tagsAll: ["basic"],
+              disciplines: ["frontend", "backend", "infra"],
+            },
+            transform: { kind: "verify" },
           },
         ],
       },
@@ -244,48 +265,12 @@ export function getEvent(eventId: string): EventDefinition {
   return event;
 }
 
-function resolveRequirement(requirement: EventRequirement, run: RunState): string | undefined {
+export function resolveEventRequirement(
+  requirement: EventRequirement,
+  run: RunState,
+): string | undefined {
   switch (requirement.kind) {
     case "credits-at-least":
       return run.credits < requirement.amount ? requirement.reason : undefined;
   }
-}
-
-function ledgerOutcome(
-  effect: Extract<EventEffect, { kind: "ledger" }>,
-  run: RunState,
-): EventOutcomeChip {
-  if (effect.resource === "morale") {
-    const amount = Math.min(effect.amount, Math.max(0, (effect.cap ?? 10) - run.morale));
-    return {
-      text: amount > 0 ? `+${amount} Morale` : "Morale Full",
-      tone: amount > 0 ? "good" : "neutral",
-    };
-  }
-  const label = effect.resource === "credits" ? "Credits" : "Tech Debt";
-  return {
-    text: `${effect.amount > 0 ? "+" : ""}${effect.amount} ${label}`,
-    tone: effect.amount > 0 && effect.resource === "tech-debt" ? "risk" : "good",
-  };
-}
-
-export function resolveEventChoice(
-  choice: EventChoiceDefinition,
-  run: RunState,
-): ResolvedEventChoice {
-  const requirementReason = choice.requirements
-    ?.map((requirement) => resolveRequirement(requirement, run))
-    .find(Boolean);
-  const deferred = choice.effects.find(
-    (effect): effect is Extract<EventEffect, { kind: "deferred" }> => effect.kind === "deferred",
-  );
-  return {
-    disabledReason: requirementReason ?? deferred?.reason,
-    effects: choice.effects.filter(
-      (effect): effect is Extract<EventEffect, { kind: "ledger" }> => effect.kind === "ledger",
-    ),
-    outcome: choice.effects.flatMap((effect) =>
-      effect.kind === "ledger" ? [ledgerOutcome(effect, run)] : effect.preview,
-    ),
-  };
 }

@@ -142,11 +142,12 @@ export interface RequirementState {
 export interface TaskState {
   taskId: string;
   name?: string;
-  role?: "primary" | "complication" | "side-quest";
+  role?: "primary" | "complication" | "side-quest" | "bounty";
   status: "open" | "ready" | "shipped";
   stunned: boolean;
   spawnedDay: number;
   prototypeReward?: number;
+  bountyReward?: EventBountyReward;
   requirements: RequirementState[];
 }
 
@@ -181,19 +182,50 @@ export interface CycleState {
   lastWorkDiscipline?: Discipline;
   queuedDistractions: number;
   queuedCardsDrawn: number;
+  intentProtections: Partial<Record<IntentDefinition["kind"], number>>;
   defects: number;
   techDebtAdded: number;
 }
 
 interface CardRewardState {
   sourceNodeId: string;
-  cardIds: readonly [string, string, string];
+  cardIds: readonly string[];
 }
 
 interface ToolRewardState {
   sourceNodeId: string;
   toolIds: readonly ToolId[];
 }
+
+export type EventNextCycleModifier =
+  | { kind: "opening-focus"; amount: number }
+  | { kind: "opening-draw"; amount: number }
+  | { kind: "queued-status"; cardId: string; count: number }
+  | { kind: "intent-protection"; intentKind: IntentDefinition["kind"]; count: number }
+  | { kind: "temporary-guest"; cardId: string };
+
+type EventBountyReward =
+  | { kind: "credits"; amount: number }
+  | { kind: "tool-offer" }
+  | { kind: "rare-card-offer" };
+
+export interface EventBountyTask {
+  id: string;
+  name: string;
+  requirements: readonly RequirementDefinition[];
+  reward: EventBountyReward;
+}
+
+export interface EventRewardModifier {
+  choiceCount?: number;
+  guaranteedRarity?: "rare";
+  tagsAny?: readonly CardTag[];
+  disciplines?: readonly (Discipline | "flexible")[];
+}
+
+export type EventMapModifier =
+  | { kind: "reveal"; nodeIds: readonly string[] }
+  | { kind: "connection"; edge: MapEdge };
 
 type RunHistoryEvent =
   | {
@@ -239,6 +271,7 @@ export interface RunState {
   nextCardInstanceId: number;
   tools: ToolId[];
   morale: number;
+  maxMorale: number;
   techDebt: number;
   credits: number;
   currentNodeId: string | null;
@@ -246,6 +279,11 @@ export interface RunState {
   cycle: CycleState | null;
   pendingCardReward: CardRewardState | null;
   pendingToolReward: ToolRewardState | null;
+  nextCycleModifiers: EventNextCycleModifier[];
+  pendingBounties: EventBountyTask[];
+  nextRewardModifiers: EventRewardModifier[];
+  mapModifiers: EventMapModifier[];
+  queuedBountyToolOffers: number;
   history: RunHistoryEvent[];
 }
 

@@ -12,8 +12,7 @@ import {
   teamRewardCardIds,
   toolIds,
 } from "../domain/content";
-import { getEvent, resolveEventChoice } from "../domain/events";
-import type { EventEffect } from "../domain/events";
+import { getEvent } from "../domain/events";
 import type {
   CardInstance,
   CycleReport,
@@ -41,6 +40,14 @@ import {
 } from "./rules";
 import type { CardTarget } from "./rules";
 import { selectEventDefinition } from "./eventSelection";
+import {
+  advanceEventResolution,
+  continueEventResolution,
+  effectiveMapEdges,
+  reconcileTechDebt,
+  resolveEventChoice,
+  type EventPendingSelection,
+} from "./eventResolution";
 import { normalizeSeed, sampleOne } from "./random";
 
 type Screen =
@@ -51,7 +58,17 @@ type Screen =
   | { name: "report"; report: CycleReport }
   | { name: "reward" }
   | { name: "tool-reward" }
-  | { name: "event"; nodeId: string; eventId: string }
+  | {
+      name: "event";
+      nodeId: string;
+      eventId: string;
+      resolution?: {
+        choiceId: string;
+        effectIndex: number;
+        outcome: readonly string[];
+        pending: EventPendingSelection;
+      };
+    }
   | { name: "shop"; nodeId: string }
   | {
       name: "retro";
@@ -82,6 +99,7 @@ export type GameAction =
   | { type: "OFFER_TOOL_REWARD"; sourceNodeId: string }
   | { type: "CHOOSE_TOOL_REWARD"; toolId: ToolId }
   | { type: "CHOOSE_EVENT"; choiceId: string }
+  | { type: "CHOOSE_EVENT_OPTION"; optionId: string }
   | { type: "LEAVE_NODE" }
   | { type: "RETURN_TITLE" };
 
@@ -100,6 +118,7 @@ function createRun(seed = 0x5eed1234): RunState {
     nextCardInstanceId: 1,
     tools: [],
     morale: 10,
+    maxMorale: 10,
     techDebt: 0,
     credits: 40,
     currentNodeId: null,
@@ -107,6 +126,11 @@ function createRun(seed = 0x5eed1234): RunState {
     cycle: null,
     pendingCardReward: null,
     pendingToolReward: null,
+    nextCycleModifiers: [],
+    pendingBounties: [],
+    nextRewardModifiers: [],
+    mapModifiers: [],
+    queuedBountyToolOffers: 0,
     history: [],
   };
 }
@@ -136,12 +160,54 @@ function createCardReward(run: RunState, sourceNodeId: string): RunState {
   );
   const wildcardPick = sampleOne(wildcardPool, rngState);
 
+  rngState = wildcardPick.rngState;
+  const choiceCount = Math.max(
+    3,
+    ...run.nextRewardModifiers.map((modifier) => modifier.choiceCount ?? 3),
+  );
+  const tagsAny = run.nextRewardModifiers.flatMap((modifier) => modifier.tagsAny ?? []);
+  const disciplines = run.nextRewardModifiers.flatMap((modifier) => modifier.disciplines ?? []);
+  const hasThemeFilter = tagsAny.length > 0 || disciplines.length > 0;
+  const cardIds = hasThemeFilter ? [] : [squadPick.item, teamPick.item, wildcardPick.item];
+  const eligiblePool = eligibleRewardCardIds(run.squad).filter((cardId) => {
+    const card = getCard(cardId);
+    return (
+      (!hasThemeFilter ||
+        tagsAny.some((tag) => card.tags.includes(tag)) ||
+        (card.discipline ? disciplines.includes(card.discipline) : false)) &&
+      !cardIds.includes(cardId)
+    );
+  });
+  while (cardIds.length < choiceCount && eligiblePool.some((cardId) => !cardIds.includes(cardId))) {
+    const pick = sampleOne(
+      eligiblePool.filter((cardId) => !cardIds.includes(cardId)),
+      rngState,
+    );
+    cardIds.push(pick.item);
+    rngState = pick.rngState;
+  }
+
+  if (
+    run.nextRewardModifiers.some((modifier) => modifier.guaranteedRarity === "rare") &&
+    !cardIds.some((cardId) => getCard(cardId).rarity === "rare")
+  ) {
+    const rarePool = eligibleRewardCardIds(run.squad).filter(
+      (cardId) => getCard(cardId).rarity === "rare" && !cardIds.includes(cardId),
+    );
+    if (rarePool.length > 0) {
+      const pick = sampleOne(rarePool, rngState);
+      cardIds[cardIds.length - 1] = pick.item;
+      rngState = pick.rngState;
+    }
+  }
+
   return {
     ...run,
-    rngState: wildcardPick.rngState,
+    rngState,
+    nextRewardModifiers: [],
     pendingCardReward: {
       sourceNodeId,
-      cardIds: [squadPick.item, teamPick.item, wildcardPick.item],
+      cardIds,
     },
   };
 }
@@ -177,6 +243,31 @@ function completeNode(run: RunState, nodeId: string): RunState {
     completedNodeIds: run.completedNodeIds.includes(nodeId)
       ? run.completedNodeIds
       : [...run.completedNodeIds, nodeId],
+  };
+}
+
+function finishEventResolution(
+  run: RunState,
+  screen: Extract<Screen, { name: "event" }>,
+  choiceId: string,
+  outcome: readonly string[],
+): GameState {
+  const completedRun = completeNode(run, screen.nodeId);
+  return {
+    screen: { name: "map" },
+    run: {
+      ...completedRun,
+      history: [
+        ...completedRun.history,
+        {
+          kind: "event-resolved",
+          nodeId: screen.nodeId,
+          eventId: screen.eventId,
+          choiceId,
+          outcome,
+        },
+      ],
+    },
   };
 }
 
@@ -261,17 +352,71 @@ function createSideQuestState(cycle: CycleState, discipline: Discipline): TaskSt
 
 function createCycleState(run: RunState, nodeId: string, cycleId: string): CycleState {
   const definition = getCycle(cycleId);
-  const firstDraw = drawCards(run.deck, [], 5, run.tools.includes("noise-cancelling-headphones"));
+  const openingFocus = run.nextCycleModifiers
+    .filter((modifier) => modifier.kind === "opening-focus")
+    .reduce((total, modifier) => total + modifier.amount, 0);
+  const openingDraw = run.nextCycleModifiers
+    .filter((modifier) => modifier.kind === "opening-draw")
+    .reduce((total, modifier) => total + modifier.amount, 0);
+  const queuedStatuses = run.nextCycleModifiers.flatMap((modifier, modifierIndex) =>
+    modifier.kind === "queued-status"
+      ? Array.from({ length: modifier.count }, (_, index) => ({
+          cardId: modifier.cardId,
+          instanceId: `event-status-${modifierIndex + 1}-${index + 1}`,
+          temporary: true,
+        }))
+      : [],
+  );
+  const guestCards = run.nextCycleModifiers.flatMap((modifier, index) =>
+    modifier.kind === "temporary-guest"
+      ? [{ cardId: modifier.cardId, instanceId: `event-guest-${index + 1}` }]
+      : [],
+  );
+  const firstDraw = drawCards(
+    [...queuedStatuses, ...guestCards, ...run.deck],
+    [],
+    5 + openingDraw,
+    run.tools.includes("noise-cancelling-headphones"),
+  );
+  const bountyTasks: TaskState[] = run.pendingBounties.map((bounty) => ({
+    taskId: bounty.id,
+    name: bounty.name,
+    role: "bounty",
+    status: "open",
+    stunned: false,
+    spawnedDay: 1,
+    bountyReward: bounty.reward,
+    requirements: bounty.requirements.map((requirement) => ({
+      ...requirement,
+      verified: 0,
+      unverified: 0,
+      scriptPower: 0,
+      scriptBlock: 0,
+    })),
+  }));
+  const intentProtections = run.nextCycleModifiers.reduce<CycleState["intentProtections"]>(
+    (protections, modifier) =>
+      modifier.kind === "intent-protection"
+        ? {
+            ...protections,
+            [modifier.intentKind]: (protections[modifier.intentKind] ?? 0) + modifier.count,
+          }
+        : protections,
+    {},
+  );
   return {
     nodeId,
     cycleId,
     startingMorale: run.morale,
     day: 1,
-    focus: 3,
+    focus: 3 + openingFocus,
     block: 0,
-    tasks: definition.tasks
-      .filter((task) => task.role !== "complication")
-      .map((task) => createTaskState(task, 1)),
+    tasks: [
+      ...definition.tasks
+        .filter((task) => task.role !== "complication")
+        .map((task) => createTaskState(task, 1)),
+      ...bountyTasks,
+    ],
     drawPile: firstDraw.drawPile,
     hand: firstDraw.drawn,
     discardPile: firstDraw.discardPile,
@@ -289,58 +434,14 @@ function createCycleState(run: RunState, nodeId: string, cycleId: string): Cycle
     reviewStunFocusBonus: 0,
     queuedDistractions: 0,
     queuedCardsDrawn: 0,
+    intentProtections,
     defects: 0,
     techDebtAdded: 0,
   };
 }
 
-function addTechDebtCard(run: RunState): RunState {
-  return {
-    ...run,
-    deck: [
-      ...run.deck,
-      {
-        cardId: "tech-debt",
-        instanceId: `card-${run.nextCardInstanceId}`,
-      },
-    ],
-    nextCardInstanceId: run.nextCardInstanceId + 1,
-  };
-}
-
-const techDebtCardThreshold = 3;
-
 function addTechDebt(run: RunState, amount: number): RunState {
-  if (amount <= 0) return run;
-  const techDebt = run.techDebt + amount;
-  const cardsToAdd =
-    Math.floor(techDebt / techDebtCardThreshold) - Math.floor(run.techDebt / techDebtCardThreshold);
-  let nextRun = { ...run, techDebt };
-  for (let index = 0; index < cardsToAdd; index += 1) {
-    nextRun = addTechDebtCard(nextRun);
-  }
-  return nextRun;
-}
-
-function applyEventLedgerEffects(
-  run: RunState,
-  effects: readonly Extract<EventEffect, { kind: "ledger" }>[],
-): RunState {
-  return effects.reduce((nextRun, effect) => {
-    switch (effect.resource) {
-      case "credits":
-        return { ...nextRun, credits: Math.max(0, nextRun.credits + effect.amount) };
-      case "morale":
-        return {
-          ...nextRun,
-          morale: Math.max(0, Math.min(effect.cap ?? 10, nextRun.morale + effect.amount)),
-        };
-      case "tech-debt":
-        return effect.amount >= 0
-          ? addTechDebt(nextRun, effect.amount)
-          : { ...nextRun, techDebt: Math.max(0, nextRun.techDebt + effect.amount) };
-    }
-  }, run);
+  return reconcileTechDebt(run, amount);
 }
 
 function finishCycle(
@@ -379,9 +480,12 @@ function finishCycle(
 
   if (report.outcome === "shipped") {
     nextRun = createCardReward(nextRun, cycle.nodeId);
-    if (report.toolReward) {
-      nextRun = createToolReward(nextRun, cycle.nodeId);
-    }
+  }
+  if (report.toolReward || nextRun.queuedBountyToolOffers > 0) {
+    nextRun = createToolReward(
+      { ...nextRun, queuedBountyToolOffers: Math.max(0, nextRun.queuedBountyToolOffers - 1) },
+      cycle.nodeId,
+    );
   }
   return { screen: { name: "report", report }, run: nextRun };
 }
@@ -472,6 +576,16 @@ function applyTaskShipping(
     ],
   };
   nextRun = addTechDebt(nextRun, preview.techDebt);
+  if (task.bountyReward?.kind === "credits") {
+    nextRun = { ...nextRun, credits: nextRun.credits + task.bountyReward.amount };
+  } else if (task.bountyReward?.kind === "tool-offer") {
+    nextRun = { ...nextRun, queuedBountyToolOffers: nextRun.queuedBountyToolOffers + 1 };
+  } else if (task.bountyReward?.kind === "rare-card-offer") {
+    nextRun = {
+      ...nextRun,
+      nextRewardModifiers: [...nextRun.nextRewardModifiers, { guaranteedRarity: "rare" }],
+    };
+  }
   return { run: nextRun, cycle: nextCycle };
 }
 
@@ -548,6 +662,7 @@ function endDay(run: RunState, cycle: CycleState): GameState {
   const blockedDisciplines: Discipline[] = [];
   const resolvedIntents: string[] = [];
   let interruptions = 0;
+  const intentProtections = { ...cycle.intentProtections };
 
   for (const taskAtStart of cycle.tasks) {
     const currentTask = tasks.find((task) => task.taskId === taskAtStart.taskId);
@@ -559,6 +674,12 @@ function endDay(run: RunState, cycle: CycleState): GameState {
     }
     const intent = getCurrentIntent({ ...cycle, tasks }, currentTask);
     if (!intent) continue;
+
+    if ((intentProtections[intent.kind] ?? 0) > 0) {
+      intentProtections[intent.kind] = (intentProtections[intent.kind] ?? 0) - 1;
+      resolvedIntents.push(`Protected · ${formatIntent(intent)}`);
+      continue;
+    }
 
     resolvedIntents.push(formatIntent(intent));
     switch (intent.kind) {
@@ -627,6 +748,7 @@ function endDay(run: RunState, cycle: CycleState): GameState {
     hand: retainedHand,
     discardPile: [...cycle.discardPile, ...permanentHand],
     resolvedIntents: [...cycle.resolvedIntents, ...resolvedIntents],
+    intentProtections,
   };
   const nextRun = { ...run, morale, cycle: resolvedCycle };
 
@@ -742,7 +864,12 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       if (
         !node ||
         state.run.completedNodeIds.includes(node.id) ||
-        !isMapNodeAvailable(node, state.run.currentNodeId, state.run.completedNodeIds)
+        !isMapNodeAvailable(
+          node,
+          state.run.currentNodeId,
+          state.run.completedNodeIds,
+          effectiveMapEdges(state.run),
+        )
       ) {
         return state;
       }
@@ -756,7 +883,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         const cycle = createCycleState(runAtNode, node.id, node.cycleId);
         return {
           screen: { name: "cycle", nodeId: node.id, cycleId: node.cycleId },
-          run: { ...runAtNode, cycle },
+          run: { ...runAtNode, cycle, nextCycleModifiers: [], pendingBounties: [] },
         };
       }
 
@@ -1002,27 +1129,59 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
 
     case "CHOOSE_EVENT": {
       if (state.screen.name !== "event" || !state.run) return state;
+      if (state.screen.resolution) return state;
       const event = getEvent(state.screen.eventId);
       const choice = event.choices.find((candidate) => candidate.id === action.choiceId);
       if (!choice) return state;
       const resolved = resolveEventChoice(choice, state.run);
       if (resolved.disabledReason) return state;
-      const completedRun = completeNode(state.run, state.screen.nodeId);
-      const effectedRun = applyEventLedgerEffects(completedRun, resolved.effects);
-      const run: RunState = {
-        ...effectedRun,
-        history: [
-          ...effectedRun.history,
-          {
-            kind: "event-resolved",
-            nodeId: state.screen.nodeId,
-            eventId: event.id,
+      const progress = advanceEventResolution(state.run, choice.effects);
+      if (!progress.pending) {
+        return finishEventResolution(progress.run, state.screen, choice.id, progress.outcome);
+      }
+      return {
+        screen: {
+          ...state.screen,
+          resolution: {
             choiceId: choice.id,
-            outcome: resolved.outcome.map((chip) => chip.text),
+            effectIndex: progress.effectIndex,
+            outcome: progress.outcome,
+            pending: progress.pending,
           },
-        ],
+        },
+        run: progress.run,
       };
-      return { screen: { name: "map" }, run };
+    }
+
+    case "CHOOSE_EVENT_OPTION": {
+      if (state.screen.name !== "event" || !state.screen.resolution || !state.run) return state;
+      const eventScreen = state.screen;
+      const resolution = state.screen.resolution;
+      const event = getEvent(state.screen.eventId);
+      const choice = event.choices.find((candidate) => candidate.id === resolution.choiceId);
+      if (!choice) return state;
+      const progress = continueEventResolution(
+        state.run,
+        choice.effects,
+        { ...resolution, run: state.run },
+        action.optionId,
+      );
+      if (!progress) return state;
+      if (!progress.pending) {
+        return finishEventResolution(progress.run, eventScreen, choice.id, progress.outcome);
+      }
+      return {
+        screen: {
+          ...state.screen,
+          resolution: {
+            choiceId: choice.id,
+            effectIndex: progress.effectIndex,
+            outcome: progress.outcome,
+            pending: progress.pending,
+          },
+        },
+        run: progress.run,
+      };
     }
 
     case "LEAVE_NODE": {

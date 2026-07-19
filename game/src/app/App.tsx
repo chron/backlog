@@ -265,6 +265,7 @@ export function App() {
             dispatch={dispatch}
             run={state.run}
             eventId={state.screen.eventId}
+            resolution={state.screen.resolution}
             onInspectDeck={() =>
               state.run && setCardCollection({ title: "Deck", cards: state.run.deck })
             }

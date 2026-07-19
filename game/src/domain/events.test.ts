@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { gameReducer, initialGameState } from "../game/gameReducer";
 import { selectEventDefinition } from "../game/eventSelection";
-import { eventDefinitions, getEvent, resolveEventChoice, type EventDefinition } from "./events";
+import { resolveEventChoice } from "../game/eventResolution";
+import { eventDefinitions, getEvent, type EventDefinition } from "./events";
 
 function testRun() {
   const state = gameReducer(initialGameState, { type: "START_RUN", seed: 0xe7e17 });
@@ -53,9 +54,13 @@ describe("Event catalogue", () => {
         { text: "Duplicate 1 non-Rare", tone: "good" },
       ],
     });
-    expect(resolveEventChoice(duet, { ...baseRun, credits: 40 }).disabledReason).toBe(
-      "Not in this demo",
-    );
+    expect(
+      resolveEventChoice(duet, {
+        ...baseRun,
+        credits: 40,
+        deck: [{ cardId: "frontend-3", instanceId: "test-basic" }],
+      }).disabledReason,
+    ).toBeUndefined();
   });
 
   it("filters ineligible definitions and excludes seen Events while alternatives remain", () => {

@@ -716,12 +716,13 @@ export function isMapNodeAvailable(
   node: MapNode,
   currentNodeId: string | null,
   completedNodeIds: readonly string[],
+  edges: readonly MapEdge[] = mapEdges,
 ): boolean {
   if (completedNodeIds.includes(node.id)) return false;
   if (!currentNodeId) {
-    return !mapEdges.some((edge) => edge.toNodeId === node.id);
+    return !edges.some((edge) => edge.toNodeId === node.id);
   }
-  return mapEdges.some((edge) => edge.fromNodeId === currentNodeId && edge.toNodeId === node.id);
+  return edges.some((edge) => edge.fromNodeId === currentNodeId && edge.toNodeId === node.id);
 }
 
 export function getDeveloper(id: Developer["id"]): Developer {
