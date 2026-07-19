@@ -222,7 +222,14 @@ type RunHistoryEvent =
       label: string;
     }
   | { kind: "card-skipped"; sourceNodeId: string }
-  | { kind: "tool-added"; toolId: ToolId; sourceNodeId: string };
+  | { kind: "tool-added"; toolId: ToolId; sourceNodeId: string }
+  | {
+      kind: "event-resolved";
+      nodeId: string;
+      eventId: string;
+      choiceId: string;
+      outcome: readonly string[];
+    };
 
 export interface RunState {
   seed: number;

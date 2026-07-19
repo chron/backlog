@@ -1,0 +1,89 @@
+import { describe, expect, it } from "vitest";
+import { gameReducer, initialGameState } from "../game/gameReducer";
+import { selectEventDefinition } from "../game/eventSelection";
+import { eventDefinitions, getEvent, resolveEventChoice, type EventDefinition } from "./events";
+
+function testRun() {
+  const state = gameReducer(initialGameState, { type: "START_RUN", seed: 0xe7e17 });
+  if (!state.run) throw new Error("Expected a run");
+  return state.run;
+}
+
+describe("Event catalogue", () => {
+  it("authors unique typed definitions with one usable foundation choice each", () => {
+    const run = testRun();
+    expect(eventDefinitions.map((event) => event.id)).toEqual([
+      "scope-creep",
+      "karaoke-night",
+      "cat-tax",
+      "design-opened-a-pr",
+    ]);
+    expect(new Set(eventDefinitions.map((event) => event.id)).size).toBe(eventDefinitions.length);
+    for (const event of eventDefinitions) {
+      expect(event.title).toBeTruthy();
+      expect(event.setup).toBeTruthy();
+      expect(event.artTreatment).toBeTruthy();
+      expect(event.weight(run)).toBeGreaterThan(0);
+      expect(event.choices.some((choice) => !resolveEventChoice(choice, run).disabledReason)).toBe(
+        true,
+      );
+      expect(new Set(event.choices.map((choice) => choice.id)).size).toBe(event.choices.length);
+    }
+  });
+
+  it("resolves exact dynamic ledger previews and concise disabled reasons", () => {
+    const baseRun = testRun();
+    const scope = getEvent("scope-creep");
+    const pushBack = scope.choices.find((choice) => choice.id === "push-back");
+    if (!pushBack) throw new Error("Expected Push Back");
+
+    expect(resolveEventChoice(pushBack, { ...baseRun, morale: 9 }).outcome).toEqual([
+      { text: "+1 Morale", tone: "good" },
+    ]);
+    expect(resolveEventChoice(pushBack, { ...baseRun, morale: 10 }).outcome).toEqual([
+      { text: "Morale Full", tone: "neutral" },
+    ]);
+
+    const duet = getEvent("karaoke-night").choices.find((choice) => choice.id === "duet");
+    if (!duet) throw new Error("Expected Duet");
+    expect(resolveEventChoice(duet, { ...baseRun, credits: 10 })).toMatchObject({
+      disabledReason: "Need 15 Credits",
+      outcome: [
+        { text: "−15 Credits", tone: "risk" },
+        { text: "Duplicate 1 non-Rare", tone: "good" },
+      ],
+    });
+    expect(resolveEventChoice(duet, { ...baseRun, credits: 40 }).disabledReason).toBe(
+      "Not in this demo",
+    );
+  });
+
+  it("filters ineligible definitions and excludes seen Events while alternatives remain", () => {
+    const run = testRun();
+    const excluded: EventDefinition = {
+      ...getEvent("scope-creep"),
+      id: "excluded",
+      eligibility: () => false,
+      weight: () => 100,
+    };
+    const seen = getEvent("karaoke-night");
+    const unseen = getEvent("cat-tax");
+    const runWithHistory = {
+      ...run,
+      history: [
+        ...run.history,
+        {
+          kind: "event-resolved" as const,
+          nodeId: "event-1",
+          eventId: seen.id,
+          choiceId: "solo",
+          outcome: ["Morale Full"],
+        },
+      ],
+    };
+
+    expect(selectEventDefinition(runWithHistory, [excluded, seen, unseen]).event.id).toBe(
+      unseen.id,
+    );
+  });
+});

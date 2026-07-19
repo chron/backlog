@@ -12,6 +12,8 @@ import {
   teamRewardCardIds,
   toolIds,
 } from "../domain/content";
+import { getEvent, resolveEventChoice } from "../domain/events";
+import type { EventEffect } from "../domain/events";
 import type {
   CardInstance,
   CycleReport,
@@ -38,6 +40,7 @@ import {
   taskShippingRewards,
 } from "./rules";
 import type { CardTarget } from "./rules";
+import { selectEventDefinition } from "./eventSelection";
 import { normalizeSeed, sampleOne } from "./random";
 
 type Screen =
@@ -48,7 +51,7 @@ type Screen =
   | { name: "report"; report: CycleReport }
   | { name: "reward" }
   | { name: "tool-reward" }
-  | { name: "event"; nodeId: string }
+  | { name: "event"; nodeId: string; eventId: string }
   | { name: "shop"; nodeId: string }
   | {
       name: "retro";
@@ -78,7 +81,7 @@ export type GameAction =
   | { type: "SKIP_CARD_REWARD" }
   | { type: "OFFER_TOOL_REWARD"; sourceNodeId: string }
   | { type: "CHOOSE_TOOL_REWARD"; toolId: ToolId }
-  | { type: "CHOOSE_EVENT"; choice: "push-back" | "sure-easy" }
+  | { type: "CHOOSE_EVENT"; choiceId: string }
   | { type: "LEAVE_NODE" }
   | { type: "RETURN_TITLE" };
 
@@ -317,6 +320,27 @@ function addTechDebt(run: RunState, amount: number): RunState {
     nextRun = addTechDebtCard(nextRun);
   }
   return nextRun;
+}
+
+function applyEventLedgerEffects(
+  run: RunState,
+  effects: readonly Extract<EventEffect, { kind: "ledger" }>[],
+): RunState {
+  return effects.reduce((nextRun, effect) => {
+    switch (effect.resource) {
+      case "credits":
+        return { ...nextRun, credits: Math.max(0, nextRun.credits + effect.amount) };
+      case "morale":
+        return {
+          ...nextRun,
+          morale: Math.max(0, Math.min(effect.cap ?? 10, nextRun.morale + effect.amount)),
+        };
+      case "tech-debt":
+        return effect.amount >= 0
+          ? addTechDebt(nextRun, effect.amount)
+          : { ...nextRun, techDebt: Math.max(0, nextRun.techDebt + effect.amount) };
+    }
+  }, run);
 }
 
 function finishCycle(
@@ -743,6 +767,14 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         };
       }
 
+      if (node.kind === "event") {
+        const selection = selectEventDefinition(runAtNode);
+        return {
+          screen: { name: "event", nodeId: node.id, eventId: selection.event.id },
+          run: { ...runAtNode, rngState: selection.rngState },
+        };
+      }
+
       return {
         screen: { name: node.kind, nodeId: node.id } as Extract<
           Screen,
@@ -970,11 +1002,26 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
 
     case "CHOOSE_EVENT": {
       if (state.screen.name !== "event" || !state.run) return state;
+      const event = getEvent(state.screen.eventId);
+      const choice = event.choices.find((candidate) => candidate.id === action.choiceId);
+      if (!choice) return state;
+      const resolved = resolveEventChoice(choice, state.run);
+      if (resolved.disabledReason) return state;
       const completedRun = completeNode(state.run, state.screen.nodeId);
-      const run =
-        action.choice === "push-back"
-          ? { ...completedRun, morale: Math.min(10, completedRun.morale + 2) }
-          : addTechDebt({ ...completedRun, credits: completedRun.credits + 35 }, 3);
+      const effectedRun = applyEventLedgerEffects(completedRun, resolved.effects);
+      const run: RunState = {
+        ...effectedRun,
+        history: [
+          ...effectedRun.history,
+          {
+            kind: "event-resolved",
+            nodeId: state.screen.nodeId,
+            eventId: event.id,
+            choiceId: choice.id,
+            outcome: resolved.outcome.map((chip) => chip.text),
+          },
+        ],
+      };
       return { screen: { name: "map" }, run };
     }
 

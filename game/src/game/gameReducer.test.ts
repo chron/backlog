@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { eligibleRewardCardIds, formatIntent, getCard, getCycle, tools } from "../domain/content";
+import { getEvent, resolveEventChoice } from "../domain/events";
 import type { DeveloperId, Discipline, ToolId } from "../domain/models";
 import { gameReducer, initialGameState } from "./gameReducer";
 import type { GameState } from "./gameReducer";
@@ -141,8 +142,8 @@ function withTools(state: GameState, ...toolIds: ToolId[]): GameState {
   return { ...state, run: { ...state.run, tools: toolIds } };
 }
 
-function startMap(completedNodeIds: readonly string[] = []): GameState {
-  const state = gameReducer(initialGameState, { type: "START_RUN" });
+function startMap(completedNodeIds: readonly string[] = [], seed?: number): GameState {
+  const state = gameReducer(initialGameState, { type: "START_RUN", seed });
   if (!state.run) throw new Error("Expected a run");
   return {
     screen: { name: "map" },
@@ -1182,7 +1183,12 @@ describe("gameReducer", () => {
   it("locks the unchosen sibling after committing to a branch", () => {
     let state = startMap(["cycle-1"]);
     state = gameReducer(state, { type: "VISIT_NODE", nodeId: "event-1" });
-    state = gameReducer(state, { type: "CHOOSE_EVENT", choice: "push-back" });
+    if (state.screen.name !== "event" || !state.run) throw new Error("Expected an Event");
+    const choiceId = getEvent(state.screen.eventId).choices.find(
+      (choice) => !resolveEventChoice(choice, state.run!).disabledReason,
+    )?.id;
+    if (!choiceId) throw new Error("Expected an enabled Event choice");
+    state = gameReducer(state, { type: "CHOOSE_EVENT", choiceId });
 
     expect(state.screen.name).toBe("map");
     expect(state.run?.currentNodeId).toBe("event-1");
@@ -1200,25 +1206,37 @@ describe("gameReducer", () => {
   it("makes the Scope Creep event choices mechanically distinct", () => {
     let pushBack = startMap(["cycle-1"]);
     if (!pushBack.run) throw new Error("Expected a run");
-    pushBack = { ...pushBack, run: { ...pushBack.run, morale: 7 } };
-    pushBack = gameReducer(pushBack, { type: "VISIT_NODE", nodeId: "event-1" });
-    pushBack = gameReducer(pushBack, { type: "CHOOSE_EVENT", choice: "push-back" });
+    pushBack = {
+      screen: { name: "event", nodeId: "event-1", eventId: "scope-creep" },
+      run: { ...pushBack.run, morale: 7, currentNodeId: "event-1" },
+    };
+    pushBack = gameReducer(pushBack, { type: "CHOOSE_EVENT", choiceId: "push-back" });
     expect(pushBack.run).toMatchObject({ morale: 9, credits: 40 });
     expect(pushBack.run?.completedNodeIds).toContain("event-1");
+    expect(pushBack.run?.history.at(-1)).toEqual({
+      kind: "event-resolved",
+      nodeId: "event-1",
+      eventId: "scope-creep",
+      choiceId: "push-back",
+      outcome: ["+2 Morale"],
+    });
 
     let cappedMorale = startMap(["cycle-1"]);
     if (!cappedMorale.run) throw new Error("Expected a run");
-    cappedMorale = { ...cappedMorale, run: { ...cappedMorale.run, morale: 9 } };
-    cappedMorale = gameReducer(cappedMorale, { type: "VISIT_NODE", nodeId: "event-1" });
-    cappedMorale = gameReducer(cappedMorale, {
-      type: "CHOOSE_EVENT",
-      choice: "push-back",
-    });
+    cappedMorale = {
+      screen: { name: "event", nodeId: "event-1", eventId: "scope-creep" },
+      run: { ...cappedMorale.run, morale: 9, currentNodeId: "event-1" },
+    };
+    cappedMorale = gameReducer(cappedMorale, { type: "CHOOSE_EVENT", choiceId: "push-back" });
     expect(cappedMorale.run?.morale).toBe(10);
 
     let sureEasy = startMap(["cycle-1"]);
-    sureEasy = gameReducer(sureEasy, { type: "VISIT_NODE", nodeId: "event-1" });
-    sureEasy = gameReducer(sureEasy, { type: "CHOOSE_EVENT", choice: "sure-easy" });
+    if (!sureEasy.run) throw new Error("Expected a run");
+    sureEasy = {
+      screen: { name: "event", nodeId: "event-1", eventId: "scope-creep" },
+      run: { ...sureEasy.run, currentNodeId: "event-1" },
+    };
+    sureEasy = gameReducer(sureEasy, { type: "CHOOSE_EVENT", choiceId: "sure-easy" });
     expect(sureEasy.run).toMatchObject({ morale: 10, credits: 75 });
     expect(sureEasy.run?.techDebt).toBe(3);
     expect(sureEasy.run?.deck.at(-1)?.cardId).toBe("tech-debt");
@@ -1227,6 +1245,47 @@ describe("gameReducer", () => {
     sureEasy = gameReducer(sureEasy, { type: "VISIT_NODE", nodeId: "cycle-2" });
     expect(sureEasy.run?.techDebt).toBe(3);
     expect(sureEasy.run?.deck.at(-1)?.cardId).toBe("tech-debt");
+  });
+
+  it("selects four seeded Events deterministically without repeats", () => {
+    const runEventRoute = (seed: number) => {
+      let state = startMap([], seed);
+      const eventIds: string[] = [];
+      const route = [
+        ["cycle-1", "event-1"],
+        ["incident-1", "event-2"],
+        ["cycle-3", "event-3"],
+        ["incident-2", "event-4"],
+      ] as const;
+      for (const [sourceNodeId, eventNodeId] of route) {
+        if (!state.run) throw new Error("Expected a run");
+        state = {
+          screen: { name: "map" },
+          run: {
+            ...state.run,
+            currentNodeId: sourceNodeId,
+            completedNodeIds: state.run.completedNodeIds.includes(sourceNodeId)
+              ? state.run.completedNodeIds
+              : [...state.run.completedNodeIds, sourceNodeId],
+          },
+        };
+        state = gameReducer(state, { type: "VISIT_NODE", nodeId: eventNodeId });
+        if (state.screen.name !== "event" || !state.run) throw new Error("Expected an Event");
+        eventIds.push(state.screen.eventId);
+        const choiceId = getEvent(state.screen.eventId).choices.find(
+          (choice) => !resolveEventChoice(choice, state.run!).disabledReason,
+        )?.id;
+        if (!choiceId) throw new Error("Expected an enabled Event choice");
+        state = gameReducer(state, { type: "CHOOSE_EVENT", choiceId });
+      }
+      return { eventIds, history: state.run?.history };
+    };
+
+    const first = runEventRoute(0xe7e17);
+    const second = runEventRoute(0xe7e17);
+    expect(first.eventIds).toEqual(second.eventIds);
+    expect(new Set(first.eventIds).size).toBe(4);
+    expect(first.history?.filter((entry) => entry.kind === "event-resolved")).toHaveLength(4);
   });
 
   it("authors eight unrestricted build-shaping Tools", () => {

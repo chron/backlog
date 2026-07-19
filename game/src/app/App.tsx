@@ -33,12 +33,21 @@ interface OpenCardCollection {
 }
 
 function createAppInitialState(base: GameState): GameState {
-  const qa = new URLSearchParams(window.location.search).get("qa");
-  if (!import.meta.env.DEV || !["paul", "madi", "odin", "irene", "basics"].includes(qa ?? "")) {
+  const searchParams = new URLSearchParams(window.location.search);
+  const qa = searchParams.get("qa");
+  if (
+    !import.meta.env.DEV ||
+    !["paul", "madi", "odin", "irene", "basics", "event"].includes(qa ?? "")
+  ) {
     return base;
   }
 
-  let state = gameReducer(base, { type: "START_RUN", seed: 0x0facade });
+  const eventSeed = Number(searchParams.get("seed"));
+  let state = gameReducer(base, {
+    type: "START_RUN",
+    seed:
+      qa === "event" ? (Number.isFinite(eventSeed) && eventSeed > 0 ? eventSeed : 7) : 0x0facade,
+  });
   const squad =
     qa === "madi"
       ? (["madi", "irene", "odin"] as const)
@@ -53,6 +62,17 @@ function createAppInitialState(base: GameState): GameState {
     state = gameReducer(state, { type: "TOGGLE_DEVELOPER", developerId });
   }
   state = gameReducer(state, { type: "CONFIRM_SQUAD" });
+  if (qa === "event" && state.run) {
+    state = {
+      screen: { name: "map" },
+      run: {
+        ...state.run,
+        currentNodeId: "cycle-1",
+        completedNodeIds: ["cycle-1"],
+      },
+    };
+    return gameReducer(state, { type: "VISIT_NODE", nodeId: "event-1" });
+  }
   if ((qa === "odin" || qa === "irene") && state.run) {
     state = {
       ...state,
@@ -244,6 +264,7 @@ export function App() {
           <EventScreen
             dispatch={dispatch}
             run={state.run}
+            eventId={state.screen.eventId}
             onInspectDeck={() =>
               state.run && setCardCollection({ title: "Deck", cards: state.run.deck })
             }
