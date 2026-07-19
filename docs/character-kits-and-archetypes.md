@@ -275,11 +275,27 @@ Learning by Doing turns the initial token set into Snippet 2 Verified Work, Quic
 ### Nick — hand planner and Exhaust engine
 
 - **Fantasy:** clear the calendar, organise the chaos, and make an enormous turn look suspiciously well planned.
-- **Passive direction:** whenever a card Exhausts, gain 1 Focus.
-- **Starter direction:** **Clear the Calendar** — deliberately Exhaust a card from hand to draw or organise the next plays.
+- **Passive:** **Well Organised** — whenever a card Exhausts, gain 1 Focus.
 - **Core space:** Exhaust, Retain, draw ordering, temporary copies, planned burst turns.
 - **Bridges:** Kirsten supplies fuel; Levi spends the Focus in one long Chain; Odin benefits from holding the right answer.
-- **Rare direction:** **No Meetings** — a dramatic hand-expansion turn with an Exhaust consequence that can become its own engine.
+
+Nick's catalogue is **LOCKED** for its first playable pass. Values may still move during playtesting.
+
+| Slot | Card | Cost | Effect |
+| --- | --- | ---: | --- |
+| Starter | **Clear the Calendar** | 1 | Exhaust another card from your hand. Draw 2. |
+| Normal | **Put a Pin in It** | 1 | Choose another card in hand. It Retains and costs 1 less until played. Exhaust. |
+| Normal | **Inbox Zero** | 0 | Exhaust every Status card in hand, then draw that many cards. Exhaust. |
+| Normal | **Prioritise Ruthlessly** | 1 | Draw 3, then put 2 cards from hand back on top of the draw pile in either order. Exhaust. |
+| Normal | **Timebox It** | 1 | Gain 3 Block for every card Exhausted before this card today. Exhaust. |
+| Normal | **Deep Work** | 1 | Backend 3 Verified, plus 2 Work for every Retained card currently in hand. |
+| Rare | **No Meetings** | 1 | Exhaust every other card in hand, then draw the rest of your draw pile. Exhaust. |
+
+Well Organised triggers for cards Exhausted by playing them and by effects that remove them from hand. Each card produces a separate Focus trigger, including Status and Generated cards. Focus may overfill.
+
+**Put a Pin in It** gives its chosen card Retain and a stackable cost reduction for the current Cycle, to a minimum of 0. **Prioritise Ruthlessly** resolves its draw before the player chooses and orders exactly two cards to return; it is unplayable unless two cards will be available after drawing. **Timebox It** counts only earlier Exhausts, then triggers Well Organised when it Exhausts after resolution. **Deep Work** counts Retain markers currently in hand without consuming them.
+
+**No Meetings** Exhausts the existing hand before drawing, so Well Organised produces the Focus for the new hand to spend. It draws only the current draw pile without reshuffling discard. No Meetings itself Exhausts after that draw and grants its own Focus normally.
 
 ### Levi — Chain payoff
 
