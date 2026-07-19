@@ -1,6 +1,7 @@
 import { disciplineLabel, getCard, getDeveloper } from "../domain/content";
+import { getCardGlossaryEntries } from "../domain/cardGlossary";
 import type { CardInstance } from "../domain/models";
-import type { PointerEventHandler } from "react";
+import { useId, type PointerEventHandler } from "react";
 import { CharacterPortrait } from "./CharacterPortrait";
 
 interface GameCardProps {
@@ -27,6 +28,8 @@ export function GameCard({
   onPointerCancel,
 }: GameCardProps) {
   const card = getCard(instance.cardId);
+  const glossaryId = useId();
+  const glossaryEntries = getCardGlossaryEntries(card);
   const owner = card.ownerId ? getDeveloper(card.ownerId) : undefined;
   const unplayable = card.kind === "status";
   const cardAccent = owner?.accent ?? disciplineAccent(card.discipline);
@@ -71,6 +74,7 @@ export function GameCard({
       style={{ "--card-accent": cardAccent } as React.CSSProperties}
       type="button"
       disabled={disabled || unplayable}
+      aria-describedby={glossaryEntries.length > 0 ? glossaryId : undefined}
       aria-pressed={unplayable || !onSelect ? undefined : selected}
       onClick={unplayable ? undefined : onSelect}
       onPointerDown={unplayable ? undefined : onPointerDown}
@@ -137,6 +141,22 @@ export function GameCard({
           decorative
           eager
         />
+      )}
+      {glossaryEntries.length > 0 && (
+        <>
+          <span className="sr-only" id={glossaryId}>
+            Keyword help.{" "}
+            {glossaryEntries.map((entry) => entry.term + ": " + entry.description).join(" ")}
+          </span>
+          <span className="game-card__glossary" aria-hidden="true">
+            {glossaryEntries.map((entry) => (
+              <span className="game-card__glossary-entry" key={entry.id}>
+                <strong>{entry.term}</strong>
+                <small>{entry.description}</small>
+              </span>
+            ))}
+          </span>
+        </>
       )}
     </button>
   );

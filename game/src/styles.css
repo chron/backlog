@@ -1497,6 +1497,96 @@ main:focus {
   background: var(--pink);
 }
 
+.game-card__glossary {
+  position: absolute;
+  z-index: 8;
+  top: -0.25rem;
+  left: calc(100% + 0.8rem);
+  display: grid;
+  width: 230px;
+  padding: 0.65rem 0.75rem;
+  border: 3px solid var(--ink);
+  border-radius: 0.45rem;
+  gap: 0.45rem;
+  background: var(--panel);
+  box-shadow: 5px 5px 0 var(--ink);
+  opacity: 0;
+  pointer-events: none;
+  text-align: left;
+  transform: translateX(-8px) rotate(-1deg);
+  transition:
+    opacity 120ms ease-out,
+    transform 160ms var(--ease-out-expo);
+}
+
+.game-card:hover .game-card__glossary,
+.game-card:focus-visible .game-card__glossary {
+  opacity: 1;
+  transform: translateX(0) rotate(-1deg);
+}
+
+.game-card__glossary::before {
+  position: absolute;
+  top: 1rem;
+  left: -0.55rem;
+  width: 0.8rem;
+  height: 0.8rem;
+  border-bottom: 3px solid var(--ink);
+  border-left: 3px solid var(--ink);
+  content: "";
+  background: var(--panel);
+  transform: rotate(45deg);
+}
+
+.game-card__glossary-entry {
+  display: grid;
+  gap: 0.08rem;
+}
+
+.game-card__glossary-entry + .game-card__glossary-entry {
+  padding-top: 0.4rem;
+  border-top: 2px dotted color-mix(in oklch, var(--ink) 25%, transparent);
+}
+
+.game-card__glossary-entry strong {
+  color: var(--coral);
+  font-family: var(--display);
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.035em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.game-card__glossary-entry small {
+  font-size: 0.65rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.hand > .game-card:nth-last-child(-n + 2) .game-card__glossary,
+.reward-card:nth-child(3) .game-card__glossary {
+  right: calc(100% + 0.8rem);
+  left: auto;
+  transform: translateX(8px) rotate(1deg);
+}
+
+.hand > .game-card:nth-last-child(-n + 2):hover .game-card__glossary,
+.hand > .game-card:nth-last-child(-n + 2):focus-visible .game-card__glossary,
+.reward-card:nth-child(3) .game-card:hover .game-card__glossary,
+.reward-card:nth-child(3) .game-card:focus-visible .game-card__glossary {
+  transform: translateX(0) rotate(1deg);
+}
+
+.hand > .game-card:nth-last-child(-n + 2) .game-card__glossary::before,
+.reward-card:nth-child(3) .game-card__glossary::before {
+  right: -0.55rem;
+  left: auto;
+  border: 0;
+  border-top: 3px solid var(--ink);
+  border-right: 3px solid var(--ink);
+}
+
 .game-card--status {
   background: color-mix(in oklch, var(--ink) 12%, var(--panel));
 }
@@ -3103,6 +3193,36 @@ main:focus {
   .game-card {
     min-width: 180px;
     scroll-snap-align: center;
+  }
+
+  .hand > .game-card .game-card__glossary,
+  .hand > .game-card:nth-last-child(-n + 2) .game-card__glossary,
+  .reward-card .game-card__glossary,
+  .reward-card:nth-child(3) .game-card__glossary {
+    inset: 0.35rem;
+    width: auto;
+    max-height: calc(100% - 0.7rem);
+    align-content: center;
+    overflow: hidden;
+    transform: scale(0.97) rotate(-1deg);
+  }
+
+  .hand > .game-card:hover .game-card__glossary,
+  .hand > .game-card:focus-visible .game-card__glossary,
+  .hand > .game-card:nth-last-child(-n + 2):hover .game-card__glossary,
+  .hand > .game-card:nth-last-child(-n + 2):focus-visible .game-card__glossary,
+  .reward-card .game-card:hover .game-card__glossary,
+  .reward-card .game-card:focus-visible .game-card__glossary,
+  .reward-card:nth-child(3) .game-card:hover .game-card__glossary,
+  .reward-card:nth-child(3) .game-card:focus-visible .game-card__glossary {
+    transform: scale(1) rotate(-1deg);
+  }
+
+  .hand > .game-card .game-card__glossary::before,
+  .hand > .game-card:nth-last-child(-n + 2) .game-card__glossary::before,
+  .reward-card .game-card__glossary::before,
+  .reward-card:nth-child(3) .game-card__glossary::before {
+    display: none;
   }
 
   .character-reaction--hero .character-reaction__copy {

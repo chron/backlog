@@ -18,5 +18,22 @@ describe("GameCard", () => {
     expect(markup).toContain("<b>2</b><small>Quick Fixes</small>");
     expect(markup).toContain('<span class="game-card__rules">+1 Tech Debt.</span>');
     expect(markup).toContain("game-card--long-title");
+    expect(markup).toContain("Tech Debt: Persists for the run.");
+    expect(markup).toContain("Generated: Created during a Cycle.");
+    expect(markup).toContain('class="game-card__glossary" aria-hidden="true"');
+    expect(markup).toMatch(/aria-describedby="[^"]+"/);
+  });
+
+  it("omits glossary markup when a card has no specialist vocabulary", () => {
+    const markup = renderToStaticMarkup(
+      <GameCard
+        instance={{ cardId: "frontend-3", instanceId: "test-frontend" }}
+        effectiveCost={1}
+        selected={false}
+      />,
+    );
+
+    expect(markup).not.toContain("game-card__glossary");
+    expect(markup).not.toContain("aria-describedby");
   });
 });
