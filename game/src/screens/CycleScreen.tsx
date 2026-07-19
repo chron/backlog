@@ -16,7 +16,7 @@ import type {
   DeveloperId,
 } from "../domain/models";
 import { getCardPresentation } from "../game/presentation";
-import { bossPhaseLabel } from "../game/bossEngine";
+import { bossPhaseLabel, getBossLaunchPreview } from "../game/bossEngine";
 import type { CharacterCue } from "../game/presentation";
 import {
   absorbMoraleDamage,
@@ -81,6 +81,7 @@ export function CycleScreen({ dispatch, run, onInspectCards }: CycleScreenProps)
   const [dayBanner, setDayBanner] = useState<string>();
   const [reaction, setReaction] = useState<ReactionState>();
   const [reactingPassiveIds, setReactingPassiveIds] = useState<DeveloperId[]>([]);
+  const [launchConfirmOpen, setLaunchConfirmOpen] = useState(false);
   const cycle = run?.cycle;
   const maxDays = cycle ? getEncounterCycleDefinition(cycle).maxDays : 0;
   const activeInstanceId = aim?.instanceId;
@@ -172,6 +173,10 @@ export function CycleScreen({ dispatch, run, onInspectCards }: CycleScreenProps)
   if (!run || !cycle) return null;
   const definition = getEncounterCycleDefinition(cycle);
   const boss = cycle.boss ? getBossDefinition(cycle.boss.bossId) : undefined;
+  const launchPreview = boss ? getBossLaunchPreview(run, cycle, boss) : undefined;
+  const releaseProjectTaskIds = new Set(
+    boss?.project.tasks.filter((task) => task.role !== "complication").map((task) => task.id) ?? [],
+  );
   const scriptMultiplier = run.tools.includes("cron-upgrade") ? 2 : 1;
   const moraleIncoming = incomingMorale(cycle);
   const incomingDamage = absorbMoraleDamage(cycle.block, moraleIncoming);
@@ -644,12 +649,42 @@ export function CycleScreen({ dispatch, run, onInspectCards }: CycleScreenProps)
               shippingDisabled={
                 resolvingDay || resolvingCard || resolvingBoss || Boolean(cycle.pendingCardChoice)
               }
+              releaseTask={
+                cycle.boss?.phase === "launch-window" && releaseProjectTaskIds.has(task.taskId)
+              }
               onTarget={() => undefined}
               onShip={shipTask}
             />
           );
         })}
       </div>
+
+      {launchPreview?.ready && boss && (
+        <aside className={`launch-dock launch-dock--${launchPreview.outcome}`}>
+          <div>
+            <span>Release Candidate</span>
+            <strong>
+              {launchPreview.defects === 0
+                ? "Clean"
+                : `${launchPreview.defects} Defect${launchPreview.defects === 1 ? "" : "s"}`}
+            </strong>
+            <small>
+              {launchPreview.unverifiedWork} Unverified ·
+              {launchPreview.moraleLoss > 0
+                ? ` −${launchPreview.moraleLoss} Morale`
+                : " Morale protected"}
+            </small>
+          </div>
+          <button
+            className="button button--primary"
+            type="button"
+            disabled={resolvingDay || resolvingCard || resolvingBoss}
+            onClick={() => setLaunchConfirmOpen(true)}
+          >
+            Review Launch
+          </button>
+        </aside>
+      )}
 
       <div className="sr-only" aria-live="polite">
         {selectedCard ? `${getCardForInstance(selectedCard).name}: choose a target` : ""}
@@ -780,6 +815,69 @@ export function CycleScreen({ dispatch, run, onInspectCards }: CycleScreenProps)
                 {getCardForInstance(instance).name}
               </button>
             ))}
+          </div>
+        </dialog>
+      )}
+
+      {launchConfirmOpen && launchPreview?.ready && boss && (
+        <dialog className="launch-confirm" open aria-labelledby="launch-confirm-title">
+          <div className="launch-confirm__slash" aria-hidden="true" />
+          <img src={getBossPhase(boss, "launch-window").reactionArt} alt="" />
+          <div className="launch-confirm__copy">
+            <span>Final Release · Confirm</span>
+            <h2 id="launch-confirm-title">Launch {boss.projectTitle}?</h2>
+            <strong className={`launch-outcome launch-outcome--${launchPreview.outcome}`}>
+              {launchPreview.outcome === "clean"
+                ? "Clean Victory"
+                : launchPreview.outcome === "known-issues"
+                  ? "Victory · Known Issues"
+                  : launchPreview.outcome === "burned-out"
+                    ? "Burnout · Defeat"
+                    : "Technically Shipped · Defeat"}
+            </strong>
+            <dl>
+              <div>
+                <dt>Unverified</dt>
+                <dd>{launchPreview.unverifiedWork}</dd>
+              </div>
+              <div>
+                <dt>Defects</dt>
+                <dd>{launchPreview.defects}</dd>
+              </div>
+              <div>
+                <dt>Morale</dt>
+                <dd>
+                  {run.morale} → {launchPreview.finalMorale}
+                </dd>
+              </div>
+            </dl>
+            <p>
+              {launchPreview.defects >= 2
+                ? "Two or more Defects will end the run, even if the team survives the launch."
+                : launchPreview.finalMorale <= 0
+                  ? "The launch would reduce Morale to zero."
+                  : launchPreview.defects === 1
+                    ? "This ships successfully, with one Known Issue recorded in the Retro."
+                    : "All required Work is complete and verified. This is the good button."}
+            </p>
+            <div className="launch-confirm__actions">
+              <button
+                className="button button--secondary"
+                type="button"
+                onClick={() => setLaunchConfirmOpen(false)}
+              >
+                Keep Working
+              </button>
+              <button
+                className="button button--primary"
+                type="button"
+                onClick={() => dispatch({ type: "LAUNCH_FINAL_RELEASE" })}
+              >
+                {launchPreview.outcome === "clean" || launchPreview.outcome === "known-issues"
+                  ? "Ship It"
+                  : "Launch Anyway"}
+              </button>
+            </div>
           </div>
         </dialog>
       )}

@@ -35,6 +35,7 @@ import type {
 import {
   acknowledgeBossTransition,
   createBossEncounter,
+  getBossLaunchPreview,
   reconcileBossEncounter,
   resolveOpeningBossEffects,
 } from "./bossEngine";
@@ -108,6 +109,7 @@ export type GameAction =
   | { type: "CHOOSE_CYCLE_CARD"; instanceId: string }
   | { type: "END_DAY" }
   | { type: "ACKNOWLEDGE_BOSS_TRANSITION" }
+  | { type: "LAUNCH_FINAL_RELEASE" }
   | { type: "SHIP_TASK"; taskId: string }
   | { type: "CONTINUE_REPORT" }
   | { type: "CHOOSE_CARD_REWARD"; cardId: string }
@@ -603,6 +605,7 @@ function applyTaskShipping(
         kind: "task-shipped",
         nodeId: cycle.nodeId,
         taskId,
+        unverifiedWork: preview.unverified,
         defects: preview.defects,
         moraleLoss: damage.moraleLoss,
         techDebtAdded: preview.techDebt,
@@ -628,6 +631,60 @@ function applyTaskShipping(
     };
   }
   return { run: nextRun, cycle: nextCycle };
+}
+
+function launchFinalRelease(run: RunState, cycle: CycleState): GameState | undefined {
+  if (!cycle.boss) return undefined;
+  const boss = getBossDefinition(cycle.boss.bossId);
+  const preview = getBossLaunchPreview(run, cycle, boss);
+  if (!preview.ready) return undefined;
+
+  let launchedRun = run;
+  let launchedCycle = cycle;
+  for (const taskId of preview.taskIds) {
+    const shipped = applyTaskShipping(launchedRun, launchedCycle, taskId);
+    if (!shipped) return undefined;
+    launchedRun = shipped.run;
+    launchedCycle = shipped.cycle;
+  }
+
+  const completedRun = completeNode(launchedRun, cycle.nodeId);
+  const finalRun: RunState = {
+    ...completedRun,
+    cycle: null,
+    pendingCardReward: null,
+    pendingToolReward: null,
+    history: [
+      ...completedRun.history,
+      {
+        kind: "final-release-launched",
+        bossId: boss.id,
+        day: cycle.day,
+        unverifiedWork: preview.unverifiedWork,
+        defects: preview.defects,
+        moraleLoss: preview.moraleLoss,
+        outcome: preview.outcome,
+      },
+      {
+        kind: "cycle-finished",
+        nodeId: cycle.nodeId,
+        outcome: "shipped",
+        day: cycle.day,
+      },
+    ],
+  };
+
+  return {
+    screen:
+      preview.outcome === "clean" || preview.outcome === "known-issues"
+        ? { name: "retro", outcome: "victory" }
+        : {
+            name: "retro",
+            outcome: "defeat",
+            cause: preview.outcome === "technically-shipped" ? "technically-shipped" : "morale",
+          },
+    run: finalRun,
+  };
 }
 
 function runScripts(
@@ -1269,9 +1326,21 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       return { ...state, run: acknowledged.run };
     }
 
+    case "LAUNCH_FINAL_RELEASE": {
+      if (state.screen.name !== "cycle" || !state.run?.cycle?.boss) return state;
+      return launchFinalRelease(state.run, state.run.cycle) ?? state;
+    }
+
     case "SHIP_TASK": {
       if (state.screen.name !== "cycle" || !state.run?.cycle) return state;
       if (state.run.cycle.pendingCardChoice) return state;
+      if (state.run.cycle.boss?.phase === "launch-window") {
+        const boss = getBossDefinition(state.run.cycle.boss.bossId);
+        const projectTaskIds = new Set(
+          boss.project.tasks.filter((task) => task.role !== "complication").map((task) => task.id),
+        );
+        if (projectTaskIds.has(action.taskId)) return state;
+      }
       const shipped = applyTaskShipping(state.run, state.run.cycle, action.taskId);
       if (!shipped) return state;
       if (shipped.run.morale <= 0) return taskShippingDefeat(shipped.run);

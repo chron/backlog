@@ -55,7 +55,14 @@ export function buildRetroBoard(
   const format = selectRetroFormat(run.seed);
   const shippedTasks = run.history.filter((event) => event.kind === "task-shipped");
   const bossShipments = shippedTasks.filter((event) => event.nodeId === "final-release");
-  const launchDefects = bossShipments.reduce((total, event) => total + event.defects, 0);
+  const launch = [...run.history]
+    .reverse()
+    .find((event) => event.kind === "final-release-launched");
+  const launchDefects =
+    launch?.defects ?? bossShipments.reduce((total, event) => total + event.defects, 0);
+  const launchUnverified =
+    launch?.unverifiedWork ??
+    bossShipments.reduce((total, event) => total + (event.unverifiedWork ?? 0), 0);
   const allDefects = shippedTasks.reduce((total, event) => total + event.defects, 0);
   const moraleLost = Math.max(0, run.maxMorale - run.morale);
   const cardPlays = run.history.filter((event) => event.kind === "card-played");
@@ -65,6 +72,8 @@ export function buildRetroBoard(
     (event) => event.kind === "cycle-finished" && event.outcome === "missed",
   ).length;
   const sideQuests = shippedTasks.filter((event) => event.taskId.startsWith("side-quest-")).length;
+  const releasePhases =
+    1 + run.history.filter((event) => event.kind === "boss-phase-changed").length;
 
   const result =
     outcome === "victory"
@@ -89,15 +98,19 @@ export function buildRetroBoard(
 
   const good = [
     outcome === "victory" && launchDefects === 0 ? "0 Defects at launch" : undefined,
-    shippedTasks.length > 0 ? `${shippedTasks.length} Tasks shipped` : undefined,
+    shippedTasks.length > 0
+      ? `${shippedTasks.length} Task${shippedTasks.length === 1 ? "" : "s"} shipped`
+      : undefined,
     run.tools.length > 0 ? `${run.tools.length} Tools put to work` : undefined,
     peakChain >= 3 ? `Chain peaked at ${peakChain}` : undefined,
     generatedCardsPlayed >= 3 ? `${generatedCardsPlayed} Generated cards played` : undefined,
+    releasePhases > 1 ? `${releasePhases} Final Release phases navigated` : undefined,
     run.morale >= 5 ? `Team finished with ${run.morale} Morale` : undefined,
   ].filter((sticky): sticky is string => Boolean(sticky));
 
   const bad = [
     allDefects > 0 ? `${allDefects} Defects shipped` : undefined,
+    launchUnverified > 0 ? `${launchUnverified} Unverified Work crossed launch` : undefined,
     run.techDebt > 0 ? `${run.techDebt} Tech Debt came with us` : undefined,
     moraleLost > 0 ? `${moraleLost} Morale left on the floor` : undefined,
     missedCycles > 0 ? `${missedCycles} Cycle${missedCycles === 1 ? "" : "s"} missed` : undefined,
@@ -105,7 +118,7 @@ export function buildRetroBoard(
   ].filter((sticky): sticky is string => Boolean(sticky));
 
   const actions = [
-    launchDefects > 0 || run.techDebt >= 3 ? "Review AI output before launch" : undefined,
+    launchUnverified > 0 || run.techDebt >= 3 ? "Review AI output before launch" : undefined,
     run.morale <= 3 ? "Bring more Block to the readout" : undefined,
     launchDefects > 0 ? "Leave time to Verify" : undefined,
     peakChain < 2 ? "Pick a Task and keep the thread" : undefined,

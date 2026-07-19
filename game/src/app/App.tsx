@@ -38,9 +38,18 @@ function createAppInitialState(base: GameState): GameState {
   const qa = searchParams.get("qa");
   if (
     !import.meta.env.DEV ||
-    !["paul", "madi", "odin", "irene", "basics", "event", "boss", "cycle", "retro"].includes(
-      qa ?? "",
-    )
+    ![
+      "paul",
+      "madi",
+      "odin",
+      "irene",
+      "basics",
+      "event",
+      "boss",
+      "cycle",
+      "retro",
+      "final",
+    ].includes(qa ?? "")
   ) {
     return base;
   }
@@ -49,7 +58,7 @@ function createAppInitialState(base: GameState): GameState {
   let state = gameReducer(base, {
     type: "START_RUN",
     seed:
-      qa === "event" || qa === "boss"
+      qa === "event" || qa === "boss" || qa === "final"
         ? Number.isFinite(eventSeed) && eventSeed > 0
           ? eventSeed
           : 7
@@ -171,7 +180,7 @@ function createAppInitialState(base: GameState): GameState {
       },
     };
   }
-  if (qa === "boss" && state.run) {
+  if ((qa === "boss" || qa === "final") && state.run) {
     const bossMap: GameState = {
       screen: { name: "map" },
       run: {
@@ -191,9 +200,41 @@ function createAppInitialState(base: GameState): GameState {
         ],
       },
     };
-    if (searchParams.get("phase") !== "review") return bossMap;
+    if (qa === "boss" && searchParams.get("phase") !== "review") return bossMap;
     const bossCycle = gameReducer(bossMap, { type: "VISIT_NODE", nodeId: "final-release" });
     if (!bossCycle.run?.cycle) return bossCycle;
+    if (qa === "final") {
+      const quality = searchParams.get("quality") ?? "known";
+      const unverified =
+        quality === "known" || quality === "burnout" ? 3 : quality === "technical" ? 4 : 0;
+      return {
+        ...bossCycle,
+        run: {
+          ...bossCycle.run,
+          morale: quality === "burnout" ? 1 : bossCycle.run.morale,
+          cycle: {
+            ...bossCycle.run.cycle,
+            focus: 10,
+            boss: bossCycle.run.cycle.boss
+              ? {
+                  ...bossCycle.run.cycle.boss,
+                  phase: "launch-window",
+                  transitionNotice: undefined,
+                }
+              : undefined,
+            tasks: bossCycle.run.cycle.tasks.map((task) => ({
+              ...task,
+              status: "ready" as const,
+              requirements: task.requirements.map((requirement, index) => ({
+                ...requirement,
+                verified: requirement.target - (index === 0 ? unverified : 0),
+                unverified: index === 0 ? unverified : 0,
+              })),
+            })),
+          },
+        },
+      };
+    }
     return {
       ...bossCycle,
       run: {
@@ -352,7 +393,11 @@ export function App() {
   useEffect(() => {
     if (retroOutcome !== "victory" || !state.run) return;
     setUnlockedAchievements((current) => {
-      const next = unlockVictoryAchievements(current, state.run?.squad ?? []);
+      const next = unlockVictoryAchievements(
+        current,
+        state.run?.squad ?? [],
+        state.run?.selectedBossId,
+      );
       if (haveSameAchievements(current, next)) return current;
       saveAchievements(next);
       return next;

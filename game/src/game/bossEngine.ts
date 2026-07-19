@@ -11,7 +11,23 @@ import type {
   TaskDefinition,
   TaskState,
 } from "../domain/models";
-import { refreshTaskStatus, requirementProgress } from "./rules";
+import {
+  absorbMoraleDamage,
+  refreshTaskStatus,
+  requirementProgress,
+  taskShippingPreview,
+} from "./rules";
+
+export interface BossLaunchPreview {
+  ready: boolean;
+  taskIds: readonly string[];
+  unverifiedWork: number;
+  defects: number;
+  blocked: number;
+  moraleLoss: number;
+  finalMorale: number;
+  outcome: "clean" | "known-issues" | "technically-shipped" | "burned-out";
+}
 
 interface EffectResolution {
   effectId: string;
@@ -259,6 +275,49 @@ export function isBossLaunchReady(cycle: CycleState, boss: BossDefinition): bool
     (taskId) => cycle.tasks.find((task) => task.taskId === taskId)?.status === "shipped",
   );
   return projectsReady && spawnedRequiredShipped;
+}
+
+export function getBossLaunchPreview(
+  run: RunState,
+  cycle: CycleState,
+  boss: BossDefinition = getBossDefinition(cycle.boss?.bossId ?? run.selectedBossId),
+): BossLaunchPreview {
+  const projectTaskIds = new Set(
+    boss.project.tasks.filter((task) => task.role !== "complication").map((task) => task.id),
+  );
+  const pendingTasks = cycle.tasks.filter(
+    (task) => projectTaskIds.has(task.taskId) && task.status === "ready",
+  );
+  const previews = pendingTasks.map(taskShippingPreview);
+  const unverifiedWork = previews.reduce((total, preview) => total + preview.unverified, 0);
+  const defects = cycle.defects + previews.reduce((total, preview) => total + preview.defects, 0);
+  const shippingDamage = absorbMoraleDamage(
+    cycle.block,
+    previews.reduce((total, preview) => total + preview.moraleLoss, 0),
+  );
+  const finalMorale = run.morale - shippingDamage.moraleLoss;
+  const outcome =
+    defects >= 2
+      ? "technically-shipped"
+      : finalMorale <= 0
+        ? "burned-out"
+        : defects === 1
+          ? "known-issues"
+          : "clean";
+
+  return {
+    ready:
+      cycle.boss?.phase === "launch-window" &&
+      isBossLaunchReady(cycle, boss) &&
+      pendingTasks.length > 0,
+    taskIds: pendingTasks.map((task) => task.taskId),
+    unverifiedWork,
+    defects,
+    blocked: shippingDamage.blocked,
+    moraleLoss: shippingDamage.moraleLoss,
+    finalMorale,
+    outcome,
+  };
 }
 
 function triggerReached(cycle: CycleState, boss: BossDefinition): boolean {

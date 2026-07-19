@@ -53,7 +53,7 @@ describe("achievement progress", () => {
     expect(markup).toContain('aria-label="Ship With Odin, locked"');
     expect(markup).toContain("achievement-tile--major is-unlocked");
     expect(markup).toContain("is-locked");
-    expect(markup).toContain("2 of 8 unlocked");
+    expect(markup).toContain("2 of 10 unlocked");
   });
 
   it("unlocks achievements for every newly playable roster member", () => {
@@ -63,5 +63,14 @@ describe("achievement progress", () => {
       "win-nick",
       "win-levi",
     ]);
+  });
+
+  it("unlocks the selected boss achievement from the boss catalogue id", () => {
+    expect(
+      unlockVictoryAchievements([], ["paul", "odin", "irene"], "mateja-weekend-pivot"),
+    ).toContain("beat-mateja-weekend-pivot");
+    expect(
+      unlockVictoryAchievements([], ["paul", "odin", "irene"], "tristan-significance-test"),
+    ).toContain("beat-tristan-significance-test");
   });
 });

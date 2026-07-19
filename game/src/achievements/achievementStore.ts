@@ -1,6 +1,7 @@
 import type { DeveloperId } from "../domain/models";
+import { bossDefinitions } from "../domain/bosses";
 
-export const achievementDefinitions = [
+const squadAchievementDefinitions = [
   {
     id: "game-won",
     name: "Shipped It",
@@ -55,7 +56,21 @@ export const achievementDefinitions = [
   developerId?: DeveloperId;
 }[];
 
-export type AchievementId = (typeof achievementDefinitions)[number]["id"];
+const bossAchievementDefinitions = bossDefinitions.map((boss) => ({
+  id: `beat-${boss.id}` as const,
+  name: boss.achievement.name,
+  rules: boss.achievement.rules,
+  bossId: boss.id,
+}));
+
+export const achievementDefinitions = [
+  ...squadAchievementDefinitions,
+  ...bossAchievementDefinitions,
+];
+
+type SquadAchievementId = (typeof squadAchievementDefinitions)[number]["id"];
+type BossAchievementId = `beat-${string}`;
+export type AchievementId = SquadAchievementId | BossAchievementId;
 
 export interface AchievementStorage {
   getItem(key: string): string | null;
@@ -112,6 +127,7 @@ export function saveAchievements(
 export function unlockVictoryAchievements(
   current: readonly AchievementId[],
   squad: readonly DeveloperId[],
+  bossId?: string,
 ): readonly AchievementId[] {
   const unlocked = new Set<AchievementId>(current);
   unlocked.add("game-won");
@@ -121,6 +137,10 @@ export function unlockVictoryAchievements(
     );
     if (achievement) unlocked.add(achievement.id);
   }
+  const bossAchievement = bossAchievementDefinitions.find(
+    (achievement) => achievement.bossId === bossId,
+  );
+  if (bossAchievement) unlocked.add(bossAchievement.id);
   return achievementDefinitions
     .map((achievement) => achievement.id)
     .filter((id) => unlocked.has(id));

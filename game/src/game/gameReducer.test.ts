@@ -7,6 +7,7 @@ import {
   getCycle,
   tools,
 } from "../domain/content";
+import { getBossDefinition } from "../domain/bosses";
 import { getEvent } from "../domain/events";
 import { selectEncounterLineup } from "../domain/encounters";
 import type { DeveloperId, Discipline, ToolId } from "../domain/models";
@@ -207,6 +208,36 @@ function startMap(completedNodeIds: readonly string[] = [], seed?: number): Game
   };
 }
 
+function readyFinalRelease(unverifiedWork = 0, morale = 10, block = 0): GameState {
+  const state = startCycleAt("final-release");
+  if (!state.run?.cycle?.boss) throw new Error("Expected an active Final Release");
+  return {
+    ...state,
+    run: {
+      ...state.run,
+      morale,
+      cycle: {
+        ...state.run.cycle,
+        block,
+        boss: {
+          ...state.run.cycle.boss,
+          phase: "launch-window",
+          transitionNotice: undefined,
+        },
+        tasks: state.run.cycle.tasks.map((task) => ({
+          ...task,
+          status: "ready" as const,
+          requirements: task.requirements.map((requirement, index) => ({
+            ...requirement,
+            verified: requirement.target - (index === 0 ? unverifiedWork : 0),
+            unverified: index === 0 ? unverifiedWork : 0,
+          })),
+        })),
+      },
+    },
+  };
+}
+
 describe("gameReducer", () => {
   it("builds a 10-card deck from three character cards and seven Basics", () => {
     const state = startCycle();
@@ -352,6 +383,105 @@ describe("gameReducer", () => {
     });
     expect(boss.run?.cycle?.tasks).toHaveLength(1);
     expect(boss.run?.cycle?.tasks[0]?.taskId).toBe("final-release");
+  });
+
+  it("waits for an explicit clean Final Release launch and skips ordinary rewards", () => {
+    let state = readyFinalRelease();
+
+    state = gameReducer(state, { type: "SHIP_TASK", taskId: "final-release" });
+    expect(state.run?.cycle?.tasks[0]?.status).toBe("ready");
+
+    state = gameReducer(state, { type: "LAUNCH_FINAL_RELEASE" });
+
+    expect(state.screen).toEqual({ name: "retro", outcome: "victory" });
+    expect(state.run?.cycle).toBeNull();
+    expect(state.run?.pendingCardReward).toBeNull();
+    expect(state.run?.pendingToolReward).toBeNull();
+    expect(state.run?.completedNodeIds).toContain("final-release");
+    expect(state.run?.history.at(-2)).toMatchObject({
+      kind: "final-release-launched",
+      unverifiedWork: 0,
+      defects: 0,
+      moraleLoss: 0,
+      outcome: "clean",
+    });
+  });
+
+  it("ships one survivable Defect as a Known Issues victory", () => {
+    const state = gameReducer(readyFinalRelease(3), { type: "LAUNCH_FINAL_RELEASE" });
+
+    expect(state.screen).toEqual({ name: "retro", outcome: "victory" });
+    expect(state.run?.morale).toBe(9);
+    expect(state.run?.history.at(-2)).toMatchObject({
+      kind: "final-release-launched",
+      unverifiedWork: 3,
+      defects: 1,
+      moraleLoss: 1,
+      outcome: "known-issues",
+    });
+  });
+
+  it("lets Block absorb launch damage without hiding the Known Issues outcome", () => {
+    const state = gameReducer(readyFinalRelease(3, 1, 1), {
+      type: "LAUNCH_FINAL_RELEASE",
+    });
+
+    expect(state.screen).toEqual({ name: "retro", outcome: "victory" });
+    expect(state.run?.morale).toBe(1);
+    expect(state.run?.history.at(-2)).toMatchObject({
+      kind: "final-release-launched",
+      unverifiedWork: 3,
+      defects: 1,
+      moraleLoss: 0,
+      outcome: "known-issues",
+    });
+  });
+
+  it("truthfully separates Technically Shipped and burnout defeats", () => {
+    const technical = gameReducer(readyFinalRelease(4), { type: "LAUNCH_FINAL_RELEASE" });
+    const burnout = gameReducer(readyFinalRelease(3, 1), { type: "LAUNCH_FINAL_RELEASE" });
+
+    expect(technical.screen).toEqual({
+      name: "retro",
+      outcome: "defeat",
+      cause: "technically-shipped",
+    });
+    expect(technical.run?.history.at(-2)).toMatchObject({
+      kind: "final-release-launched",
+      defects: 2,
+      outcome: "technically-shipped",
+    });
+    expect(burnout.screen).toEqual({ name: "retro", outcome: "defeat", cause: "morale" });
+    expect(burnout.run?.history.at(-2)).toMatchObject({
+      kind: "final-release-launched",
+      defects: 1,
+      outcome: "burned-out",
+    });
+  });
+
+  it("ends an unlaunched Final Release as a deadline defeat", () => {
+    let state = readyFinalRelease(0, 20);
+    if (!state.run?.cycle) throw new Error("Expected an active Final Release");
+    const deadline = getBossDefinition(state.run.selectedBossId).project.maxDays;
+    state = {
+      ...state,
+      run: {
+        ...state.run,
+        cycle: { ...state.run.cycle, day: deadline },
+      },
+    };
+
+    state = gameReducer(state, { type: "END_DAY" });
+
+    expect(state.screen).toEqual({ name: "retro", outcome: "defeat", cause: "final-release" });
+    expect(state.run?.cycle).toBeNull();
+    expect(state.run?.completedNodeIds).not.toContain("final-release");
+    expect(state.run?.history.at(-1)).toEqual({
+      kind: "cycle-finished",
+      nodeId: "final-release",
+      outcome: "missed",
+      day: deadline,
+    });
   });
 
   it("uses meaningful Scope jumps and punchy Distraction copy", () => {
@@ -704,6 +834,7 @@ describe("gameReducer", () => {
       kind: "task-shipped",
       nodeId: "cycle-2",
       taskId: "status-composer",
+      unverifiedWork: 8,
       defects: 3,
       moraleLoss: 3,
       techDebtAdded: 4,

@@ -19,6 +19,7 @@ interface TaskPanelProps {
   hoveredTargetKey?: string;
   resolving?: boolean;
   shippingDisabled?: boolean;
+  releaseTask?: boolean;
   onTarget: (taskId: string, discipline?: Discipline) => void;
   onShip: (taskId: string) => void;
 }
@@ -32,6 +33,7 @@ export function TaskPanel({
   hoveredTargetKey,
   resolving,
   shippingDisabled,
+  releaseTask,
   onTarget,
   onShip,
 }: TaskPanelProps) {
@@ -224,15 +226,19 @@ export function TaskPanel({
               .filter(Boolean)
               .join(" · ")}
           </span>
-          <button
-            className="button button--primary task-ship__button"
-            type="button"
-            disabled={shippingDisabled}
-            onClick={() => onShip(task.taskId)}
-            aria-label={`Ship ${taskName}. ${ship.defects > 0 ? `${defectLabel}, ${shippingDamage.blocked} blocked and ${shippingDamage.moraleLoss} Morale lost` : "Clean ship"}${ship.techDebt > 0 ? `, plus ${ship.techDebt} Tech Debt` : ""}${shippingRewards.cardsDrawn > 0 ? `, draw ${shippingRewards.cardsDrawn} cards` : ""}${shippingRewards.focusGained > 0 ? `, gain ${shippingRewards.focusGained} Focus` : ""}${task.prototypeReward ? `, gain ${task.prototypeReward} Prototype` : ""}`}
-          >
-            Ship Task
-          </button>
+          {releaseTask ? (
+            <strong className="task-ship__release-ready">Ready for Launch</strong>
+          ) : (
+            <button
+              className="button button--primary task-ship__button"
+              type="button"
+              disabled={shippingDisabled}
+              onClick={() => onShip(task.taskId)}
+              aria-label={`Ship ${taskName}. ${ship.defects > 0 ? `${defectLabel}, ${shippingDamage.blocked} blocked and ${shippingDamage.moraleLoss} Morale lost` : "Clean ship"}${ship.techDebt > 0 ? `, plus ${ship.techDebt} Tech Debt` : ""}${shippingRewards.cardsDrawn > 0 ? `, draw ${shippingRewards.cardsDrawn} cards` : ""}${shippingRewards.focusGained > 0 ? `, gain ${shippingRewards.focusGained} Focus` : ""}${task.prototypeReward ? `, gain ${task.prototypeReward} Prototype` : ""}`}
+            >
+              Ship Task
+            </button>
+          )}
         </div>
       )}
 

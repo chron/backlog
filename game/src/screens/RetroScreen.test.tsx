@@ -77,6 +77,42 @@ describe("release Retro", () => {
     expect(board.bossNote).toBe("directionally significant");
   });
 
+  it("reports launch risk and boss phase history from the terminal event", () => {
+    const run = testRun(0);
+    run.history.push(
+      {
+        kind: "boss-phase-changed",
+        bossId: run.selectedBossId,
+        from: "build",
+        to: "stakeholder-review",
+        day: 3,
+      },
+      {
+        kind: "boss-phase-changed",
+        bossId: run.selectedBossId,
+        from: "stakeholder-review",
+        to: "launch-window",
+        day: 6,
+      },
+      {
+        kind: "final-release-launched",
+        bossId: run.selectedBossId,
+        day: 7,
+        unverifiedWork: 3,
+        defects: 1,
+        moraleLoss: 1,
+        outcome: "known-issues",
+      },
+    );
+
+    const board = buildRetroBoard(run, "victory");
+
+    expect(board.result).toBe("SHIPPED*");
+    expect(board.columns[0].stickies).toContain("3 Final Release phases navigated");
+    expect(board.columns[1].stickies).toContain("3 Unverified Work crossed launch");
+    expect(board.columns[2].stickies).toContain("Leave time to Verify");
+  });
+
   it("renders the chosen format with stable accessible meanings", () => {
     const run = testRun(1);
     const board = buildRetroBoard(run, "victory");

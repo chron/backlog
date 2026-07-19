@@ -7,6 +7,7 @@ import {
   LockKeyhole,
   Network,
   Rocket,
+  Swords,
   Trophy,
   type LucideIcon,
 } from "lucide-react";
@@ -19,7 +20,7 @@ interface AchievementsScreenProps {
   onBack: () => void;
 }
 
-const achievementIcons: Readonly<Record<AchievementId, LucideIcon>> = {
+const achievementIcons: Readonly<Partial<Record<AchievementId, LucideIcon>>> = {
   "game-won": Trophy,
   "win-paul": Rocket,
   "win-odin": Network,
@@ -55,11 +56,13 @@ export function AchievementsScreen({ unlocked, onBack }: AchievementsScreenProps
       <div className="achievement-grid" aria-label="Achievement gallery">
         {achievementDefinitions.map((achievement) => {
           const isUnlocked = unlockedIds.has(achievement.id);
-          const Icon = isUnlocked ? achievementIcons[achievement.id] : LockKeyhole;
+          const Icon = isUnlocked ? (achievementIcons[achievement.id] ?? Swords) : LockKeyhole;
           const accent =
             "developerId" in achievement
               ? getDeveloper(achievement.developerId).accent
-              : "var(--yellow)";
+              : "bossId" in achievement
+                ? "var(--coral)"
+                : "var(--yellow)";
 
           return (
             <article

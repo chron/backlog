@@ -369,6 +369,7 @@ type RunHistoryEvent =
       kind: "task-shipped";
       nodeId: string;
       taskId: string;
+      unverifiedWork?: number;
       defects: number;
       moraleLoss: number;
       techDebtAdded: number;
@@ -413,6 +414,15 @@ type RunHistoryEvent =
       effectId: string;
       day: number;
       label: string;
+    }
+  | {
+      kind: "final-release-launched";
+      bossId: string;
+      day: number;
+      unverifiedWork: number;
+      defects: number;
+      moraleLoss: number;
+      outcome: "clean" | "known-issues" | "technically-shipped" | "burned-out";
     };
 
 export interface RunState {

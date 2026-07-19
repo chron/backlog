@@ -34,6 +34,7 @@ const fixtureBoss: BossDefinition = {
   portrait: "/fixture.webp",
   eligibility: () => true,
   project: { id: "fixture-cycle", name: "Ship the Fixture", maxDays: 8, tasks: [fixtureProject] },
+  achievement: { name: "Fixture Shipped", rules: "Ship the fixture." },
   retroLines: {
     victory: "fixture accepted",
     knownIssues: "fixture accepted with comments",
