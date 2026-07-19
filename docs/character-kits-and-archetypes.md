@@ -205,11 +205,29 @@ Custom Setup installs its Script before **Agentic Loop** or **Sub-Agent** trigge
 ### Seb — reuse and distribution
 
 - **Fantasy:** solve the component once, then make the whole frontend quietly benefit.
-- **Passive direction:** completing a Frontend requirement distributes a small amount of Verified Frontend Work to other open Tasks.
-- **Starter direction:** **Use the Component** — Frontend Work plus a smaller echo on another Frontend requirement.
+- **Passive:** **Shared Components** — whenever Verified Work completes a Frontend requirement, add 1 Verified Frontend Work to every other open Task with an incomplete Frontend requirement.
 - **Core space:** spread, reuse, Frontend completion, Shared Component-style echoes.
 - **Bridges:** Irene turns distributed points into draws; Matt converts overflow into polish; Levi can keep a primary Task moving while echoes cover the rest.
-- **Rare direction:** **Design System Migration** — install Script 1 on every open Frontend requirement.
+
+Seb's catalogue is **LOCKED** for its first playable pass. Values may still move during playtesting.
+
+| Slot | Card | Cost | Effect |
+| --- | --- | ---: | --- |
+| Starter | **Use the Component** | 1 | Frontend 3, Verified. Then add 1 Verified Frontend Work to every other open Task. |
+| Normal | **Design Tokens** | 1 | Add 2 Verified Frontend Work to every open Task. Exhaust. |
+| Normal | **Ladle** | 1 | Frontend 2, Verified. Install Script 1 on that requirement. |
+| Normal | **Extract Component** | 1 | Frontend 4, Verified. If it completes the requirement, trigger Shared Components one additional time. |
+| Normal | **Used Everywhere** | 1 | Frontend 2, Verified, plus 2 Work for every other open Task with an incomplete Frontend requirement. |
+| Normal | **Polish the Primitives** | 1 | Verify 4. If this removes the Task's last Unverified Work, add 2 Verified Frontend Work to every other open Task. |
+| Rare | **Design System Migration** | 1 | Install Script 1 on every incomplete Frontend requirement, then trigger each. Exhaust. |
+
+Shared Components echoes are ordinary Verified Work packets. They can complete requirements and recursively trigger further echoes, including Irene's completion draws and Matt's future overflow conversion. Resolve the packets through a FIFO queue in Task and requirement board order. Completed requirements and shipped Tasks leave the candidate set, making the cascade finite without an artificial trigger cap.
+
+When an effect adds Frontend Work to a Task rather than targeting a specific requirement, it chooses the incomplete Frontend requirement with the least Work remaining and uses board order to break ties. **Use the Component** and **Design Tokens** spread their explicit Work whether or not the original hit completes anything; each resulting completion may still trigger Shared Components. **Extract Component** produces both the ordinary passive echo and one additional echo when its own hit completes.
+
+**Used Everywhere** counts other open Tasks before its targeted Work resolves and adds the resulting bonus to that single Work packet. **Polish the Primitives** resolves its Review before checking whether any Unverified Work remains. **Design System Migration** performs every install first, then triggers the affected requirements in board order, allowing Steph to refund Focus for each installation before the cascade begins.
+
+Seb needs a wide-board showcase such as **Design System Adoption**: four or five smaller Frontend-heavy Tasks where distributed Work and recursive completion can shine, contrasted with Levi's single enormous Task encounter.
 
 ### Toby — defensive conversion
 
