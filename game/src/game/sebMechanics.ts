@@ -1,6 +1,6 @@
 import type { Discipline } from "../domain/models";
 
-export interface SebRequirementSnapshot {
+interface SebRequirementSnapshot {
   discipline: Discipline;
   target: number;
   verified: number;
@@ -20,7 +20,7 @@ export interface SebWorkPacket {
   extraSharedComponentTriggers?: number;
 }
 
-export interface SebResolvedPacket extends SebWorkPacket {
+interface SebResolvedPacket extends SebWorkPacket {
   attempted: number;
   applied: number;
   overflow: number;

@@ -4,7 +4,7 @@ export interface MattReviewTask {
   unverified: number;
 }
 
-export interface MattReviewEvent {
+interface MattReviewEvent {
   taskId: string;
   attempted: number;
   reviewed: number;
