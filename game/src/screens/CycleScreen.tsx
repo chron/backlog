@@ -6,7 +6,13 @@ import { PassiveChip } from "../components/PassiveChip";
 import { RunVitals } from "../components/RunVitals";
 import { TaskPanel } from "../components/TaskPanel";
 import { TargetingArrow } from "../components/TargetingArrow";
-import { disciplineLabel, formatIntent, getCard, getCycle, getDeveloper } from "../domain/content";
+import {
+  disciplineLabel,
+  formatIntent,
+  getCardForInstance,
+  getCycle,
+  getDeveloper,
+} from "../domain/content";
 import type {
   CardInstance,
   CardTag,
@@ -79,7 +85,7 @@ export function CycleScreen({ dispatch, run, onInspectCards }: CycleScreenProps)
   const maxDays = cycle ? getCycle(cycle.cycleId).maxDays : 0;
   const activeInstanceId = aim?.instanceId;
   const selectedCard = cycle?.hand.find((instance) => instance.instanceId === activeInstanceId);
-  const selectedOwnerId = selectedCard ? getCard(selectedCard.cardId).ownerId : undefined;
+  const selectedOwnerId = selectedCard ? getCardForInstance(selectedCard).ownerId : undefined;
   const resolvingCard = reaction?.level === "hero";
 
   useEffect(() => {
@@ -207,7 +213,7 @@ export function CycleScreen({ dispatch, run, onInspectCards }: CycleScreenProps)
   function beginAim(instanceId: string, event: React.PointerEvent<HTMLButtonElement>) {
     if (event.button !== 0 || resolvingDay || resolvingCard) return;
     const instance = cycle?.hand.find((candidate) => candidate.instanceId === instanceId);
-    if (!instance || getCard(instance.cardId).kind === "status") return;
+    if (!instance || getCardForInstance(instance).kind === "status") return;
     const rect = event.currentTarget.getBoundingClientRect();
     event.currentTarget.setPointerCapture(event.pointerId);
     updateAim({
@@ -347,7 +353,7 @@ export function CycleScreen({ dispatch, run, onInspectCards }: CycleScreenProps)
 
   const ceremonyItem = ceremony?.items[ceremony.index];
   playCardRef.current = commitCardPlay;
-  const selectedDefinition = selectedCard ? getCard(selectedCard.cardId) : undefined;
+  const selectedDefinition = selectedCard ? getCardForInstance(selectedCard) : undefined;
   const squadResolution = selectedCard
     ? resolveCardTarget(run, selectedCard, { kind: "squad" })
     : undefined;
@@ -369,6 +375,11 @@ export function CycleScreen({ dispatch, run, onInspectCards }: CycleScreenProps)
   const visibleTasks = cycle.tasks.filter(
     (task) => !(task.role === "side-quest" && task.status === "shipped"),
   );
+  const lastWorkLabel = cycle.lastWorkCard
+    ? cycle.lastWorkCard.discipline === "flexible"
+      ? "Any"
+      : disciplineLabel(cycle.lastWorkCard.discipline)
+    : undefined;
 
   function portraitMood(developerId: DeveloperId): CharacterMood {
     if (reaction?.developerId === developerId) return "success";
@@ -485,6 +496,18 @@ export function CycleScreen({ dispatch, run, onInspectCards }: CycleScreenProps)
             {cycle.cardsPlayedThisDay > 0 && (
               <span className="status-counter">Plays {cycle.cardsPlayedThisDay}</span>
             )}
+            {cycle.lastWorkCard && (
+              <button
+                className="status-counter status-counter--button"
+                type="button"
+                aria-label={`Last printed Work: ${lastWorkLabel} ${cycle.lastWorkCard.amount}. Quick Study will copy this discipline and amount.`}
+              >
+                Last Work · {lastWorkLabel} {cycle.lastWorkCard.amount}
+                <span className="game-tooltip" role="tooltip">
+                  Quick Study copies this printed discipline and amount.
+                </span>
+              </button>
+            )}
             {cycle.exhaustPile.length > 0 && (
               <button
                 className="status-counter status-counter--button"
@@ -562,7 +585,7 @@ export function CycleScreen({ dispatch, run, onInspectCards }: CycleScreenProps)
       </div>
 
       <div className="sr-only" aria-live="polite">
-        {selectedCard ? `${getCard(selectedCard.cardId).name}: choose a target` : ""}
+        {selectedCard ? `${getCardForInstance(selectedCard).name}: choose a target` : ""}
       </div>
 
       <div className="cycle-bottom">
@@ -578,7 +601,7 @@ export function CycleScreen({ dispatch, run, onInspectCards }: CycleScreenProps)
 
         <div className="hand" aria-label="Cards in hand" data-tutorial-anchor="hand">
           {cycle.hand.map((instance) => {
-            const card = getCard(instance.cardId);
+            const card = getCardForInstance(instance);
             const cost = effectiveCardCost(card, cycle, run.squad);
             const unplayable = card.kind === "status";
             return (

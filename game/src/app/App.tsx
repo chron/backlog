@@ -34,7 +34,7 @@ interface OpenCardCollection {
 
 function createAppInitialState(base: GameState): GameState {
   const qa = new URLSearchParams(window.location.search).get("qa");
-  if (!import.meta.env.DEV || !["paul", "madi", "odin"].includes(qa ?? "")) {
+  if (!import.meta.env.DEV || !["paul", "madi", "odin", "irene"].includes(qa ?? "")) {
     return base;
   }
 
@@ -42,14 +42,16 @@ function createAppInitialState(base: GameState): GameState {
   const squad =
     qa === "madi"
       ? (["madi", "irene", "odin"] as const)
-      : qa === "odin"
-        ? (["odin", "madi", "irene"] as const)
-        : (["paul", "odin", "madi"] as const);
+      : qa === "irene"
+        ? (["irene", "madi", "odin"] as const)
+        : qa === "odin"
+          ? (["odin", "madi", "irene"] as const)
+          : (["paul", "odin", "madi"] as const);
   for (const developerId of squad) {
     state = gameReducer(state, { type: "TOGGLE_DEVELOPER", developerId });
   }
   state = gameReducer(state, { type: "CONFIRM_SQUAD" });
-  if (qa === "odin" && state.run) {
+  if ((qa === "odin" || qa === "irene") && state.run) {
     state = {
       ...state,
       run: {
@@ -59,7 +61,10 @@ function createAppInitialState(base: GameState): GameState {
       },
     };
   }
-  state = gameReducer(state, { type: "VISIT_NODE", nodeId: qa === "odin" ? "cycle-2" : "cycle-1" });
+  state = gameReducer(state, {
+    type: "VISIT_NODE",
+    nodeId: qa === "odin" || qa === "irene" ? "cycle-2" : "cycle-1",
+  });
   if (!state.run?.cycle) return state;
 
   const cardIds =
@@ -73,34 +78,44 @@ function createAppInitialState(base: GameState): GameState {
           "parallel-agents",
           "agent-swarm",
         ]
-      : qa === "odin"
+      : qa === "irene"
         ? [
-            "one-more-diagram",
-            "strong-opinions-loosely-held",
-            "approved-with-comments",
-            "boring-technology",
-            "manual-mode",
-            "architecture-review",
-            "design-review",
+            "quietly-automated",
+            "last-10-percent",
+            "no-fuss",
+            "while-im-here",
+            "quick-study",
+            "all-sorted",
+            "already-fixed",
           ]
-        : [
-            "side-quest",
-            "full-stack",
-            "new-model-dropped",
-            "post-through-it",
-            "spike-it",
-            "ebb-and-flow",
-            "vibe-code",
-          ];
+        : qa === "odin"
+          ? [
+              "one-more-diagram",
+              "strong-opinions-loosely-held",
+              "approved-with-comments",
+              "boring-technology",
+              "manual-mode",
+              "architecture-review",
+              "design-review",
+            ]
+          : [
+              "side-quest",
+              "full-stack",
+              "new-model-dropped",
+              "post-through-it",
+              "spike-it",
+              "ebb-and-flow",
+              "vibe-code",
+            ];
   return {
     ...state,
     run: {
       ...state.run,
       cycle: {
         ...state.run.cycle,
-        focus: qa === "madi" || qa === "odin" ? 12 : 10,
+        focus: qa === "madi" || qa === "odin" || qa === "irene" ? 12 : 10,
         tasks:
-          qa === "madi" || qa === "odin"
+          qa === "madi" || qa === "odin" || qa === "irene"
             ? state.run.cycle.tasks.map((task) => ({
                 ...task,
                 requirements: task.requirements.map((requirement) => ({

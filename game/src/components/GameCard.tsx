@@ -1,4 +1,4 @@
-import { disciplineLabel, getCard, getDeveloper } from "../domain/content";
+import { disciplineLabel, getCard, getCardForInstance, getDeveloper } from "../domain/content";
 import { getCardGlossaryEntries } from "../domain/cardGlossary";
 import type { CardInstance } from "../domain/models";
 import { useId, type PointerEventHandler } from "react";
@@ -27,7 +27,7 @@ export function GameCard({
   onPointerUp,
   onPointerCancel,
 }: GameCardProps) {
-  const card = getCard(instance.cardId);
+  const card = getCardForInstance(instance);
   const glossaryId = useId();
   const glossaryEntries = getCardGlossaryEntries(card);
   const owner = card.ownerId ? getDeveloper(card.ownerId) : undefined;

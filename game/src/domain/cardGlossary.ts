@@ -36,6 +36,39 @@ const glossary: readonly GlossaryDefinition[] = [
     appliesTo: (card) => Boolean(card.retain),
   },
   {
+    id: "precise-target",
+    term: "Precise Target",
+    description: "Can only target a requirement at or below the shown remaining Work.",
+    appliesTo: (card) => Boolean(card.maxTargetRemaining),
+  },
+  {
+    id: "completion-bonus",
+    term: "Completion",
+    description: "Triggers when this card's Verified Work finishes its target requirement.",
+    appliesTo: (card) =>
+      Boolean(card.focusOnRequirementComplete || card.spilloverVerifiedOnCompletion),
+  },
+  {
+    id: "spillover",
+    term: "Spillover",
+    description:
+      "Hits the incomplete requirement on that Task with the least Work remaining; ties use board order.",
+    appliesTo: (card) => Boolean(card.spilloverVerifiedOnCompletion),
+  },
+  {
+    id: "printed-copy",
+    term: "Printed Work",
+    description:
+      "Copies only the last Work card's printed discipline and amount, not its other effects.",
+    appliesTo: (card) => Boolean(card.generateLastWorkCopy),
+  },
+  {
+    id: "completion-cascade",
+    term: "Complete",
+    description: "Adds exactly enough Verified Work to finish every qualifying requirement.",
+    appliesTo: (card) => Boolean(card.completeRequirementsAtMost),
+  },
+  {
     id: "review-stun",
     term: "Review Stun",
     description: "Triggers only when Review newly Stuns an active Intent.",
@@ -147,7 +180,10 @@ const glossary: readonly GlossaryDefinition[] = [
     id: "generated",
     term: "Generated",
     description: "Created during a Cycle. It disappears when the Cycle ends.",
-    appliesTo: (card) => card.tags.includes("generated") || Boolean(card.generatedCards),
+    appliesTo: (card) =>
+      card.tags.includes("generated") ||
+      Boolean(card.generatedCards) ||
+      Boolean(card.generateLastWorkCopy),
   },
   {
     id: "exhaust",

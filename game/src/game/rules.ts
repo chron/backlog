@@ -1,4 +1,4 @@
-import { disciplineLabel, getCard, getCycle } from "../domain/content";
+import { disciplineLabel, getCardForInstance, getCycle } from "../domain/content";
 import type {
   CardDefinition,
   CardInstance,
@@ -38,7 +38,12 @@ interface ResolvedCardBase {
   cardsDrawn: number;
   nextDayCardsDrawn: number;
   focusGained: number;
-  generatedCardIds: string[];
+  generatedCards: readonly { cardId: string; dynamicDefinition?: CardDefinition }[];
+  verifiedWorkHits: readonly {
+    taskId: string;
+    discipline: Discipline;
+    amount: number;
+  }[];
   discardedCardInstanceIds: string[];
   queuedDistractions: number;
   cycleWorkBonus?: { tag: CardTag; amount: number };
@@ -239,6 +244,29 @@ function addTriggeredPassive(passiveIds: DeveloperId[], id: DeveloperId): Develo
   return passiveIds.includes(id) ? passiveIds : [...passiveIds, id];
 }
 
+function createStudiedWorkCard(
+  lastWorkCard: NonNullable<CycleState["lastWorkCard"]>,
+): CardDefinition {
+  const workLabel =
+    lastWorkCard.discipline === "flexible" ? "Any" : disciplineLabel(lastWorkCard.discipline);
+  return {
+    id: `studied-${lastWorkCard.discipline}-${lastWorkCard.amount}`,
+    name: `Studied ${workLabel}`,
+    cost: 0,
+    kind: "work",
+    discipline: lastWorkCard.discipline,
+    amount: lastWorkCard.amount,
+    workKind: "verified",
+    exhaust: true,
+    rules: `${workLabel} ${lastWorkCard.amount}. Verified. Exhaust.`,
+    tags: [
+      "exhaust",
+      ...(lastWorkCard.discipline === "flexible" ? (["flexible"] as const) : []),
+      "generated",
+    ],
+  };
+}
+
 export function resolveCardTarget(
   run: RunState,
   instance: CardInstance,
@@ -247,7 +275,7 @@ export function resolveCardTarget(
   const cycle = run.cycle;
   if (!cycle) return { legal: false, reason: "No active Cycle." };
 
-  const card = getCard(instance.cardId);
+  const card = getCardForInstance(instance);
   if (card.kind === "status") {
     return { legal: false, reason: `${card.name} is unplayable.` };
   }
@@ -255,9 +283,16 @@ export function resolveCardTarget(
   const cost = effectiveCardCost(card, cycle, run.squad);
   if (cost > cycle.focus) return { legal: false, reason: "Not enough Focus." };
 
-  const generatedCardIds = card.generatedCards
-    ? Array.from({ length: card.generatedCards.count }, () => card.generatedCards?.cardId ?? "")
-    : [];
+  const generatedCards: { cardId: string; dynamicDefinition?: CardDefinition }[] =
+    card.generatedCards
+      ? Array.from({ length: card.generatedCards.count }, () => ({
+          cardId: card.generatedCards?.cardId ?? "",
+        }))
+      : [];
+  if (card.generateLastWorkCopy && cycle.lastWorkCard) {
+    const dynamicDefinition = createStudiedWorkCard(cycle.lastWorkCard);
+    generatedCards.push({ cardId: dynamicDefinition.id, dynamicDefinition });
+  }
   const tacticBlock = (card.block ?? 0) + (card.blockPerCardPlayed ?? 0) * cycle.cardsPlayedThisDay;
   const tacticBase: Omit<ResolvedCardBase, "label"> = {
     legal: true,
@@ -267,13 +302,16 @@ export function resolveCardTarget(
     cardsDrawn: card.cardsDrawn ?? 0,
     nextDayCardsDrawn: card.nextDayCardsDrawn ?? 0,
     focusGained: card.focusGained ?? 0,
-    generatedCardIds,
+    generatedCards,
+    verifiedWorkHits: [],
     discardedCardInstanceIds: card.discardedHandTags
       ? cycle.hand
           .filter(
             (candidate) =>
               candidate.instanceId !== instance.instanceId &&
-              card.discardedHandTags?.some((tag) => getCard(candidate.cardId).tags.includes(tag)),
+              card.discardedHandTags?.some((tag) =>
+                getCardForInstance(candidate).tags.includes(tag),
+              ),
           )
           .map((candidate) => candidate.instanceId)
       : [],
@@ -307,9 +345,48 @@ export function resolveCardTarget(
     if (target.kind !== "squad") {
       return { legal: false, reason: "Aim this at the squad." };
     }
+    if (card.generateLastWorkCopy && !cycle.lastWorkCard) {
+      return { legal: false, reason: "Play a Work card first." };
+    }
+    if (card.completeRequirementsAtMost) {
+      const verifiedWorkHits = cycle.tasks.flatMap((task) =>
+        task.status === "shipped"
+          ? []
+          : task.requirements.flatMap((requirement) => {
+              const remaining = remainingWork(requirement);
+              return remaining > 0 && remaining <= card.completeRequirementsAtMost!
+                ? [
+                    {
+                      taskId: task.taskId,
+                      discipline: requirement.discipline,
+                      amount: remaining,
+                    },
+                  ]
+                : [];
+            }),
+      );
+      if (verifiedWorkHits.length === 0) {
+        return { legal: false, reason: "No requirements have 3 or less Work remaining." };
+      }
+      const passiveCardsDrawn = run.squad.includes("irene") ? verifiedWorkHits.length : 0;
+      return {
+        ...tacticBase,
+        kind: "tactic",
+        stun: false,
+        verifiedWorkHits,
+        cardsDrawn: tacticBase.cardsDrawn + passiveCardsDrawn,
+        triggeredPassiveIds: passiveCardsDrawn > 0 ? ["irene"] : [],
+        label: [
+          `Complete ${verifiedWorkHits.length} ${verifiedWorkHits.length === 1 ? "requirement" : "requirements"}`,
+          passiveCardsDrawn ? `Draw ${passiveCardsDrawn}` : undefined,
+        ]
+          .filter(Boolean)
+          .join(" · "),
+      };
+    }
     const label = [
       card.fullStackAdded ? `Full Stack +${card.fullStackAdded}` : undefined,
-      generatedCardIds.length ? `Generate ${generatedCardIds.length}` : undefined,
+      generatedCards.length ? `Generate ${generatedCards.length}` : undefined,
       tacticBlock ? `Block ${tacticBlock}` : undefined,
       card.focusGained ? `Focus +${card.focusGained}` : undefined,
       card.cardsDrawn ? `Draw ${card.cardsDrawn}` : undefined,
@@ -495,6 +572,12 @@ export function resolveCardTarget(
   if (!requirement || remainingWork(requirement) === 0) {
     return { legal: false, reason: "That requirement is complete." };
   }
+  if (card.maxTargetRemaining && remainingWork(requirement) > card.maxTargetRemaining) {
+    return {
+      legal: false,
+      reason: `Choose a requirement with ${card.maxTargetRemaining} or less Work remaining.`,
+    };
+  }
 
   if (card.automation?.kind === "trigger" && requirement.scriptPower === 0) {
     return { legal: false, reason: "Install a Script here first." };
@@ -565,11 +648,46 @@ export function resolveCardTarget(
     (workKind === "verified" ? amount : 0) + scriptRunAmount,
     workKind === "unverified" ? amount : 0,
   );
-  const passiveCardsDrawn = verifiedCompletion && run.squad.includes("irene") ? 1 : 0;
+  const verifiedWorkHits: { taskId: string; discipline: Discipline; amount: number }[] = [];
+  if (verifiedCompletion && card.spilloverVerifiedOnCompletion) {
+    const spillTarget = task.requirements
+      .map((candidate, index) => ({
+        candidate,
+        index,
+        remaining:
+          candidate.discipline === requirement.discipline
+            ? Math.max(0, remainingWork(candidate) - amount - scriptRunAmount)
+            : remainingWork(candidate),
+      }))
+      .filter(
+        ({ candidate, remaining }) =>
+          candidate.discipline !== requirement.discipline && remaining > 0,
+      )
+      .sort((left, right) => left.remaining - right.remaining || left.index - right.index)[0];
+    if (spillTarget) {
+      verifiedWorkHits.push({
+        taskId: task.taskId,
+        discipline: spillTarget.candidate.discipline,
+        amount: Math.min(card.spilloverVerifiedOnCompletion, spillTarget.remaining),
+      });
+    }
+  }
+  const spilloverCompletions = verifiedWorkHits.filter((hit) => {
+    const spillRequirement = task.requirements.find(
+      (candidate) => candidate.discipline === hit.discipline,
+    );
+    return spillRequirement && requirementCompletedByVerifiedWork(spillRequirement, hit.amount);
+  }).length;
+  const passiveCardsDrawn =
+    run.squad.includes("irene") && (verifiedCompletion || spilloverCompletions > 0)
+      ? Number(verifiedCompletion) + spilloverCompletions
+      : 0;
   if (passiveCardsDrawn) {
     triggeredPassiveIds = addTriggeredPassive(triggeredPassiveIds, "irene");
   }
   const cardsDrawn = passiveCardsDrawn + (card.cardsDrawn ?? 0);
+  const focusGained =
+    (card.focusGained ?? 0) + (verifiedCompletion ? (card.focusOnRequirementComplete ?? 0) : 0);
   const techDebtAdded =
     (aiAssisted && run.tools.includes("enterprise-ai-licence") ? 1 : 0) + (card.techDebtAdded ?? 0);
   const pitchLabel = pairedPitchIn
@@ -588,10 +706,14 @@ export function resolveCardTarget(
             scriptPowerAdded > 0 ? `Script +${scriptPowerAdded}` : undefined,
             scriptInstallRunAmount > 0 ? `Run +${scriptInstallRunAmount}` : undefined,
             scriptTriggerRunAmount > 0 ? `Trigger +${scriptTriggerRunAmount}` : undefined,
+            verifiedWorkHits[0]
+              ? `${disciplineLabel(verifiedWorkHits[0].discipline)} spill +${verifiedWorkHits[0].amount}`
+              : undefined,
             scriptBlockAdded > 0 ? `Guard +${scriptBlockAdded}` : undefined,
             blockGained > 0 ? `Block ${blockGained}` : undefined,
             techDebtAdded > 0 ? `Debt +${techDebtAdded}` : undefined,
             cardsDrawn > 0 ? `Draw ${cardsDrawn}` : undefined,
+            focusGained > 0 ? `Focus +${focusGained}` : undefined,
           ]
             .filter(Boolean)
             .join(" · ")
@@ -602,7 +724,11 @@ export function resolveCardTarget(
             scriptPowerAdded > 0 ? `Script +${scriptPowerAdded}` : undefined,
             scriptInstallRunAmount > 0 ? `Run +${scriptInstallRunAmount}` : undefined,
             scriptTriggerRunAmount > 0 ? `Trigger +${scriptTriggerRunAmount}` : undefined,
+            verifiedWorkHits[0]
+              ? `${disciplineLabel(verifiedWorkHits[0].discipline)} spill +${verifiedWorkHits[0].amount}`
+              : undefined,
             cardsDrawn > 0 ? `Draw ${cardsDrawn}` : undefined,
+            focusGained > 0 ? `Focus +${focusGained}` : undefined,
           ]
             .filter(Boolean)
             .join(" · ");
@@ -621,6 +747,8 @@ export function resolveCardTarget(
     scriptRunAmount,
     techDebtAdded,
     cardsDrawn,
+    focusGained,
+    verifiedWorkHits,
     pitchedIn,
     countsAsWorkPlay,
     triggeredPassiveIds,
@@ -636,46 +764,72 @@ export function applyCardResolutionToTask(
     const review = resolution.reviews.find((candidate) => candidate.taskId === task.taskId);
     if (!review) return task;
     const reviewedTask = verifyTask(task, review.amount);
-    return refreshTaskStatus({
-      ...reviewedTask,
-      stunned: review.stun || reviewedTask.stunned,
-      requirements: reviewedTask.requirements.map((requirement) => {
-        const installation = review.scriptInstallations.find(
-          (candidate) => candidate.discipline === requirement.discipline,
-        );
-        return installation
-          ? {
-              ...requirement,
-              verified: requirement.verified + installation.runAmount,
-              scriptPower: requirement.scriptPower + installation.powerAdded,
-            }
-          : requirement;
+    return applyVerifiedWorkHits(
+      refreshTaskStatus({
+        ...reviewedTask,
+        stunned: review.stun || reviewedTask.stunned,
+        requirements: reviewedTask.requirements.map((requirement) => {
+          const installation = review.scriptInstallations.find(
+            (candidate) => candidate.discipline === requirement.discipline,
+          );
+          return installation
+            ? {
+                ...requirement,
+                verified: requirement.verified + installation.runAmount,
+                scriptPower: requirement.scriptPower + installation.powerAdded,
+              }
+            : requirement;
+        }),
       }),
-    });
+      resolution.verifiedWorkHits,
+    );
   }
 
   if (resolution.kind === "tactic") {
-    return { ...task, stunned: resolution.stun || task.stunned };
+    return applyVerifiedWorkHits(
+      { ...task, stunned: resolution.stun || task.stunned },
+      resolution.verifiedWorkHits,
+    );
   }
 
+  return applyVerifiedWorkHits(
+    refreshTaskStatus({
+      ...task,
+      requirements: task.requirements.map((requirement) =>
+        requirement.discipline !== resolution.discipline
+          ? requirement
+          : {
+              ...requirement,
+              verified:
+                requirement.verified +
+                (resolution.workKind === "verified" ? resolution.amount : 0) +
+                resolution.scriptRunAmount,
+              unverified:
+                requirement.unverified +
+                (resolution.workKind === "unverified" ? resolution.amount : 0),
+              scriptPower: requirement.scriptPower + resolution.scriptPowerAdded,
+              scriptBlock: requirement.scriptBlock + resolution.scriptBlockAdded,
+            },
+      ),
+    }),
+    resolution.verifiedWorkHits,
+  );
+}
+
+function applyVerifiedWorkHits(
+  task: TaskState,
+  hits: readonly { taskId: string; discipline: Discipline; amount: number }[],
+): TaskState {
+  const taskHits = hits.filter((hit) => hit.taskId === task.taskId);
+  if (taskHits.length === 0) return task;
   return refreshTaskStatus({
     ...task,
-    requirements: task.requirements.map((requirement) =>
-      requirement.discipline !== resolution.discipline
-        ? requirement
-        : {
-            ...requirement,
-            verified:
-              requirement.verified +
-              (resolution.workKind === "verified" ? resolution.amount : 0) +
-              resolution.scriptRunAmount,
-            unverified:
-              requirement.unverified +
-              (resolution.workKind === "unverified" ? resolution.amount : 0),
-            scriptPower: requirement.scriptPower + resolution.scriptPowerAdded,
-            scriptBlock: requirement.scriptBlock + resolution.scriptBlockAdded,
-          },
-    ),
+    requirements: task.requirements.map((requirement) => {
+      const amount = taskHits
+        .filter((hit) => hit.discipline === requirement.discipline)
+        .reduce((total, hit) => total + hit.amount, 0);
+      return amount > 0 ? { ...requirement, verified: requirement.verified + amount } : requirement;
+    }),
   });
 }
 

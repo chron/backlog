@@ -65,4 +65,13 @@ describe("card glossary", () => {
     ]);
     expect(termsFor("comment")).toEqual(["Verify", "Generated", "Exhaust"]);
   });
+
+  it("covers Irene's precise completion, spillover, and copied Work vocabulary", () => {
+    expect(termsFor("quietly-automated")).toEqual(["Script", "Any"]);
+    expect(termsFor("last-10-percent")).toEqual(["Precise Target", "Exhaust", "Any"]);
+    expect(termsFor("no-fuss")).toEqual(["Completion", "Any"]);
+    expect(termsFor("while-im-here")).toEqual(["Completion", "Spillover", "Any"]);
+    expect(termsFor("quick-study")).toEqual(["Printed Work", "Generated", "Exhaust"]);
+    expect(termsFor("all-sorted")).toEqual(["Complete", "Exhaust"]);
+  });
 });

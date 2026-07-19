@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { CharacterPortrait } from "./CharacterPortrait";
-import { disciplineLabel, getCard, getDeveloper } from "../domain/content";
+import { disciplineLabel, getCard, getCardForInstance, getDeveloper } from "../domain/content";
 import type { CardInstance } from "../domain/models";
 
 type CardCollectionMode = "inspect" | "choose-one";
@@ -153,6 +153,7 @@ export function CardCollectionBrowser(props: CardCollectionBrowserProps) {
                 <CollectionCard
                   key={group.cardId}
                   cardId={group.cardId}
+                  instance={cards.find((card) => card.cardId === group.cardId)}
                   count={group.count}
                   mode={mode}
                   selected={selectedCardId === group.cardId}
@@ -192,6 +193,7 @@ export function CardCollectionBrowser(props: CardCollectionBrowserProps) {
 
 interface CollectionCardProps {
   cardId: string;
+  instance?: CardInstance;
   count: number;
   mode: CardCollectionMode;
   selected: boolean;
@@ -201,13 +203,14 @@ interface CollectionCardProps {
 
 function CollectionCard({
   cardId,
+  instance,
   count,
   mode,
   selected,
   selectable,
   onSelect,
 }: CollectionCardProps) {
-  const card = getCard(cardId);
+  const card = instance ? getCardForInstance(instance) : getCard(cardId);
   const owner = card.ownerId ? getDeveloper(card.ownerId) : undefined;
   const discipline =
     card.kind === "work" && card.discipline && card.discipline !== "flexible"
@@ -273,13 +276,23 @@ function CollectionCard({
 
 export function groupCardCollection(cards: readonly CardInstance[]): CardCollectionGroup[] {
   const counts = new Map<string, number>();
+  const representatives = new Map<string, CardInstance>();
   for (const instance of cards) {
     counts.set(instance.cardId, (counts.get(instance.cardId) ?? 0) + 1);
+    if (!representatives.has(instance.cardId)) representatives.set(instance.cardId, instance);
   }
   return [...counts]
     .map(([cardId, count]) => ({ cardId, count }))
     .sort((left, right) => {
-      const nameOrder = getCard(left.cardId).name.localeCompare(getCard(right.cardId).name);
+      const leftInstance = representatives.get(left.cardId);
+      const rightInstance = representatives.get(right.cardId);
+      const leftName = leftInstance
+        ? getCardForInstance(leftInstance).name
+        : getCard(left.cardId).name;
+      const rightName = rightInstance
+        ? getCardForInstance(rightInstance).name
+        : getCard(right.cardId).name;
+      const nameOrder = leftName.localeCompare(rightName);
       return nameOrder || left.cardId.localeCompare(right.cardId);
     });
 }

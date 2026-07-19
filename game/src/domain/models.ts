@@ -70,6 +70,11 @@ export interface CardDefinition {
   reviewEveryTask?: boolean;
   cardsDrawnPerReviewStun?: number;
   retain?: boolean;
+  maxTargetRemaining?: number;
+  focusOnRequirementComplete?: number;
+  spilloverVerifiedOnCompletion?: number;
+  generateLastWorkCopy?: boolean;
+  completeRequirementsAtMost?: number;
   scriptPowerPerIncompleteRequirement?: number;
   triggerTargetScriptAfterWork?: boolean;
   fullStackAdded?: number;
@@ -83,6 +88,7 @@ export interface CardDefinition {
 export interface CardInstance {
   instanceId: string;
   cardId: string;
+  dynamicDefinition?: CardDefinition;
   temporary?: boolean;
   generated?: boolean;
 }
@@ -167,6 +173,11 @@ export interface CycleState {
   cardTagWorkBonuses: Partial<Record<CardTag, number>>;
   dayWorkBonuses: readonly { amount: number; excludedTags: readonly CardTag[] }[];
   reviewStunFocusBonus: number;
+  lastWorkCard?: {
+    cardId: string;
+    discipline: Discipline | "flexible";
+    amount: number;
+  };
   lastWorkDiscipline?: Discipline;
   queuedDistractions: number;
   queuedCardsDrawn: number;

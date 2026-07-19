@@ -1,5 +1,6 @@
 import type {
   CardDefinition,
+  CardInstance,
   CycleDefinition,
   Developer,
   Discipline,
@@ -733,6 +734,10 @@ export function getCard(id: string): CardDefinition {
   const card = cards.find((candidate) => candidate.id === id);
   if (!card) throw new Error(`Unknown card: ${id}`);
   return card;
+}
+
+export function getCardForInstance(instance: CardInstance): CardDefinition {
+  return instance.dynamicDefinition ?? getCard(instance.cardId);
 }
 
 export function getCycle(id: string): CycleDefinition {

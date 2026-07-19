@@ -2,6 +2,7 @@ import {
   eligibleRewardCardIds,
   formatIntent,
   getCard,
+  getCardForInstance,
   getCycle,
   getDeveloper,
   isMapNodeAvailable,
@@ -508,9 +509,11 @@ function removeRegressionWork(task: TaskState, discipline: Discipline, amount: n
 
 function endDay(run: RunState, cycle: CycleState): GameState {
   const definition = getCycle(cycle.cycleId);
-  const retainedHand = cycle.hand.filter((card) => !card.temporary && getCard(card.cardId).retain);
+  const retainedHand = cycle.hand.filter(
+    (card) => !card.temporary && getCardForInstance(card).retain,
+  );
   const permanentHand = cycle.hand.filter(
-    (card) => !card.temporary && !getCard(card.cardId).retain,
+    (card) => !card.temporary && !getCardForInstance(card).retain,
   );
   let tasks = cycle.tasks.map((task) => ({
     ...task,
@@ -657,6 +660,7 @@ function endDay(run: RunState, cycle: CycleState): GameState {
     temporaryCardCounter: cycle.temporaryCardCounter + totalDistractions,
     cardsPlayedThisDay: 0,
     lastWorkDiscipline: undefined,
+    lastWorkCard: undefined,
     dayWorkBonuses: [],
     reviewStunFocusBonus: 0,
     queuedDistractions: 0,
@@ -758,7 +762,8 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       if (!resolution.legal) return state;
 
       let tasks = cycle.tasks.map((task) =>
-        resolution.kind === "review"
+        resolution.kind === "review" ||
+        resolution.verifiedWorkHits.some((hit) => hit.taskId === task.taskId)
           ? applyCardResolutionToTask(task, resolution)
           : task.taskId === resolution.taskId
             ? applyCardResolutionToTask(task, resolution)
@@ -780,12 +785,13 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
               state.run.tools.includes("noise-cancelling-headphones"),
             )
           : undefined;
-      const generatedCards: CardInstance[] = resolution.generatedCardIds.map((cardId, index) => ({
-        cardId,
+      const generatedCards: CardInstance[] = resolution.generatedCards.map((generated, index) => ({
+        cardId: generated.cardId,
+        dynamicDefinition: generated.dynamicDefinition,
         instanceId: `generated-${cycle.temporaryCardCounter + index + 1}`,
         generated: true,
       }));
-      const definition = getCard(instance.cardId);
+      const definition = getCardForInstance(instance);
       const discardedCards = cycle.hand.filter((candidate) =>
         resolution.discardedCardInstanceIds.includes(candidate.instanceId),
       );
@@ -829,6 +835,14 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
           ? [...cycle.dayWorkBonuses, resolution.dayWorkBonus]
           : cycle.dayWorkBonuses,
         reviewStunFocusBonus: cycle.reviewStunFocusBonus + resolution.dayReviewStunFocusAdded,
+        lastWorkCard:
+          resolution.kind === "work" && resolution.countsAsWorkPlay && definition.discipline
+            ? {
+                cardId: definition.id,
+                discipline: definition.discipline,
+                amount: definition.amount,
+              }
+            : cycle.lastWorkCard,
         lastWorkDiscipline:
           resolution.kind === "work" && resolution.countsAsWorkPlay
             ? resolution.discipline

@@ -1,4 +1,4 @@
-import { getCard, getDeveloper } from "../domain/content";
+import { getCardForInstance, getDeveloper } from "../domain/content";
 import type { CardInstance, DeveloperId, RunState } from "../domain/models";
 import { applyCardResolutionToTask, isTaskReady, resolveCardTarget } from "./rules";
 import type { CardTarget } from "./rules";
@@ -24,7 +24,7 @@ export function getCardPresentation(
   if (!cycle) return undefined;
   const resolution = resolveCardTarget(run, instance, target);
   if (!resolution.legal) return undefined;
-  const card = getCard(instance.cardId);
+  const card = getCardForInstance(instance);
 
   if (!resolution.taskId) {
     if (!card.ownerId) return { triggeredPassiveIds: resolution.triggeredPassiveIds };

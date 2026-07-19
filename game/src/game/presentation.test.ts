@@ -177,4 +177,56 @@ describe("getCardPresentation", () => {
       title: "I Have Concerns",
     });
   });
+
+  it("gives Irene's cascade a hero moment and a Studied Work completion a passive cue", () => {
+    const state = startCycle(["irene", "madi", "odin"]);
+    const baseRun = state.run;
+    if (!baseRun?.cycle) throw new Error("Expected an active Cycle");
+    const studiedWork = {
+      cardId: "studied-frontend-5",
+      instanceId: "test-studied-frontend-5",
+      generated: true,
+      dynamicDefinition: {
+        id: "studied-frontend-5",
+        name: "Studied Frontend",
+        cost: 0,
+        kind: "work" as const,
+        discipline: "frontend" as const,
+        amount: 5,
+        workKind: "verified" as const,
+        exhaust: true,
+        rules: "Frontend 5. Verified. Exhaust.",
+        tags: ["exhaust", "generated"] as const,
+      },
+    };
+    const run = {
+      ...baseRun,
+      cycle: {
+        ...baseRun.cycle,
+        hand: [
+          ...baseRun.cycle.hand,
+          { cardId: "all-sorted", instanceId: "test-all-sorted" },
+          studiedWork,
+        ],
+      },
+    };
+    const allSorted = run.cycle.hand.find((card) => card.instanceId === "test-all-sorted");
+    if (!allSorted) throw new Error("Expected Irene cards in hand");
+
+    expect(getCardPresentation(run, allSorted, { kind: "squad" })?.cue).toMatchObject({
+      developerId: "irene",
+      level: "hero",
+      title: "All Sorted",
+    });
+    expect(
+      getCardPresentation(run, studiedWork, {
+        taskId: "status-composer",
+        discipline: "frontend",
+      })?.cue,
+    ).toMatchObject({
+      developerId: "irene",
+      level: "micro",
+      title: "Quietly Done",
+    });
+  });
 });
