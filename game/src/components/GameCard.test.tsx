@@ -37,4 +37,18 @@ describe("GameCard", () => {
     expect(markup).not.toContain("aria-describedby");
     expect(markup).toContain("UI Polish");
   });
+
+  it("keeps Elspeth's playable Cycle status interactive", () => {
+    const markup = renderToStaticMarkup(
+      <GameCard
+        instance={{ cardId: "psychological-safety", instanceId: "test-safety" }}
+        effectiveCost={1}
+        selected={false}
+      />,
+    );
+
+    expect(markup).not.toContain("game-card--unplayable");
+    expect(markup).not.toContain('disabled=""');
+    expect(markup).toContain("Psychological Safety");
+  });
 });

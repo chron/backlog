@@ -33,7 +33,7 @@ export function GameCard({
   const glossaryId = useId();
   const glossaryEntries = getCardGlossaryEntries(card);
   const owner = card.ownerId ? getDeveloper(card.ownerId) : undefined;
-  const unplayable = card.kind === "status";
+  const unplayable = card.kind === "status" && !card.cycleFlexibleBlockBonus;
   const cardAccent = owner?.accent ?? disciplineAccent(card.discipline);
   const familyTags = [
     card.tags.includes("rare") ? "Rare" : undefined,

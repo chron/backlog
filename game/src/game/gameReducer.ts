@@ -52,6 +52,7 @@ import {
   createBossEncounter,
   getBossLaunchPreview,
   reconcileBossEncounter,
+  resolveBossDayIntent,
   resolveOpeningBossEffects,
 } from "./bossEngine";
 import {
@@ -81,6 +82,7 @@ import {
 } from "./eventResolution";
 import { normalizeSeed, sampleOne } from "./random";
 import { resolveSebCascade, type SebTaskSnapshot, type SebWorkPacket } from "./sebMechanics";
+import { tobyCrunchConversions } from "../domain/characters/tobyMechanics";
 
 type Screen =
   | { name: "title" }
@@ -495,6 +497,8 @@ function createCycleState(
     dayWorkBonuses: [],
     reviewStunFocusBonus: 0,
     polishBudgetPower: 0,
+    psychologicalSafetyStacks: 0,
+    crunchConversionMode: "source-task",
     queuedDistractions: 0,
     queuedCardsDrawn: 0,
     intentProtections,
@@ -901,6 +905,11 @@ function removeRegressionWork(task: TaskState, discipline: Discipline, amount: n
 }
 
 function endDay(run: RunState, cycle: CycleState): GameState {
+  if (cycle.boss) {
+    const bossDay = resolveBossDayIntent(run, cycle);
+    run = bossDay.run;
+    cycle = bossDay.cycle;
+  }
   const definition = getEncounterCycleDefinition(cycle);
   const retainedHand = cycle.hand.filter(
     (card) => !card.temporary && (card.retained || getCardForInstance(card).retain),
@@ -917,6 +926,8 @@ function endDay(run: RunState, cycle: CycleState): GameState {
   const blockedDisciplines: Discipline[] = [];
   const resolvedIntents: string[] = [];
   let interruptions = 0;
+  let tobyCompletionDraws = 0;
+  const intentTriggeredPassiveIds: DeveloperId[] = [];
   const intentProtections = { ...cycle.intentProtections };
 
   for (const taskAtStart of cycle.tasks) {
@@ -992,6 +1003,48 @@ function endDay(run: RunState, cycle: CycleState): GameState {
           const damage = absorbMoraleDamage(block, intent.moraleLoss);
           block = damage.block;
           morale -= damage.moraleLoss;
+          if (run.squad.includes("toby") && damage.blocked > 0) {
+            const conversions = tobyCrunchConversions(
+              tasks.map((task) => ({
+                taskId: task.taskId,
+                status: task.status,
+                requirements: task.requirements.map((requirement) => ({
+                  ...requirement,
+                  guard: requirement.scriptBlock,
+                })),
+              })),
+              currentTask.taskId,
+              damage.blocked,
+              cycle.crunchConversionMode ?? "source-task",
+            );
+            for (const conversion of conversions) {
+              tasks = tasks.map((task) => {
+                if (task.taskId !== conversion.taskId) return task;
+                const requirement = task.requirements[conversion.requirementIndex];
+                if (!requirement) return task;
+                const remaining = Math.max(
+                  0,
+                  requirement.target - requirement.verified - requirement.unverified,
+                );
+                const applied = Math.min(conversion.amount, remaining);
+                if (applied <= 0) return task;
+                if (applied === remaining && run.squad.includes("irene")) {
+                  tobyCompletionDraws += 1;
+                }
+                return refreshTaskStatus({
+                  ...task,
+                  requirements: task.requirements.map((candidate, index) =>
+                    index === conversion.requirementIndex
+                      ? { ...candidate, verified: candidate.verified + applied }
+                      : candidate,
+                  ),
+                });
+              });
+            }
+            if (conversions.length > 0 && !intentTriggeredPassiveIds.includes("toby")) {
+              intentTriggeredPassiveIds.push("toby");
+            }
+          }
         }
         break;
       case "spawn": {
@@ -1024,6 +1077,7 @@ function endDay(run: RunState, cycle: CycleState): GameState {
     discardPile: [...cycle.discardPile, ...permanentHand],
     resolvedIntents: [...cycle.resolvedIntents, ...resolvedIntents],
     intentProtections,
+    triggeredPassiveIds: [...new Set([...cycle.triggeredPassiveIds, ...intentTriggeredPassiveIds])],
   };
   const nextRun = { ...run, morale, cycle: resolvedCycle };
 
@@ -1084,7 +1138,9 @@ function endDay(run: RunState, cycle: CycleState): GameState {
   );
   const rosterStart = applyStartDayRosterEffects(run, cycle, scripts);
   const ireneDraws =
-    (run.squad.includes("irene") ? scripts.verifiedCompletions : 0) + rosterStart.cardsDrawn;
+    (run.squad.includes("irene") ? scripts.verifiedCompletions : 0) +
+    rosterStart.cardsDrawn +
+    tobyCompletionDraws;
   const nextDraw = drawCards(
     [...distractions, ...resolvedCycle.drawPile],
     resolvedCycle.discardPile,
@@ -1105,6 +1161,7 @@ function endDay(run: RunState, cycle: CycleState): GameState {
     triggeredPassiveIds: [
       ...new Set([
         ...(ireneDraws > 0 ? (["irene"] as const) : []),
+        ...intentTriggeredPassiveIds,
         ...rosterStart.triggeredPassiveIds,
       ]),
     ],
@@ -1121,6 +1178,7 @@ function endDay(run: RunState, cycle: CycleState): GameState {
     dayWorkBonuses: [],
     reviewStunFocusBonus: 0,
     polishBudgetPower: 0,
+    crunchConversionMode: "source-task",
     queuedDistractions: 0,
     queuedCardsDrawn: 0,
   };
@@ -1342,7 +1400,12 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       }
       const nextCycle: CycleState = {
         ...cycle,
-        focus: cycle.focus - resolution.cost + resolution.focusGained + nickFocus,
+        focus:
+          cycle.focus -
+          resolution.cost +
+          resolution.focusGained +
+          rosterEffects.focusGained +
+          nickFocus,
         block: cycle.block + resolution.blockGained + rosterEffects.blockGained,
         techDebtAdded: cycle.techDebtAdded + resolution.techDebtAdded,
         tasks,
@@ -1409,6 +1472,9 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
           : cycle.dayWorkBonuses,
         reviewStunFocusBonus: cycle.reviewStunFocusBonus + resolution.dayReviewStunFocusAdded,
         polishBudgetPower: cycle.polishBudgetPower + resolution.polishBudgetAdded,
+        psychologicalSafetyStacks:
+          (cycle.psychologicalSafetyStacks ?? 0) + (definition.cycleFlexibleBlockBonus ? 1 : 0),
+        crunchConversionMode: definition.crunchConversionMode ?? cycle.crunchConversionMode,
         lastWorkCard:
           resolution.kind === "work" && resolution.countsAsWorkPlay && definition.discipline
             ? {

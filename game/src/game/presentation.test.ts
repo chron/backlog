@@ -15,6 +15,40 @@ function startCycle(squad: readonly DeveloperId[]): GameState {
 }
 
 describe("getCardPresentation", () => {
+  it("presents Toby, Steph, and Elspeth's signature support moments", () => {
+    const state = startCycle(["toby", "steph", "elspeth"]);
+    const run = state.run;
+    if (!run?.cycle) throw new Error("Expected support Cycle");
+    const cards = [
+      { cardId: "nothing-gets-past-me", instanceId: "support-toby" },
+      { cardId: "one-click-setup", instanceId: "support-steph" },
+      { cardId: "make-space", instanceId: "support-elspeth" },
+    ];
+    const prepared = { ...run, cycle: { ...run.cycle, focus: 10, hand: cards } };
+
+    expect(getCardPresentation(prepared, cards[0]!, { kind: "squad" })).toMatchObject({
+      cue: { developerId: "toby", level: "hero" },
+    });
+    expect(
+      getCardPresentation(prepared, cards[1]!, {
+        taskId: "status-composer",
+        discipline: "frontend",
+      }),
+    ).toMatchObject({
+      cue: { developerId: "steph", level: "hero", title: "One-Click Setup" },
+      triggeredPassiveIds: expect.arrayContaining(["steph"]),
+    });
+    expect(
+      getCardPresentation(prepared, cards[2]!, {
+        taskId: "status-composer",
+        discipline: "frontend",
+      }),
+    ).toMatchObject({
+      cue: { developerId: "elspeth", level: "hero", title: "Make Space" },
+      triggeredPassiveIds: expect.arrayContaining(["elspeth"]),
+    });
+  });
+
   it("presents Seb's cascading passive and Matt's rare polish as character moments", () => {
     const sebState = startCycle(["seb", "matt", "irene"]);
     const sebRun = sebState.run;

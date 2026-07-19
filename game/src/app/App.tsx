@@ -54,6 +54,9 @@ function createAppInitialState(base: GameState): GameState {
       "weekend",
       "seb",
       "matt",
+      "toby",
+      "steph",
+      "elspeth",
     ].includes(qa ?? "")
   ) {
     return base;
@@ -70,19 +73,25 @@ function createAppInitialState(base: GameState): GameState {
         : 0x0facade,
   });
   const squad =
-    qa === "seb"
-      ? (["seb", "matt", "irene"] as const)
-      : qa === "matt"
-        ? (["matt", "seb", "odin"] as const)
-        : qa === "madi"
-          ? (["madi", "irene", "odin"] as const)
-          : qa === "irene"
-            ? (["irene", "madi", "odin"] as const)
-            : qa === "basics"
-              ? (["odin", "irene", "paul"] as const)
-              : qa === "odin"
-                ? (["odin", "madi", "irene"] as const)
-                : (["paul", "odin", "madi"] as const);
+    qa === "toby"
+      ? (["toby", "steph", "elspeth"] as const)
+      : qa === "steph"
+        ? (["steph", "madi", "toby"] as const)
+        : qa === "elspeth"
+          ? (["elspeth", "toby", "steph"] as const)
+          : qa === "seb"
+            ? (["seb", "matt", "irene"] as const)
+            : qa === "matt"
+              ? (["matt", "seb", "odin"] as const)
+              : qa === "madi"
+                ? (["madi", "irene", "odin"] as const)
+                : qa === "irene"
+                  ? (["irene", "madi", "odin"] as const)
+                  : qa === "basics"
+                    ? (["odin", "irene", "paul"] as const)
+                    : qa === "odin"
+                      ? (["odin", "madi", "irene"] as const)
+                      : (["paul", "odin", "madi"] as const);
   for (const developerId of squad) {
     state = gameReducer(state, { type: "TOGGLE_DEVELOPER", developerId });
   }
@@ -194,7 +203,7 @@ function createAppInitialState(base: GameState): GameState {
       screen: { name: "map" },
       run: {
         ...state.run,
-        currentNodeId: "event-4",
+        currentNodeId: "weekend-2",
         completedNodeIds: [
           "cycle-1",
           "event-1",
@@ -206,6 +215,7 @@ function createAppInitialState(base: GameState): GameState {
           "cycle-4",
           "incident-2",
           "event-4",
+          "weekend-2",
         ],
       },
     };
@@ -334,67 +344,104 @@ function createAppInitialState(base: GameState): GameState {
   if (!state.run?.cycle) return state;
 
   const cardIds =
-    qa === "seb"
+    qa === "toby"
       ? [
-          "use-the-component",
-          "design-tokens",
-          "ladle",
-          "extract-component",
-          "used-everywhere",
-          "polish-the-primitives",
-          "design-system-migration",
+          "check-the-logs",
+          "on-call",
+          "useful-alerting",
+          "above-and-beyond",
+          "keep-it-humming",
+          "triage",
+          "nothing-gets-past-me",
         ]
-      : qa === "matt"
+      : qa === "steph"
         ? [
-            "delight-moment",
-            "one-more-pass",
-            "polish-budget",
-            "no-rough-edges",
-            "delight-budget",
-            "microinteraction",
-            "pixel-perfect",
+            "one-click-setup",
+            "automate-this-bit",
+            "guardrails-not-gatekeepers",
+            "refactor-the-workflow",
+            "hot-reload",
+            "make-it-a-command",
+            "golden-path",
           ]
-        : qa === "madi"
+        : qa === "elspeth"
           ? [
-              "yak-shave",
-              "custom-toolchain",
-              "plan-it-out",
-              "write-the-rfc",
-              "agentic-loop",
-              "parallel-agents",
-              "agent-swarm",
+              "make-space",
+              "psychological-safety",
+              "check-in",
+              "air-cover",
+              "room-to-breathe",
+              "healthy-guardrails",
+              "sustainable-pace",
             ]
-          : qa === "irene"
+          : qa === "seb"
             ? [
-                "quietly-automated",
-                "last-10-percent",
-                "no-fuss",
-                "while-im-here",
-                "quick-study",
-                "all-sorted",
-                "already-fixed",
+                "use-the-component",
+                "design-tokens",
+                "ladle",
+                "extract-component",
+                "used-everywhere",
+                "polish-the-primitives",
+                "design-system-migration",
               ]
-            : qa === "basics"
-              ? ["frontend-3", "frontend-3", "backend-3", "review-3", "flexible-2", "standup-cover"]
-              : qa === "odin"
+            : qa === "matt"
+              ? [
+                  "delight-moment",
+                  "one-more-pass",
+                  "polish-budget",
+                  "no-rough-edges",
+                  "delight-budget",
+                  "microinteraction",
+                  "pixel-perfect",
+                ]
+              : qa === "madi"
                 ? [
-                    "one-more-diagram",
-                    "strong-opinions-loosely-held",
-                    "approved-with-comments",
-                    "boring-technology",
-                    "manual-mode",
-                    "architecture-review",
-                    "design-review",
+                    "yak-shave",
+                    "custom-toolchain",
+                    "plan-it-out",
+                    "write-the-rfc",
+                    "agentic-loop",
+                    "parallel-agents",
+                    "agent-swarm",
                   ]
-                : [
-                    "side-quest",
-                    "full-stack",
-                    "new-model-dropped",
-                    "post-through-it",
-                    "spike-it",
-                    "ebb-and-flow",
-                    "vibe-code",
-                  ];
+                : qa === "irene"
+                  ? [
+                      "quietly-automated",
+                      "last-10-percent",
+                      "no-fuss",
+                      "while-im-here",
+                      "quick-study",
+                      "all-sorted",
+                      "already-fixed",
+                    ]
+                  : qa === "basics"
+                    ? [
+                        "frontend-3",
+                        "frontend-3",
+                        "backend-3",
+                        "review-3",
+                        "flexible-2",
+                        "standup-cover",
+                      ]
+                    : qa === "odin"
+                      ? [
+                          "one-more-diagram",
+                          "strong-opinions-loosely-held",
+                          "approved-with-comments",
+                          "boring-technology",
+                          "manual-mode",
+                          "architecture-review",
+                          "design-review",
+                        ]
+                      : [
+                          "side-quest",
+                          "full-stack",
+                          "new-model-dropped",
+                          "post-through-it",
+                          "spike-it",
+                          "ebb-and-flow",
+                          "vibe-code",
+                        ];
   return {
     ...state,
     run: {
@@ -407,11 +454,21 @@ function createAppInitialState(base: GameState): GameState {
           qa === "irene" ||
           qa === "basics" ||
           qa === "seb" ||
-          qa === "matt"
+          qa === "matt" ||
+          qa === "toby" ||
+          qa === "steph" ||
+          qa === "elspeth"
             ? 12
             : 10,
         tasks:
-          qa === "madi" || qa === "odin" || qa === "irene" || qa === "seb" || qa === "matt"
+          qa === "madi" ||
+          qa === "odin" ||
+          qa === "irene" ||
+          qa === "seb" ||
+          qa === "matt" ||
+          qa === "toby" ||
+          qa === "steph" ||
+          qa === "elspeth"
             ? state.run.cycle.tasks.map((task) => ({
                 ...task,
                 requirements: task.requirements.map((requirement) => ({
@@ -426,7 +483,11 @@ function createAppInitialState(base: GameState): GameState {
                       : qa === "seb"
                         ? 0
                         : Math.min(3, requirement.target),
-                  scriptPower: qa === "madi" && requirement.discipline === "frontend" ? 2 : 0,
+                  scriptPower:
+                    (qa === "madi" && requirement.discipline === "frontend") || qa === "steph"
+                      ? 2
+                      : 0,
+                  scriptBlock: qa === "steph" || qa === "toby" ? 2 : 0,
                 })),
               }))
             : state.run.cycle.tasks,

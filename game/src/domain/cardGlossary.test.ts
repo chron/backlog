@@ -92,4 +92,23 @@ describe("card glossary", () => {
     expect(termsFor("polish-budget")).toEqual(["Finishing Touches", "Exhaust"]);
     expect(termsFor("pixel-perfect")).toEqual(["Finishing Touches", "Overflow Review", "Exhaust"]);
   });
+
+  it("explains Toby, Steph, and Elspeth's support mechanics", () => {
+    expect(termsFor("on-call")).toEqual(expect.arrayContaining(["Block", "Crunch Conversion"]));
+    expect(termsFor("useful-alerting")).toEqual(
+      expect.arrayContaining(["Script", "Trigger", "Guard"]),
+    );
+    expect(termsFor("refactor-the-workflow")).toEqual(
+      expect.arrayContaining(["Script", "Paved Road"]),
+    );
+    expect(termsFor("macro")).toEqual(
+      expect.arrayContaining(["Script", "Trigger", "Guard", "Generated", "Exhaust"]),
+    );
+    expect(termsFor("psychological-safety")).toEqual(
+      expect.arrayContaining(["Healthy Pace", "Exhaust"]),
+    );
+    expect(termsFor("healthy-guardrails")).toEqual(
+      expect.arrayContaining(["Script", "Trigger", "Guard", "Healthy Pace", "Any"]),
+    );
+  });
 });

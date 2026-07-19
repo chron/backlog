@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { DispatchProps, RunProps } from "../app/types";
 import { CharacterReaction } from "../components/CharacterReaction";
+import { BossIntentPanel } from "../components/BossIntentPanel";
 import { GameCard } from "../components/GameCard";
 import { PassiveChip } from "../components/PassiveChip";
 import { RunVitals } from "../components/RunVitals";
@@ -16,7 +17,7 @@ import type {
   DeveloperId,
 } from "../domain/models";
 import { getCardPresentation } from "../game/presentation";
-import { bossPhaseLabel, getBossLaunchPreview } from "../game/bossEngine";
+import { getBossIntentPreview, getBossLaunchPreview } from "../game/bossEngine";
 import type { CharacterCue } from "../game/presentation";
 import {
   absorbMoraleDamage,
@@ -178,7 +179,7 @@ export function CycleScreen({ dispatch, run, onInspectCards }: CycleScreenProps)
     boss?.project.tasks.filter((task) => task.role !== "complication").map((task) => task.id) ?? [],
   );
   const scriptMultiplier = run.tools.includes("cron-upgrade") ? 2 : 1;
-  const moraleIncoming = incomingMorale(cycle);
+  const moraleIncoming = incomingMorale(run, cycle);
   const incomingDamage = absorbMoraleDamage(cycle.block, moraleIncoming);
   const resolvingDay = Boolean(ceremony);
 
@@ -236,7 +237,9 @@ export function CycleScreen({ dispatch, run, onInspectCards }: CycleScreenProps)
   function beginAim(instanceId: string, event: React.PointerEvent<HTMLButtonElement>) {
     if (event.button !== 0 || resolvingDay || resolvingCard || resolvingBoss) return;
     const instance = cycle?.hand.find((candidate) => candidate.instanceId === instanceId);
-    if (!instance || getCardForInstance(instance).kind === "status") return;
+    if (!instance) return;
+    const card = getCardForInstance(instance);
+    if (card.kind === "status" && !card.cycleFlexibleBlockBonus) return;
     const rect = event.currentTarget.getBoundingClientRect();
     event.currentTarget.setPointerCapture(event.pointerId);
     updateAim({
@@ -298,6 +301,18 @@ export function CycleScreen({ dispatch, run, onInspectCards }: CycleScreenProps)
     setReaction(undefined);
     setReactingPassiveIds([]);
     updateAim(undefined);
+    const bossIntent = boss ? getBossIntentPreview(run, cycle, boss) : undefined;
+    const bossIntentItems: CeremonyItem[] =
+      boss && bossIntent
+        ? [
+            {
+              taskId: bossIntent.sourceTaskId,
+              taskName: `${boss.stakeholder} · ${bossIntent.label}`,
+              label: bossIntent.summary,
+              eyebrow: bossIntent.stunned ? "Intent Stunned" : "Intent Resolves",
+            },
+          ]
+        : [];
     const intentItems = cycle.tasks.flatMap<CeremonyItem>((task) => {
       const scheduledIntent = getScheduledIntent(cycle, task);
       if (task.stunned && scheduledIntent) {
@@ -353,7 +368,7 @@ export function CycleScreen({ dispatch, run, onInspectCards }: CycleScreenProps)
               eyebrow: "Automation Runs" as const,
             }));
           });
-    const items = [...intentItems, ...automationItems];
+    const items = [...bossIntentItems, ...intentItems, ...automationItems];
     setCeremony({
       items:
         items.length > 0
@@ -422,7 +437,10 @@ export function CycleScreen({ dispatch, run, onInspectCards }: CycleScreenProps)
   }
 
   return (
-    <section className="screen cycle-screen" aria-label={definition.name}>
+    <section
+      className={`screen cycle-screen${cycle.boss ? " cycle-screen--boss" : ""}`}
+      aria-label={definition.name}
+    >
       <header
         className={`cycle-hud${squadTargetable || sideQuestTargetable ? " is-squad-targetable" : ""}${aim?.hoveredTargetKey === "squad" ? " is-aimed" : ""}`}
         data-card-target={squadTargetable ? "squad" : undefined}
@@ -451,11 +469,6 @@ export function CycleScreen({ dispatch, run, onInspectCards }: CycleScreenProps)
             aria-label={squadTargetable ? squadResolution.label : "Squad status"}
           >
             {definition.kind === "incident" && <span className="status-incident">Incident</span>}
-            {cycle.boss && (
-              <span className="status-boss-phase">
-                Final Release · {bossPhaseLabel(cycle.boss.phase)}
-              </span>
-            )}
             {cycle.block > 0 && <span className="status-buff">Block {cycle.block}</span>}
             {cycle.prototypePower > 0 && (
               <button
@@ -627,6 +640,8 @@ export function CycleScreen({ dispatch, run, onInspectCards }: CycleScreenProps)
         </div>
       </header>
 
+      <BossIntentPanel run={run} cycle={cycle} />
+
       <div
         className={`task-board task-board--${taskBoardLayoutClass(visibleTasks.length)}${squadTargetable ? " is-squad-targetable" : ""}${aim?.hoveredTargetKey === "squad" ? " is-aimed" : ""}`}
         aria-label={definition.kind === "incident" ? "Incident Tasks" : "Cycle Tasks"}
@@ -652,6 +667,7 @@ export function CycleScreen({ dispatch, run, onInspectCards }: CycleScreenProps)
               releaseTask={
                 cycle.boss?.phase === "launch-window" && releaseProjectTaskIds.has(task.taskId)
               }
+              suppressEmptyIntent={Boolean(cycle.boss)}
               onTarget={() => undefined}
               onShip={shipTask}
             />
@@ -705,7 +721,7 @@ export function CycleScreen({ dispatch, run, onInspectCards }: CycleScreenProps)
           {cycle.hand.map((instance) => {
             const card = getCardForInstance(instance);
             const cost = effectiveCardCost(card, cycle, run.squad, instance);
-            const unplayable = card.kind === "status";
+            const unplayable = card.kind === "status" && !card.cycleFlexibleBlockBonus;
             const handTargetResolution = selectedCard
               ? resolveCardTarget(run, selectedCard, {
                   kind: "hand-card",

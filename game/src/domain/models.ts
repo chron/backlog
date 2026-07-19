@@ -131,6 +131,18 @@ export interface CardDefinition {
   blockPerCompletedRequirement?: number;
   finishingTouchesEveryTask?: boolean;
   cardsDrawnPerTaskCleaned?: number;
+  blockEqualIncomingMorale?: boolean;
+  triggerAutomationAfterInstall?: readonly ("script" | "guard")[];
+  doubleCurrentBlock?: boolean;
+  triggerAllTaskGuardsAfterWork?: boolean;
+  stunIntent?: { excludedKinds?: readonly IntentDefinition["kind"][] };
+  crunchConversionMode?: "all-open-tasks";
+  doubleTargetAutomationMeters?: boolean;
+  requiresTargetAutomation?: boolean;
+  triggerTargetAutomation?: { script: boolean; guard: boolean; times: number };
+  cycleFlexibleBlockBonus?: number;
+  blockPerOpenTask?: number;
+  cardsDrawnIfBlockCoversIncoming?: number;
   display?: { value: string; label: string; rules?: string };
   rarity?: "normal" | "rare";
   rules: string;
@@ -268,6 +280,8 @@ export interface CycleState {
   dayWorkBonuses: readonly { amount: number; excludedTags: readonly CardTag[] }[];
   reviewStunFocusBonus: number;
   polishBudgetPower: number;
+  psychologicalSafetyStacks?: number;
+  crunchConversionMode?: "source-task" | "all-open-tasks";
   lastWorkCard?: {
     cardId: string;
     discipline: Discipline | "flexible";

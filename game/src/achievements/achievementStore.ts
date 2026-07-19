@@ -61,6 +61,24 @@ const squadAchievementDefinitions = [
     rules: "Win with Matt.",
     developerId: "matt",
   },
+  {
+    id: "win-toby",
+    name: "Ship With Toby",
+    rules: "Win with Toby.",
+    developerId: "toby",
+  },
+  {
+    id: "win-steph",
+    name: "Ship With Steph",
+    rules: "Win with Steph.",
+    developerId: "steph",
+  },
+  {
+    id: "win-elspeth",
+    name: "Ship With Elspeth",
+    rules: "Win with Elspeth.",
+    developerId: "elspeth",
+  },
 ] as const satisfies readonly {
   id: string;
   name: string;

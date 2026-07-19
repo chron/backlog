@@ -51,6 +51,11 @@ describe("character content aggregate", () => {
       const moduleCardIds = [
         content.startingCard.id,
         ...content.rewardCards.map((card) => card.id),
+        ...("generatedCards" in content
+          ? content.generatedCards
+              .filter((card) => "ownerId" in card && card.ownerId === content.developer.id)
+              .map((card) => card.id)
+          : []),
       ];
       const aggregateCardIds = cards
         .filter((card) => card.ownerId === content.developer.id)

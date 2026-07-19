@@ -1,4 +1,10 @@
-import { getBossDefinition, getBossPhase, type BossDefinition } from "../domain/bosses";
+import {
+  getBossDefinition,
+  getBossPhase,
+  getScheduledBossIntent,
+  type BossDefinition,
+  type BossIntentEffect,
+} from "../domain/bosses";
 import type {
   BossEffect,
   BossEffectTarget,
@@ -27,6 +33,16 @@ export interface BossLaunchPreview {
   moraleLoss: number;
   finalMorale: number;
   outcome: "clean" | "known-issues" | "technically-shipped" | "burned-out";
+}
+
+export interface BossIntentPreview {
+  id: string;
+  label: string;
+  summary: string;
+  quote: string;
+  sourceTaskId: string;
+  stunned: boolean;
+  moraleLoss: number;
 }
 
 interface EffectResolution {
@@ -64,26 +80,39 @@ function remainingWork(requirement: RequirementState): number {
   return Math.max(0, requirement.target - requirementProgress(requirement));
 }
 
-function matchingRequirements(cycle: CycleState, discipline?: Discipline): RequirementLocation[] {
+function matchingRequirements(
+  cycle: CycleState,
+  discipline: Discipline | undefined,
+  effectKind: "scope" | "work" | "regression",
+): RequirementLocation[] {
   return cycle.tasks.flatMap((task, taskIndex) =>
     task.status === "shipped"
       ? []
       : task.requirements.flatMap((requirement, requirementIndex) =>
-          (!discipline || requirement.discipline === discipline) && remainingWork(requirement) > 0
+          (!discipline || requirement.discipline === discipline) &&
+          (effectKind === "scope"
+            ? true
+            : effectKind === "regression"
+              ? requirementProgress(requirement) > 0
+              : remainingWork(requirement) > 0)
             ? [{ taskIndex, requirementIndex, task, requirement }]
             : [],
         ),
   );
 }
 
-function resolveTargets(cycle: CycleState, target: BossEffectTarget): RequirementLocation[] {
+function resolveTargets(
+  cycle: CycleState,
+  target: BossEffectTarget,
+  effectKind: "scope" | "work" | "regression",
+): RequirementLocation[] {
   if (target.kind === "task") {
-    return matchingRequirements(cycle, target.discipline).filter(
+    return matchingRequirements(cycle, target.discipline, effectKind).filter(
       (location) => location.task.taskId === target.taskId,
     );
   }
 
-  const candidates = matchingRequirements(cycle, target.discipline);
+  const candidates = matchingRequirements(cycle, target.discipline, effectKind);
   if (target.kind === "all-open-tasks") return candidates;
   if (candidates.length === 0) return [];
 
@@ -164,7 +193,7 @@ function applyBossEffect(
     return { run: nextRun, cycle: nextCycle, label: effectLabel(effect, 1) };
   }
 
-  const targets = resolveTargets(cycle, effect.target);
+  const targets = resolveTargets(cycle, effect.target, effect.kind);
   if (targets.length === 0) return { run, cycle, label: `${effectLabel(effect, 0)} · No target` };
 
   const nextCycle = updateRequirements(cycle, targets, (requirement) => {
@@ -192,6 +221,105 @@ function applyBossEffect(
     cycle: nextCycle,
     label: effectLabel(effect, targets.length),
   };
+}
+
+function materializeBossIntentEffects(
+  cycle: CycleState,
+  effects: readonly BossIntentEffect[],
+): BossEffect[] {
+  return effects.flatMap((effect): BossEffect[] => {
+    if (effect.kind === "validation-scope") {
+      const openValidationTaskIds = effect.taskIds.filter((taskId) => {
+        const task = cycle.tasks.find((candidate) => candidate.taskId === taskId);
+        return task && task.status !== "shipped";
+      });
+      return openValidationTaskIds.length > 0
+        ? openValidationTaskIds.map((taskId) => ({
+            kind: "scope" as const,
+            target: { kind: "task" as const, taskId },
+            amount: effect.amount,
+          }))
+        : [effect.fallback];
+    }
+    if (effect.kind === "validation-crunch") {
+      const unfinished = effect.taskIds.filter((taskId) => {
+        const task = cycle.tasks.find((candidate) => candidate.taskId === taskId);
+        return task && task.status !== "shipped";
+      }).length;
+      return [{ kind: "crunch", moraleLoss: effect.base + effect.perOpenTask * unfinished }];
+    }
+    return [effect];
+  });
+}
+
+export function getBossIntentPreview(
+  run: RunState,
+  cycle: CycleState,
+  boss: BossDefinition = getBossDefinition(cycle.boss?.bossId ?? run.selectedBossId),
+): BossIntentPreview | undefined {
+  const intent = getScheduledBossIntent(run, cycle, boss);
+  if (!intent) return undefined;
+  const sourceTask = cycle.tasks.find((task) => task.taskId === intent.sourceTaskId);
+  const effects = materializeBossIntentEffects(cycle, intent.effects);
+  return {
+    id: intent.id,
+    label: intent.label,
+    summary: intent.summary,
+    quote: intent.quote,
+    sourceTaskId: intent.sourceTaskId,
+    stunned: sourceTask?.stunned ?? false,
+    moraleLoss: effects.reduce(
+      (total, effect) => total + (effect.kind === "crunch" ? effect.moraleLoss : 0),
+      0,
+    ),
+  };
+}
+
+export function resolveBossDayIntent(
+  run: RunState,
+  cycle: CycleState,
+  boss: BossDefinition = getBossDefinition(cycle.boss?.bossId ?? run.selectedBossId),
+): { run: RunState; cycle: CycleState; resolutions: EffectResolution[] } {
+  const intent = getScheduledBossIntent(run, cycle, boss);
+  if (!intent || !cycle.boss) return { run, cycle, resolutions: [] };
+  const sourceTask = cycle.tasks.find((task) => task.taskId === intent.sourceTaskId);
+  if (sourceTask?.stunned) {
+    const label = `Stunned · ${intent.label}`;
+    const stunnedCycle = {
+      ...cycle,
+      resolvedIntents: [...cycle.resolvedIntents, label],
+    };
+    return {
+      run: { ...run, cycle: stunnedCycle },
+      cycle: stunnedCycle,
+      resolutions: [],
+    };
+  }
+
+  const effects = materializeBossIntentEffects(cycle, intent.effects);
+  const queuedCycle = {
+    ...cycle,
+    boss: queueBossEffects(cycle.boss, effects),
+  };
+  const drained = drainBossEffectQueue({ ...run, cycle: queuedCycle }, queuedCycle);
+  const labelledCycle = {
+    ...drained.cycle,
+    resolvedIntents: [...drained.cycle.resolvedIntents, intent.label],
+  };
+  const effectHistory = drained.resolutions.map((resolution) => ({
+    kind: "boss-effect-resolved" as const,
+    bossId: boss.id,
+    phase: resolution.phase,
+    effectId: resolution.effectId,
+    day: cycle.day,
+    label: `${intent.label} · ${resolution.label}`,
+  }));
+  const nextRun = {
+    ...drained.run,
+    cycle: labelledCycle,
+    history: [...drained.run.history, ...effectHistory],
+  };
+  return { run: nextRun, cycle: labelledCycle, resolutions: drained.resolutions };
 }
 
 export function createBossEncounter(boss: BossDefinition): BossEncounterState {
@@ -320,12 +448,50 @@ export function getBossLaunchPreview(
   };
 }
 
-function triggerReached(cycle: CycleState, boss: BossDefinition): boolean {
-  const phase = getBossPhase(boss, cycle.boss?.phase ?? "build");
-  if (!phase.exitTrigger) return false;
-  return phase.exitTrigger.kind === "project-progress"
-    ? projectProgressRatio(cycle, boss) >= phase.exitTrigger.ratio
+function triggerReached(
+  cycle: CycleState,
+  boss: BossDefinition,
+  trigger: { kind: "project-progress"; ratio: number } | { kind: "launch-ready" },
+): boolean {
+  return trigger.kind === "project-progress"
+    ? projectProgressRatio(cycle, boss) >= trigger.ratio
     : isBossLaunchReady(cycle, boss);
+}
+
+function reconcileBossMilestones(
+  run: RunState,
+  cycle: CycleState,
+  boss: BossDefinition,
+): { run: RunState; cycle: CycleState } {
+  if (!cycle.boss) return { run, cycle };
+  let nextRun = run;
+  let nextCycle = cycle;
+  const phase = getBossPhase(boss, cycle.boss.phase);
+  for (const milestone of phase.milestones ?? []) {
+    if (milestone.resolved(nextCycle) || !triggerReached(nextCycle, boss, milestone.trigger)) {
+      continue;
+    }
+    const queuedCycle = {
+      ...nextCycle,
+      boss: queueBossEffects(nextCycle.boss!, milestone.effects),
+    };
+    const drained = drainBossEffectQueue({ ...nextRun, cycle: queuedCycle }, queuedCycle);
+    const effectHistory = drained.resolutions.map((resolution) => ({
+      kind: "boss-effect-resolved" as const,
+      bossId: boss.id,
+      phase: resolution.phase,
+      effectId: resolution.effectId,
+      day: cycle.day,
+      label: `${phase.title} · ${resolution.label}`,
+    }));
+    nextCycle = drained.cycle;
+    nextRun = {
+      ...drained.run,
+      cycle: nextCycle,
+      history: [...drained.run.history, ...effectHistory],
+    };
+  }
+  return { run: nextRun, cycle: nextCycle };
 }
 
 function nextPhase(phase: BossPhase): BossPhase | undefined {
@@ -341,16 +507,25 @@ export function reconcileBossEncounter(
   cycle: CycleState,
   boss: BossDefinition = getBossDefinition(cycle.boss?.bossId ?? run.selectedBossId),
 ): { run: RunState; cycle: CycleState } {
-  if (!cycle.boss || cycle.boss.transitionNotice || !triggerReached(cycle, boss)) {
+  if (!cycle.boss || cycle.boss.transitionNotice) {
     return { run, cycle };
   }
-  const to = nextPhase(cycle.boss.phase);
+  const milestoneResult = reconcileBossMilestones(run, cycle, boss);
+  run = milestoneResult.run;
+  cycle = milestoneResult.cycle;
+  const encounter = cycle.boss;
+  if (!encounter) return { run, cycle };
+  const phase = getBossPhase(boss, encounter.phase);
+  if (!phase.exitTrigger || !triggerReached(cycle, boss, phase.exitTrigger)) {
+    return { run, cycle };
+  }
+  const to = nextPhase(encounter.phase);
   if (!to) return { run, cycle };
-  const from = cycle.boss.phase;
+  const from = encounter.phase;
   const destination = getBossPhase(boss, to);
   const queuedCycle: CycleState = {
     ...cycle,
-    boss: queueBossEffects({ ...cycle.boss, phase: to }, destination.onEnter),
+    boss: queueBossEffects({ ...encounter, phase: to }, destination.onEnter),
   };
   const drained = drainBossEffectQueue({ ...run, cycle: queuedCycle }, queuedCycle);
   const nextCycle: CycleState = {
@@ -418,12 +593,4 @@ export function resolveOpeningBossEffects(
     run: { ...drained.run, history: [...drained.run.history, ...history] },
     cycle: drained.cycle,
   };
-}
-
-export function bossPhaseLabel(phase: BossPhase): string {
-  return phase === "stakeholder-review"
-    ? "Stakeholder Review"
-    : phase === "launch-window"
-      ? "Launch Window"
-      : "Build";
 }

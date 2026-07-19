@@ -20,6 +20,7 @@ interface TaskPanelProps {
   resolving?: boolean;
   shippingDisabled?: boolean;
   releaseTask?: boolean;
+  suppressEmptyIntent?: boolean;
   onTarget: (taskId: string, discipline?: Discipline) => void;
   onShip: (taskId: string) => void;
 }
@@ -34,6 +35,7 @@ export function TaskPanel({
   resolving,
   shippingDisabled,
   releaseTask,
+  suppressEmptyIntent,
   onTarget,
   onShip,
 }: TaskPanelProps) {
@@ -82,32 +84,34 @@ export function TaskPanel({
             <span className="task-panel__bounty-reward">Reward · {bountyReward}</span>
           )}
         </div>
-        <button
-          className={`intent-badge intent-badge--${task.stunned ? "stunned" : (intent?.kind ?? "cancelled")}`}
-          type="button"
-          disabled={!intentForHelp}
-          aria-describedby={intentForHelp ? intentTooltipId : undefined}
-        >
-          <span className="intent-badge__label">Intent</span>
-          <strong>
-            {task.stunned && scheduledIntent
-              ? `Stunned · ${formatIntent(scheduledIntent)}`
-              : intent
-                ? formatIntent(intent)
-                : taskRole === "side-quest" || taskRole === "bounty"
-                  ? "None"
-                  : "Cancelled"}
-          </strong>
-          {intentForHelp && (
-            <span className="game-tooltip" id={intentTooltipId} role="tooltip">
-              <strong>{task.stunned ? "Stunned" : "At End Day"}</strong>
-              <span>
-                {task.stunned ? "Cancelled for today. " : ""}
-                {describeIntent(intentForHelp)}
+        {(!suppressEmptyIntent || intentForHelp) && (
+          <button
+            className={`intent-badge intent-badge--${task.stunned ? "stunned" : (intent?.kind ?? "cancelled")}`}
+            type="button"
+            disabled={!intentForHelp}
+            aria-describedby={intentForHelp ? intentTooltipId : undefined}
+          >
+            <span className="intent-badge__label">Intent</span>
+            <strong>
+              {task.stunned && scheduledIntent
+                ? `Stunned · ${formatIntent(scheduledIntent)}`
+                : intent
+                  ? formatIntent(intent)
+                  : taskRole === "side-quest" || taskRole === "bounty"
+                    ? "None"
+                    : "Cancelled"}
+            </strong>
+            {intentForHelp && (
+              <span className="game-tooltip" id={intentTooltipId} role="tooltip">
+                <strong>{task.stunned ? "Stunned" : "At End Day"}</strong>
+                <span>
+                  {task.stunned ? "Cancelled for today. " : ""}
+                  {describeIntent(intentForHelp)}
+                </span>
               </span>
-            </span>
-          )}
-        </button>
+            )}
+          </button>
+        )}
       </header>
 
       <div className="requirement-stack">

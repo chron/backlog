@@ -8,6 +8,9 @@ import { odinContent } from "./odin";
 import { paulContent } from "./paul";
 import { sebContent } from "./seb";
 import { mattContent } from "./matt";
+import { tobyContent } from "./toby";
+import { stephContent } from "./steph";
+import { elspethContent } from "./elspeth";
 import type { CharacterContent } from "./types";
 
 export const characterContents = [
@@ -15,11 +18,14 @@ export const characterContents = [
   odinContent,
   ireneContent,
   madiContent,
+  sebContent,
+  tobyContent,
+  stephContent,
+  elspethContent,
   kirstenContent,
+  mattContent,
   nickContent,
   leviContent,
-  sebContent,
-  mattContent,
 ] as const;
 
 const characterContentCatalog: readonly CharacterContent[] = characterContents;

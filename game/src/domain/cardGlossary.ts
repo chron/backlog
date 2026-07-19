@@ -180,13 +180,21 @@ const glossary: readonly GlossaryDefinition[] = [
     id: "stun",
     term: "Stun",
     description: "Cancels one Task's Intent for this Day.",
-    appliesTo: (card) => Boolean(card.stun),
+    appliesTo: (card) => Boolean(card.stun || card.stunIntent),
   },
   {
     id: "block",
     term: "Block",
     description: "Prevents that much incoming Morale loss until the Day ends.",
-    appliesTo: (card) => Boolean(card.block || card.blockPerCardPlayed),
+    appliesTo: (card) =>
+      Boolean(
+        card.block ||
+        card.blockPerCardPlayed ||
+        card.blockEqualIncomingMorale ||
+        card.blockPerOpenTask ||
+        card.doubleCurrentBlock ||
+        card.cardsDrawnIfBlockCoversIncoming,
+      ),
   },
   {
     id: "script",
@@ -197,7 +205,9 @@ const glossary: readonly GlossaryDefinition[] = [
         card.automation ||
         card.scriptPowerPerIncompleteRequirement ||
         card.triggerTargetScriptAfterWork ||
-        card.scriptPowerOnEveryIncompleteFrontend,
+        card.scriptPowerOnEveryIncompleteFrontend ||
+        card.doubleTargetAutomationMeters ||
+        card.triggerTargetAutomation,
       ),
   },
   {
@@ -205,13 +215,52 @@ const glossary: readonly GlossaryDefinition[] = [
     term: "Trigger",
     description: "Runs the target requirement's full Script immediately.",
     appliesTo: (card) =>
-      card.automation?.kind === "trigger" || Boolean(card.triggerTargetScriptAfterWork),
+      card.automation?.kind === "trigger" ||
+      Boolean(
+        card.triggerTargetScriptAfterWork ||
+        card.triggerAutomationAfterInstall ||
+        card.triggerTargetAutomation ||
+        card.triggerAllTaskGuardsAfterWork,
+      ),
   },
   {
     id: "guard",
     term: "Guard",
     description: "Creates Block at the start of every Day.",
-    appliesTo: (card) => card.automation?.kind === "install" && Boolean(card.automation.blockPower),
+    appliesTo: (card) =>
+      Boolean(
+        (card.automation?.kind === "install" && card.automation.blockPower) ||
+        card.triggerAllTaskGuardsAfterWork ||
+        card.triggerTargetAutomation?.guard,
+      ),
+  },
+  {
+    id: "crunch-conversion",
+    term: "Crunch Conversion",
+    description:
+      "With Toby, Block that prevents Crunch becomes equal Verified Work on the affected Task.",
+    appliesTo: (card) => Boolean(card.blockEqualIncomingMorale || card.crunchConversionMode),
+  },
+  {
+    id: "paved-road",
+    term: "Paved Road",
+    description: "With Steph, each Script or Guard meter increased grants 1 Focus.",
+    appliesTo: (card) =>
+      card.ownerId === "steph" &&
+      Boolean(
+        card.automation?.kind === "install" ||
+        card.doubleTargetAutomationMeters ||
+        card.scriptPowerPerIncompleteRequirement,
+      ),
+  },
+  {
+    id: "flexible-block",
+    term: "Healthy Pace",
+    description:
+      "With Elspeth, playing an explicitly Flexible card gains Block before its effects resolve.",
+    appliesTo: (card) =>
+      card.ownerId === "elspeth" &&
+      (card.tags.includes("flexible") || Boolean(card.cycleFlexibleBlockBonus)),
   },
   {
     id: "tech-debt",

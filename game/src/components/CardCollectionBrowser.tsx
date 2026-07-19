@@ -243,7 +243,9 @@ function CollectionCard({
         {discipline && <span>{discipline}</span>}
         {card.kind === "work" && card.workKind === "verified" && <span>Verified</span>}
         {card.workKind === "unverified" && <span className="is-risk">Unverified</span>}
-        {card.kind === "status" && <span className="is-risk">Unplayable</span>}
+        {card.kind === "status" && !card.cycleFlexibleBlockBonus && (
+          <span className="is-risk">Unplayable</span>
+        )}
       </span>
       {owner && <CharacterPortrait developerId={owner.id} mode="card" decorative eager />}
     </>

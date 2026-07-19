@@ -1,4 +1,8 @@
-import { getEncounterCycleDefinition } from "../domain/bosses";
+import {
+  getEncounterCycleDefinition,
+  getScheduledBossIntent,
+  getScheduledBossMoraleLoss,
+} from "../domain/bosses";
 import { disciplineLabel, getCardForInstance } from "../domain/content";
 import type {
   CardDefinition,
@@ -8,6 +12,7 @@ import type {
   CycleState,
   DeveloperId,
   Discipline,
+  IntentDefinition,
   RequirementState,
   RunState,
   TaskState,
@@ -114,6 +119,7 @@ export type CardResolution =
   | (ResolvedCardBase & {
       kind: "tactic";
       taskId?: string;
+      targetDiscipline?: Discipline;
       stun: boolean;
       sideQuestDiscipline?: Discipline;
     })
@@ -212,6 +218,17 @@ export function getCurrentIntent(cycle: CycleState, task: TaskState) {
   return task.stunned ? undefined : getScheduledIntent(cycle, task);
 }
 
+function getTargetableIntent(
+  run: RunState,
+  cycle: CycleState,
+  task: TaskState,
+): Pick<IntentDefinition, "kind"> | undefined {
+  const scheduled = getScheduledIntent(cycle, task);
+  if (scheduled) return scheduled;
+  const bossIntent = getScheduledBossIntent(run, cycle);
+  return bossIntent?.sourceTaskId === task.taskId ? { kind: bossIntent.intentKind } : undefined;
+}
+
 export function absorbMoraleDamage(
   block: number,
   amount: number,
@@ -224,11 +241,12 @@ export function absorbMoraleDamage(
   };
 }
 
-export function incomingMorale(cycle: CycleState): number {
-  return cycle.tasks.reduce((total, task) => {
+export function incomingMorale(run: RunState, cycle: CycleState): number {
+  const ordinaryMorale = cycle.tasks.reduce((total, task) => {
     const intent = getCurrentIntent(cycle, task);
     return total + (intent?.kind === "crunch" ? intent.moraleLoss : 0);
   }, 0);
+  return ordinaryMorale + getScheduledBossMoraleLoss(run, cycle);
 }
 
 export function taskShippingPreview(task: TaskState): {
@@ -345,7 +363,7 @@ export function resolveCardTarget(
   if (!cycle) return { legal: false, reason: "No active Cycle." };
 
   const card = getCardForInstance(instance);
-  if (card.kind === "status") {
+  if (card.kind === "status" && !card.cycleFlexibleBlockBonus) {
     return { legal: false, reason: `${card.name} is unplayable.` };
   }
 
@@ -406,19 +424,29 @@ export function resolveCardTarget(
       transfersBetweenTasks: card.transferChainThisDay || cycle.chain.transfersBetweenTasks,
     };
   }
-  const tacticBlock = cardBlockWithTools(
-    run,
+  const printedBlock =
     (card.block ?? 0) +
-      ((card.block ?? 0) > 0 ? generatedOutputBonus : 0) +
-      (card.blockPerCardPlayed ?? 0) * cycle.cardsPlayedThisDay +
-      (card.blockPerExhaustedThisDay ?? 0) * cycle.cardsExhaustedThisDay +
-      (card.blockPerChain ?? 0) * cycle.chain.count +
-      (card.blockPerCompletedRequirement ?? 0) *
-        cycle.tasks
-          .filter((task) => task.status === "open")
-          .flatMap((task) => task.requirements)
-          .filter((requirement) => remainingWork(requirement) === 0).length,
+    ((card.block ?? 0) > 0 ? generatedOutputBonus : 0) +
+    (card.blockPerCardPlayed ?? 0) * cycle.cardsPlayedThisDay +
+    (card.blockPerExhaustedThisDay ?? 0) * cycle.cardsExhaustedThisDay +
+    (card.blockPerChain ?? 0) * cycle.chain.count +
+    (card.blockPerCompletedRequirement ?? 0) *
+      cycle.tasks
+        .filter((task) => task.status === "open")
+        .flatMap((task) => task.requirements)
+        .filter((requirement) => remainingWork(requirement) === 0).length;
+  const flexiblePassiveBlock =
+    run.squad.includes("elspeth") && card.tags.includes("flexible")
+      ? 2 + (cycle.psychologicalSafetyStacks ?? 0) * 2
+      : 0;
+  const contextualBlock =
+    (card.blockEqualIncomingMorale ? incomingMorale(run, cycle) : 0) +
+    (card.blockPerOpenTask ?? 0) * cycle.tasks.filter((task) => task.status !== "shipped").length;
+  const grantedBlock = cardBlockWithTools(
+    run,
+    printedBlock + contextualBlock + flexiblePassiveBlock,
   );
+  const tacticBlock = card.doubleCurrentBlock ? cycle.block + grantedBlock * 2 : grantedBlock;
   const tacticBase: Omit<ResolvedCardBase, "label"> = {
     legal: true,
     cost,
@@ -426,6 +454,10 @@ export function resolveCardTarget(
     techDebtAdded: card.techDebtAdded ?? 0,
     cardsDrawn:
       (card.cardsDrawn ?? 0) +
+      (card.cardsDrawnIfBlockCoversIncoming &&
+      cycle.block + tacticBlock >= incomingMorale(run, cycle)
+        ? card.cardsDrawnIfBlockCoversIncoming
+        : 0) +
       (card.drawIfContinuesChain && chainedTaskBeforePlay ? card.drawIfContinuesChain : 0) +
       (card.exhaustHandTags ? exhaustedCardInstanceIds.length : 0),
     nextDayCardsDrawn: card.nextDayCardsDrawn ?? 0,
@@ -458,7 +490,10 @@ export function resolveCardTarget(
     dayReviewStunFocusAdded: card.dayReviewStunFocusBonus ?? 0,
     fullStackAdded: card.fullStackAdded ?? 0,
     polishBudgetAdded: card.blockPerFinishingTouchesReview ?? 0,
-    triggeredPassiveIds: generatedOutputBonus > 0 ? ["kirsten"] : [],
+    triggeredPassiveIds: [
+      ...(generatedOutputBonus > 0 ? (["kirsten"] as const) : []),
+      ...(flexiblePassiveBlock > 0 ? (["elspeth"] as const) : []),
+    ],
     chainAfterPlay,
   };
 
@@ -520,6 +555,88 @@ export function resolveCardTarget(
       stun: false,
       sideQuestDiscipline: target.discipline,
       label: `Add ${disciplineLabel(target.discipline)} Side Quest`,
+    };
+  }
+
+  if (card.cycleFlexibleBlockBonus) {
+    if (target.kind !== "squad") {
+      return { legal: false, reason: "Aim this at the squad." };
+    }
+    return {
+      ...tacticBase,
+      kind: "tactic",
+      stun: false,
+      label: `Flexible Block +${card.cycleFlexibleBlockBonus}`,
+    };
+  }
+
+  if (
+    (card.kind === "tactic" && card.automation?.kind === "install") ||
+    card.triggerAutomationAfterInstall ||
+    card.doubleTargetAutomationMeters ||
+    card.triggerTargetAutomation
+  ) {
+    if (target.kind !== undefined && target.kind !== "task") {
+      return { legal: false, reason: "Choose a requirement." };
+    }
+    if (!target.taskId || !target.discipline) {
+      return { legal: false, reason: "Choose a requirement." };
+    }
+    const task = cycle.tasks.find((candidate) => candidate.taskId === target.taskId);
+    const requirement = task?.requirements.find(
+      (candidate) => candidate.discipline === target.discipline,
+    );
+    if (!task || task.status === "shipped" || !requirement) {
+      return { legal: false, reason: "Choose an open requirement." };
+    }
+    if (
+      (card.requiresTargetAutomation || card.triggerTargetAutomation) &&
+      requirement.scriptPower === 0 &&
+      requirement.scriptBlock === 0
+    ) {
+      return { legal: false, reason: "Install a Script or Guard here first." };
+    }
+    return {
+      ...tacticBase,
+      kind: "tactic",
+      taskId: task.taskId,
+      targetDiscipline: requirement.discipline,
+      stun: false,
+      label: [
+        card.automation?.kind === "install" && card.automation.power > 0
+          ? `Script +${card.automation.power}`
+          : undefined,
+        card.automation?.kind === "install" && card.automation.blockPower
+          ? `Guard +${card.automation.blockPower}`
+          : undefined,
+        card.doubleTargetAutomationMeters ? "Script + Guard ×2" : undefined,
+        card.triggerTargetAutomation ? `Trigger ${card.triggerTargetAutomation.times}×` : undefined,
+        card.triggerAutomationAfterInstall ? "Trigger" : undefined,
+      ]
+        .filter(Boolean)
+        .join(" · "),
+    };
+  }
+
+  if (card.stunIntent) {
+    if (target.kind !== undefined && target.kind !== "task") {
+      return { legal: false, reason: "Choose a Task." };
+    }
+    const task = cycle.tasks.find((candidate) => candidate.taskId === target.taskId);
+    const intent = task ? getTargetableIntent(run, cycle, task) : undefined;
+    if (!task || task.status === "shipped" || !intent) {
+      return { legal: false, reason: "Choose a Task with an Intent." };
+    }
+    if (task.stunned) return { legal: false, reason: "This intent is already Stunned." };
+    if (card.stunIntent.excludedKinds?.includes(intent.kind)) {
+      return { legal: false, reason: `${card.name} cannot Stun ${intent.kind}.` };
+    }
+    return {
+      ...tacticBase,
+      kind: "tactic",
+      taskId: task.taskId,
+      stun: true,
+      label: `Stun · Block ${tacticBlock}`,
     };
   }
 
@@ -642,7 +759,7 @@ export function resolveCardTarget(
     };
   }
 
-  let triggeredPassiveIds: DeveloperId[] = generatedOutputBonus > 0 ? ["kirsten"] : [];
+  let triggeredPassiveIds: DeveloperId[] = [...tacticBase.triggeredPassiveIds];
 
   if (card.kind === "review") {
     const reviewTargetId =
@@ -678,7 +795,9 @@ export function resolveCardTarget(
         taskId: task.taskId,
         amount,
         stun:
-          run.squad.includes("odin") && !task.stunned && Boolean(getScheduledIntent(cycle, task)),
+          run.squad.includes("odin") &&
+          !task.stunned &&
+          Boolean(getTargetableIntent(run, cycle, task)),
         scriptInstallations: reviewedTask.requirements
           .filter((requirement) => scriptPower > 0 && remainingWork(requirement) > 0)
           .map((requirement) => ({
@@ -793,7 +912,7 @@ export function resolveCardTarget(
     if (card.stun && task.stunned) {
       return { legal: false, reason: "This intent is already Stunned." };
     }
-    if (card.stun && !getScheduledIntent(cycle, task)) {
+    if (card.stun && !getTargetableIntent(run, cycle, task)) {
       return { legal: false, reason: "This Task has no intent to Stun." };
     }
     return {
@@ -923,7 +1042,7 @@ export function resolveCardTarget(
       )
     : 0;
   const scriptRunAmount = scriptInstallRunAmount + scriptTriggerRunAmount;
-  const blockGained = cardBlockWithTools(run, card.block ?? 0);
+  const blockGained = tacticBase.blockGained;
   const verifiedCompletion = requirementCompletedByVerifiedWork(
     requirement,
     (workKind === "verified" ? amount : 0) + scriptRunAmount,
@@ -1127,6 +1246,7 @@ export interface RosterBoardEffects {
   tasks: readonly TaskState[];
   cardsDrawn: number;
   blockGained: number;
+  focusGained: number;
   triggeredPassiveIds: readonly DeveloperId[];
   labels: readonly string[];
 }
@@ -1184,6 +1304,8 @@ export function applyRosterBoardEffects(
   const labels: string[] = [];
   let cardsDrawn = 0;
   let blockGained = 0;
+  let focusGained = 0;
+  let automationWorkGained = 0;
   const queue: FrontendPacket[] = [];
 
   const markPassive = (id: DeveloperId) => {
@@ -1203,7 +1325,7 @@ export function applyRosterBoardEffects(
       if (!task || task.status === "shipped") continue;
       const review = reviewOverflowOnTask(task, overflow);
       if (review.reviewed > 0 && run.squad.includes("odin") && !review.task.stunned) {
-        const scheduled = getScheduledIntent(run.cycle!, review.task);
+        const scheduled = getTargetableIntent(run, run.cycle!, review.task);
         if (scheduled) {
           review.task = { ...review.task, stunned: true };
           markPassive("odin");
@@ -1221,6 +1343,174 @@ export function applyRosterBoardEffects(
     }
     if (everyTask) cardsDrawn += cleaned * (card.cardsDrawnPerTaskCleaned ?? 0);
   };
+
+  const automationAmount = (power: number) =>
+    power * (run.tools.includes("cron-upgrade") ? 2 : 1) +
+    (power > 0 && run.tools.includes("platypus") ? 1 : 0);
+  const triggerAutomationWork = (taskId: string, discipline: Discipline, attempted: number) => {
+    const taskIndex = tasks.findIndex((task) => task.taskId === taskId);
+    const task = tasks[taskIndex];
+    if (!task || task.status === "shipped" || attempted <= 0) return;
+    const requirementIndex = task.requirements.findIndex(
+      (requirement) => requirement.discipline === discipline,
+    );
+    const requirement = task.requirements[requirementIndex];
+    if (!requirement) return;
+    const remaining = remainingWork(requirement);
+    const applied = Math.min(attempted, remaining);
+    automationWorkGained += applied;
+    const completed = remaining > 0 && applied === remaining;
+    const updated = refreshTaskStatus({
+      ...task,
+      requirements: task.requirements.map((candidate, index) =>
+        index === requirementIndex
+          ? { ...candidate, verified: candidate.verified + applied }
+          : candidate,
+      ),
+    });
+    tasks = tasks.map((candidate, index) => (index === taskIndex ? updated : candidate));
+    applyMattReview(taskId, Math.max(0, attempted - applied));
+    if (completed && run.squad.includes("irene")) {
+      cardsDrawn += 1;
+      markPassive("irene");
+    }
+    if (completed && discipline === "frontend" && run.squad.includes("seb")) {
+      markPassive("seb");
+      for (const candidate of tasks) {
+        if (candidate.taskId !== taskId) {
+          queue.push({ taskId: candidate.taskId, amount: 1, source: "shared-components" });
+        }
+      }
+    }
+  };
+
+  const targetTaskId = resolution.taskId;
+  const targetDiscipline =
+    resolution.kind === "tactic"
+      ? resolution.targetDiscipline
+      : resolution.kind === "work"
+        ? resolution.discipline
+        : undefined;
+
+  if (targetTaskId && targetDiscipline) {
+    const taskIndex = tasks.findIndex((task) => task.taskId === targetTaskId);
+    const task = tasks[taskIndex];
+    const requirementIndex = task?.requirements.findIndex(
+      (requirement) => requirement.discipline === targetDiscipline,
+    );
+    const requirement =
+      task && requirementIndex !== undefined && requirementIndex >= 0
+        ? task.requirements[requirementIndex]
+        : undefined;
+    if (task && requirement && requirementIndex !== undefined) {
+      let scriptPower = requirement.scriptPower;
+      let scriptBlock = requirement.scriptBlock;
+      if (resolution.kind === "tactic" && card.automation?.kind === "install") {
+        scriptPower += card.automation.power;
+        scriptBlock += card.automation.blockPower ?? 0;
+      }
+      if (card.doubleTargetAutomationMeters) {
+        scriptPower *= 2;
+        scriptBlock *= 2;
+      }
+      if (scriptPower !== requirement.scriptPower || scriptBlock !== requirement.scriptBlock) {
+        tasks = tasks.map((candidate, index) =>
+          index === taskIndex
+            ? {
+                ...candidate,
+                requirements: candidate.requirements.map((item, index) =>
+                  index === requirementIndex ? { ...item, scriptPower, scriptBlock } : item,
+                ),
+              }
+            : candidate,
+        );
+      }
+      if (
+        resolution.kind === "tactic" &&
+        card.automation?.kind === "install" &&
+        card.automation.power > 0 &&
+        run.tools.includes("ci-runner")
+      ) {
+        triggerAutomationWork(
+          targetTaskId,
+          targetDiscipline,
+          automationAmount(card.automation.power),
+        );
+      }
+      const trigger = card.triggerTargetAutomation;
+      for (let iteration = 0; iteration < (trigger?.times ?? 0); iteration += 1) {
+        if (trigger?.script)
+          triggerAutomationWork(targetTaskId, targetDiscipline, automationAmount(scriptPower));
+        if (trigger?.guard) blockGained += automationAmount(scriptBlock);
+      }
+      for (const meter of card.triggerAutomationAfterInstall ?? []) {
+        if (meter === "script") {
+          triggerAutomationWork(targetTaskId, targetDiscipline, automationAmount(scriptPower));
+        } else {
+          blockGained += automationAmount(scriptBlock);
+        }
+      }
+    }
+  }
+
+  if (card.triggerAllTaskGuardsAfterWork && resolution.taskId) {
+    const task = tasks.find((candidate) => candidate.taskId === resolution.taskId);
+    for (const requirement of task?.requirements ?? []) {
+      blockGained += automationAmount(requirement.scriptBlock);
+    }
+  }
+
+  if (card.scriptPowerPerIncompleteRequirement && card.id === "golden-path") {
+    for (const task of tasks) {
+      if (task.status === "shipped") continue;
+      for (const requirement of task.requirements) {
+        if (remainingWork(requirement) <= 0) continue;
+        tasks = tasks.map((candidate) =>
+          candidate.taskId === task.taskId
+            ? {
+                ...candidate,
+                requirements: candidate.requirements.map((item) =>
+                  item.discipline === requirement.discipline
+                    ? {
+                        ...item,
+                        scriptPower: item.scriptPower + card.scriptPowerPerIncompleteRequirement!,
+                      }
+                    : item,
+                ),
+              }
+            : candidate,
+        );
+        if (run.tools.includes("ci-runner")) {
+          triggerAutomationWork(
+            task.taskId,
+            requirement.discipline,
+            automationAmount(card.scriptPowerPerIncompleteRequirement),
+          );
+        }
+      }
+    }
+  }
+
+  if (run.squad.includes("steph")) {
+    for (const task of tasks) {
+      const before = run.cycle?.tasks.find((candidate) => candidate.taskId === task.taskId);
+      for (const requirement of task.requirements) {
+        const previous = before?.requirements.find(
+          (candidate) => candidate.discipline === requirement.discipline,
+        );
+        if (!previous) continue;
+        focusGained += Number(requirement.scriptPower > previous.scriptPower);
+        focusGained += Number(requirement.scriptBlock > previous.scriptBlock);
+      }
+    }
+    if (focusGained > 0) markPassive("steph");
+  }
+
+  if (automationWorkGained > 0) labels.push(`Automation · Work ${automationWorkGained}`);
+  if (blockGained > 0 && (card.triggerTargetAutomation || card.triggerAutomationAfterInstall)) {
+    labels.push(`Automation · Block ${blockGained}`);
+  }
+  if (focusGained > 0) labels.push(`Paved Road · Focus +${focusGained}`);
 
   if (resolution.kind === "work" && resolution.workKind === "verified") {
     applyMattReview(
@@ -1371,7 +1661,7 @@ export function applyRosterBoardEffects(
 
   const appliedPackets = queue.length;
   if (appliedPackets > 0) labels.push(`Frontend spread · ${appliedPackets} packets`);
-  return { tasks, cardsDrawn, blockGained, triggeredPassiveIds, labels };
+  return { tasks, cardsDrawn, blockGained, focusGained, triggeredPassiveIds, labels };
 }
 
 function applyVerifiedWorkHits(

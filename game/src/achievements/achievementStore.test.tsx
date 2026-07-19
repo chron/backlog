@@ -53,7 +53,7 @@ describe("achievement progress", () => {
     expect(markup).toContain('aria-label="Ship With Odin, locked"');
     expect(markup).toContain("achievement-tile--major is-unlocked");
     expect(markup).toContain("is-locked");
-    expect(markup).toContain("2 of 12 unlocked");
+    expect(markup).toContain("2 of 15 unlocked");
   });
 
   it("unlocks achievements for every newly playable roster member", () => {
@@ -67,6 +67,12 @@ describe("achievement progress", () => {
       "game-won",
       "win-seb",
       "win-matt",
+    ]);
+    expect(unlockVictoryAchievements([], ["toby", "steph", "elspeth"])).toEqual([
+      "game-won",
+      "win-toby",
+      "win-steph",
+      "win-elspeth",
     ]);
   });
 
