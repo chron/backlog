@@ -9,11 +9,23 @@ export function SquadScreen({ dispatch, run }: SquadScreenProps) {
 
   return (
     <section className="screen" aria-labelledby="squad-heading">
-      <div className="screen-heading">
+      <div className="screen-heading squad-heading">
         <h1 id="squad-heading" className="display-title">
           SQUAD
         </h1>
-        <span>{selected.length}/3</span>
+        <div className="squad-heading__actions">
+          <span className="squad-heading__count" aria-live="polite">
+            {selected.length}/3 squad members chosen
+          </span>
+          <button
+            className="button button--primary"
+            type="button"
+            disabled={selected.length !== 3}
+            onClick={() => dispatch({ type: "CONFIRM_SQUAD" })}
+          >
+            Lock In
+          </button>
+        </div>
       </div>
 
       <div className="squad-grid">
@@ -50,17 +62,6 @@ export function SquadScreen({ dispatch, run }: SquadScreenProps) {
             </button>
           );
         })}
-      </div>
-
-      <div className="screen-actions">
-        <button
-          className="button button--primary"
-          type="button"
-          disabled={selected.length !== 3}
-          onClick={() => dispatch({ type: "CONFIRM_SQUAD" })}
-        >
-          Lock In
-        </button>
       </div>
     </section>
   );

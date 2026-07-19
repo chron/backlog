@@ -367,6 +367,21 @@ main:focus {
   transform: rotate(-8deg);
 }
 
+.squad-heading__actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 0.75rem 1rem;
+}
+
+.squad-heading__count {
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-align: right;
+  text-transform: uppercase;
+}
+
 .squad-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -5273,6 +5288,20 @@ main:focus {
   .display-title {
     font-size: clamp(3.2rem, 18vw, 5.5rem);
     text-shadow: 4px 4px 0 var(--ink);
+  }
+
+  .squad-heading {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 1.5rem;
+  }
+
+  .squad-heading__actions {
+    justify-content: space-between;
+  }
+
+  .squad-heading__count {
+    text-align: left;
   }
 
   .squad-grid,
