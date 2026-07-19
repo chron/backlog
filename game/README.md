@@ -32,6 +32,22 @@ The client batches writes briefly and flushes when the tab is hidden or closed.
 The logger is best-effort and development-only, so a missing sink never affects
 gameplay or production builds.
 
+## Scripted balance runs
+
+Run the six current build families through seeded, headless acts using the real
+game reducer:
+
+```bash
+bun run playtest
+bun run playtest --runs 100 --json telemetry/playtest-latest.json
+```
+
+The terminal dashboard compares win rate, Days, ending Morale and Tech Debt,
+cards played per Day, peak Chain, installed Scripts, prevented damage, and dead
+hands. `--policy careful` and `--policy velocity` provide intentionally imperfect
+alternate pilots; `--scenario automation` narrows a run to one build family.
+The JSON option includes every raw run for deeper analysis or future charts.
+
 ## Current flow
 
 `Title → Squad → Map → Cycle → Report → Map`
