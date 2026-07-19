@@ -21,7 +21,7 @@ describe("scripted playtest harness", () => {
     const bySignal = new Map(
       playtestScenarios.map((scenario, index) => [
         scenario.expectedSignal,
-        simulatePlaytestRun(scenario, 8_400 + index),
+        simulatePlaytestRun(scenario, 8_400 + index, "balanced", "showcase"),
       ]),
     );
 

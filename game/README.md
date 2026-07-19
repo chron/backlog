@@ -40,13 +40,33 @@ game reducer:
 ```bash
 bun run playtest
 bun run playtest --runs 100 --json telemetry/playtest-latest.json
+bun run playtest --scenario automation --deck showcase
 ```
 
-The terminal dashboard compares win rate, Days, ending Morale and Tech Debt,
-cards played per Day, peak Chain, installed Scripts, prevented damage, and dead
-hands. `--policy careful` and `--policy velocity` provide intentionally imperfect
-alternate pilots; `--scenario automation` narrows a run to one build family.
-The JSON option includes every raw run for deeper analysis or future charts.
+The default uses the ordinary Starter deck for a fair comparison with human
+runs. `--deck showcase` adds six build-defining cards to test an assembled
+engine. The terminal dashboard compares win rate, Days, ending Morale and Tech
+Debt, cards played per Day, peak Chain, installed Scripts, prevented damage, and
+dead hands. `--policy careful` and `--policy velocity` provide intentionally
+imperfect alternate pilots. The JSON option includes every raw run for deeper
+analysis or future charts.
+
+### Human calibration runs
+
+Play normally in the development build; each run is already recorded under
+`telemetry/`. To replay a specific generated act, add a seed to the ordinary game
+URL, for example `https://backlog.localhost/?seed=4200`. Every New Run started
+while that parameter remains uses the same act.
+
+After completing a few runs, render them through the same dashboard:
+
+```bash
+bun run playtest:human --latest 3
+bun run playtest:human --latest 3 --json telemetry/human-latest.json
+```
+
+Only completed runs are included by default. Use `--include-incomplete` while
+debugging, or `--file telemetry/run-….jsonl` to select an exact run.
 
 ## Current flow
 

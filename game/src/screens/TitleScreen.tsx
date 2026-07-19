@@ -1,6 +1,6 @@
 import { Trophy } from "lucide-react";
 import type { DispatchProps } from "../app/types";
-import { createRunSeed } from "../game/random";
+import { createRequestedRunSeed } from "../game/random";
 import { restartCombatTutorial } from "../tutorial/combatTutorialState";
 
 interface TitleScreenProps extends DispatchProps {
@@ -8,6 +8,9 @@ interface TitleScreenProps extends DispatchProps {
 }
 
 export function TitleScreen({ dispatch, onOpenAchievements }: TitleScreenProps) {
+  const startRun = () =>
+    dispatch({ type: "START_RUN", seed: createRequestedRunSeed(window.location.search) });
+
   return (
     <section className="screen title-screen" aria-labelledby="title-heading">
       <div className="title-screen__copy">
@@ -18,11 +21,7 @@ export function TitleScreen({ dispatch, onOpenAchievements }: TitleScreenProps) 
         </h1>
         <p>Ship fast. Fix it live.</p>
         <div className="title-screen__actions">
-          <button
-            className="button button--primary"
-            type="button"
-            onClick={() => dispatch({ type: "START_RUN", seed: createRunSeed() })}
-          >
+          <button className="button button--primary" type="button" onClick={startRun}>
             New Run
           </button>
           <button
@@ -38,7 +37,7 @@ export function TitleScreen({ dispatch, onOpenAchievements }: TitleScreenProps) 
             type="button"
             onClick={() => {
               restartCombatTutorial();
-              dispatch({ type: "START_RUN", seed: createRunSeed() });
+              startRun();
             }}
           >
             Tutorial Run

@@ -9,6 +9,15 @@ export function createRunSeed(): number {
   return normalizeSeed(Date.now() ^ Math.floor(Math.random() * 0xffffffff));
 }
 
+export function createRequestedRunSeed(search: string, fallback = createRunSeed): number {
+  const value = new URLSearchParams(search).get("seed");
+  if (value) {
+    const requested = Number(value);
+    if (Number.isSafeInteger(requested) && requested > 0) return normalizeSeed(requested);
+  }
+  return fallback();
+}
+
 function nextRandom(rngState: number): { value: number; rngState: number } {
   const nextState = (normalizeSeed(rngState) + 0x6d2b79f5) >>> 0;
   let value = nextState;

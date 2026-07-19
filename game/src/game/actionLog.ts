@@ -9,7 +9,7 @@ import type { GameAction, GameState } from "./gameReducer";
 const endpoint = "/__game-actions";
 const flushDelayMs = 250;
 
-interface GameActionLogEvent {
+export interface GameActionLogEvent {
   schemaVersion: 1;
   at: string;
   runId: string;

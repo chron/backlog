@@ -15,7 +15,8 @@
     "check": "bun run typecheck && bun run lint && bun run format:check && bun run knip && bun test",
     "test": "vitest run",
     "test:watch": "vitest",
-    "playtest": "bun scripts/playtest.ts"
+    "playtest": "bun scripts/playtest.ts",
+    "playtest:human": "bun scripts/playtest-human.ts"
   },
   "dependencies": {
     "lucide-react": "^1.25.0",

@@ -132,16 +132,20 @@ export const playtestScenarios: readonly PlaytestScenario[] = [
 ] as const;
 
 export type PlaytestPolicy = "balanced" | "velocity" | "careful";
+type PlaytestPilot = PlaytestPolicy | "human";
+export type PlaytestDeckMode = "starter" | "showcase";
 
 export interface PlaytestRunResult {
   schemaVersion: 1;
   scenarioId: string;
   scenarioName: string;
-  policy: PlaytestPolicy;
+  policy: PlaytestPilot;
+  deckMode: PlaytestDeckMode;
+  sourceId?: string;
   seed: number;
   squad: readonly DeveloperId[];
   bossId: string;
-  outcome: "victory" | "defeat" | "stalled";
+  outcome: "victory" | "defeat" | "stalled" | "incomplete";
   cause?: string;
   encounters: number;
   cyclesShipped: number;
@@ -171,7 +175,7 @@ export interface PlaytestRunResult {
   deckSize: number;
 }
 
-interface MutableMetrics {
+export interface PlaytestMetrics {
   actions: number;
   encounters: number;
   cyclesShipped: number;
@@ -206,7 +210,7 @@ const disciplines = ["frontend", "backend", "infra"] as const satisfies readonly
 const maxRunActions = 5_000;
 const maxCardPlaysPerDay = 120;
 
-function createMetrics(): MutableMetrics {
+export function createPlaytestMetrics(): PlaytestMetrics {
   return {
     actions: 0,
     encounters: 0,
@@ -379,6 +383,10 @@ function playableCandidates(state: GameState, policy: PlaytestPolicy): Candidate
   return candidates.sort((left, right) => right.score - left.score);
 }
 
+export function hasPlayableCard(state: GameState): boolean {
+  return playableCandidates(state, "balanced").length > 0;
+}
+
 function cardRewardScore(cardId: string, scenario: PlaytestScenario): number {
   const card = getCard(cardId);
   return (
@@ -437,8 +445,8 @@ function createBonusDeck(state: GameState, scenario: PlaytestScenario): GameStat
   };
 }
 
-function updateMetrics(
-  metrics: MutableMetrics,
+export function updatePlaytestMetrics(
+  metrics: PlaytestMetrics,
   before: GameState,
   action: GameAction,
   after: GameState,
@@ -616,7 +624,7 @@ function nextNonCycleAction(state: GameState, scenario: PlaytestScenario): GameA
 function nextCycleAction(
   state: GameState,
   policy: PlaytestPolicy,
-  metrics: MutableMetrics,
+  metrics: PlaytestMetrics,
 ): GameAction | undefined {
   const cycle = state.run?.cycle;
   if (state.screen.name !== "cycle" || !state.run || !cycle) return undefined;
@@ -670,14 +678,15 @@ export function simulatePlaytestRun(
   scenario: PlaytestScenario,
   seed: number,
   policy: PlaytestPolicy = "balanced",
+  deckMode: PlaytestDeckMode = "starter",
 ): PlaytestRunResult {
-  const metrics = createMetrics();
+  const metrics = createPlaytestMetrics();
   let state = gameReducer(initialGameState, { type: "START_RUN", seed });
   for (const developerId of scenario.squad) {
     state = gameReducer(state, { type: "TOGGLE_DEVELOPER", developerId });
   }
   state = gameReducer(state, { type: "CONFIRM_SQUAD" });
-  state = createBonusDeck(state, scenario);
+  if (deckMode === "showcase") state = createBonusDeck(state, scenario);
 
   while (state.screen.name !== "retro" && metrics.actions < maxRunActions) {
     const action =
@@ -687,7 +696,7 @@ export function simulatePlaytestRun(
     if (!action) break;
     const next = gameReducer(state, action);
     if (next === state) break;
-    updateMetrics(metrics, state, action, next);
+    updatePlaytestMetrics(metrics, state, action, next);
     state = next;
   }
 
@@ -699,6 +708,7 @@ export function simulatePlaytestRun(
     scenarioId: scenario.id,
     scenarioName: scenario.name,
     policy,
+    deckMode,
     seed,
     squad: [...scenario.squad],
     bossId: state.run?.selectedBossId ?? "unknown",
@@ -716,6 +726,7 @@ export function runPlaytestBatch(options: {
   runsPerScenario: number;
   seed: number;
   policy?: PlaytestPolicy;
+  deckMode?: PlaytestDeckMode;
   scenarioIds?: readonly string[];
 }): PlaytestRunResult[] {
   const scenarios = options.scenarioIds?.length
@@ -727,6 +738,7 @@ export function runPlaytestBatch(options: {
         scenario,
         options.seed + scenarioIndex * 10_000 + runIndex,
         options.policy ?? "balanced",
+        options.deckMode ?? "starter",
       ),
     ),
   );

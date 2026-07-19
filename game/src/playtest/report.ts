@@ -50,7 +50,7 @@ function summarizeGroup(runs: readonly PlaytestRunResult[]): PlaytestScenarioSum
     runs: runs.length,
     wins,
     winRate: runs.length === 0 ? 0 : wins / runs.length,
-    stalled: runs.filter((run) => run.outcome === "stalled").length,
+    stalled: runs.filter((run) => run.outcome === "stalled" || run.outcome === "incomplete").length,
     averageEncounters: round(average(runs.map((run) => run.encounters))),
     averageCyclesShipped: round(average(runs.map((run) => run.cyclesShipped))),
     averageDays: round(average(days)),
@@ -73,9 +73,9 @@ export function createPlaytestReport(
   scenarios: readonly PlaytestScenario[],
   generatedAt = new Date().toISOString(),
 ): PlaytestBatchReport {
-  const summaries = scenarios
-    .map((scenario) => summarizeGroup(runs.filter((run) => run.scenarioId === scenario.id)))
-    .filter((summary) => summary.runs > 0);
+  const summaries = [...new Set(runs.map((run) => run.scenarioId))].map((scenarioId) =>
+    summarizeGroup(runs.filter((run) => run.scenarioId === scenarioId)),
+  );
   const bossIds = [...new Set(runs.map((run) => run.bossId))].sort();
   const bossWinRates = bossIds.map((bossId) => {
     const bossRuns = runs.filter((run) => run.bossId === bossId);
@@ -101,7 +101,7 @@ export function createPlaytestReport(
   for (const summary of summaries) {
     const scenario = scenarios.find((candidate) => candidate.id === summary.scenarioId);
     if (summary.stalled > 0) {
-      diagnostics.push(`${summary.scenarioName}: ${summary.stalled} scripted runs stalled.`);
+      diagnostics.push(`${summary.scenarioName}: ${summary.stalled} runs did not reach Retro.`);
     }
     if (summary.loopGuardTrips > 0) {
       diagnostics.push(
@@ -198,10 +198,13 @@ export function formatPlaytestReport(report: PlaytestBatchReport): string {
     (outcome) =>
       `  ${pad(outcome.outcome, 24, "left")} ${pad(outcome.runs, 4)}  ${percent(outcome.runs / report.totalRuns)}`,
   );
+  const human = report.runs.length > 0 && report.runs.every((run) => run.policy === "human");
+  const deckModes = [...new Set(report.runs.map((run) => run.deckMode))];
+  const deckLabel = `${deckModes.join(" + ")} deck${deckModes.length === 1 ? "s" : " modes"}`;
 
   return [
-    "BACKLOG // SCRIPTED PLAYTESTS",
-    `${report.totalRuns} seeded runs · actual reducer · ${report.generatedAt}`,
+    human ? "BACKLOG // HUMAN PLAYTESTS" : "BACKLOG // SCRIPTED PLAYTESTS",
+    `${report.totalRuns} ${human ? "recorded" : "seeded"} runs · ${deckLabel} · actual reducer · ${report.generatedAt}`,
     "",
     header.join("  "),
     separator.join("  "),
