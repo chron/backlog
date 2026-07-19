@@ -24,16 +24,17 @@ import type {
   ToolId,
 } from "../domain/models";
 import {
+  applyCardResolutionToTask,
   absorbMoraleDamage,
   createCycleReport,
   getCurrentIntent,
   getScheduledIntent,
   isCycleShipped,
+  requirementCompletedByVerifiedWork,
   refreshTaskStatus,
   resolveCardTarget,
   taskShippingPreview,
   taskShippingRewards,
-  verifyTask,
 } from "./rules";
 import type { CardTarget } from "./rules";
 import { normalizeSeed, sampleOne } from "./random";
@@ -279,7 +280,9 @@ function createCycleState(run: RunState, nodeId: string, cycleId: string): Cycle
     cardsPlayedThisDay: 0,
     prototypePower: 0,
     fullStackPower: 0,
+    cardTagWorkBonuses: {},
     queuedDistractions: 0,
+    queuedCardsDrawn: 0,
     defects: 0,
     techDebtAdded: 0,
   };
@@ -448,8 +451,9 @@ function applyTaskShipping(
 function runScripts(
   tasks: readonly TaskState[],
   multiplier: number,
-): { tasks: TaskState[]; block: number } {
+): { tasks: TaskState[]; block: number; verifiedCompletions: number } {
   let block = 0;
+  let verifiedCompletions = 0;
   const nextTasks = tasks.map((task) => {
     if (task.status === "shipped") return task;
     block += task.requirements.reduce(
@@ -463,15 +467,18 @@ function runScripts(
           0,
           requirement.target - requirement.verified - requirement.unverified,
         );
+        const verifiedAdded = Math.min(requirement.scriptPower * multiplier, remaining);
+        if (requirementCompletedByVerifiedWork(requirement, verifiedAdded)) {
+          verifiedCompletions += 1;
+        }
         return {
           ...requirement,
-          verified:
-            requirement.verified + Math.min(requirement.scriptPower * multiplier, remaining),
+          verified: requirement.verified + verifiedAdded,
         };
       }),
     });
   });
-  return { tasks: nextTasks, block };
+  return { tasks: nextTasks, block, verifiedCompletions };
 }
 
 function taskShippingDefeat(run: RunState): GameState {
@@ -622,14 +629,15 @@ function endDay(run: RunState, cycle: CycleState): GameState {
     instanceId: `distraction-${cycle.temporaryCardCounter + index + 1}`,
     temporary: true,
   }));
+  const scriptMultiplier = run.tools.includes("cron-upgrade") ? 2 : 1;
+  const scripts = runScripts(resolvedCycle.tasks, scriptMultiplier);
+  const ireneDraws = run.squad.includes("irene") ? scripts.verifiedCompletions : 0;
   const nextDraw = drawCards(
     [...distractions, ...resolvedCycle.drawPile],
     resolvedCycle.discardPile,
-    5,
+    5 + cycle.queuedCardsDrawn + ireneDraws,
     run.tools.includes("noise-cancelling-headphones"),
   );
-  const scriptMultiplier = run.tools.includes("cron-upgrade") ? 2 : 1;
-  const scripts = runScripts(resolvedCycle.tasks, scriptMultiplier);
   const nextCycle: CycleState = {
     ...resolvedCycle,
     day: cycle.day + 1,
@@ -640,11 +648,12 @@ function endDay(run: RunState, cycle: CycleState): GameState {
     hand: nextDraw.drawn,
     discardPile: nextDraw.discardPile,
     blockedDisciplines,
-    triggeredPassiveIds: [],
+    triggeredPassiveIds: ireneDraws > 0 ? ["irene"] : [],
     temporaryCardCounter: cycle.temporaryCardCounter + totalDistractions,
     cardsPlayedThisDay: 0,
     lastWorkDiscipline: undefined,
     queuedDistractions: 0,
+    queuedCardsDrawn: 0,
   };
 
   return {
@@ -741,37 +750,9 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       const resolution = resolveCardTarget(state.run, instance, action.target);
       if (!resolution.legal) return state;
 
-      let tasks = cycle.tasks.map((task) => {
-        if (task.taskId !== resolution.taskId) return task;
-        if (resolution.kind === "review") {
-          return {
-            ...verifyTask(task, resolution.amount),
-            stunned: resolution.stun || task.stunned,
-          };
-        }
-        if (resolution.kind === "tactic") {
-          return { ...task, stunned: resolution.stun || task.stunned };
-        }
-        return refreshTaskStatus({
-          ...task,
-          requirements: task.requirements.map((requirement) =>
-            requirement.discipline !== resolution.discipline
-              ? requirement
-              : {
-                  ...requirement,
-                  verified:
-                    requirement.verified +
-                    (resolution.workKind === "verified" ? resolution.amount : 0) +
-                    resolution.scriptRunAmount,
-                  unverified:
-                    requirement.unverified +
-                    (resolution.workKind === "unverified" ? resolution.amount : 0),
-                  scriptPower: requirement.scriptPower + resolution.scriptPowerAdded,
-                  scriptBlock: requirement.scriptBlock + resolution.scriptBlockAdded,
-                },
-          ),
-        });
-      });
+      let tasks = cycle.tasks.map((task) =>
+        task.taskId === resolution.taskId ? applyCardResolutionToTask(task, resolution) : task,
+      );
       if (resolution.kind === "tactic" && resolution.sideQuestDiscipline) {
         tasks = [...tasks, createSideQuestState(cycle, resolution.sideQuestDiscipline)];
       }
@@ -794,6 +775,12 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         generated: true,
       }));
       const definition = getCard(instance.cardId);
+      const cardTagWorkBonuses = { ...cycle.cardTagWorkBonuses };
+      if (resolution.cycleWorkBonus) {
+        cardTagWorkBonuses[resolution.cycleWorkBonus.tag] =
+          (cardTagWorkBonuses[resolution.cycleWorkBonus.tag] ?? 0) +
+          resolution.cycleWorkBonus.amount;
+      }
       const nextCycle: CycleState = {
         ...cycle,
         focus: cycle.focus - resolution.cost + resolution.focusGained,
@@ -819,11 +806,30 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         cardsPlayedThisDay: cycle.cardsPlayedThisDay + 1,
         prototypePower: cycle.prototypePower,
         fullStackPower: cycle.fullStackPower + resolution.fullStackAdded,
+        cardTagWorkBonuses,
         lastWorkDiscipline:
-          resolution.kind === "work" ? resolution.discipline : cycle.lastWorkDiscipline,
+          resolution.kind === "work" && resolution.countsAsWorkPlay
+            ? resolution.discipline
+            : cycle.lastWorkDiscipline,
         queuedDistractions: cycle.queuedDistractions + resolution.queuedDistractions,
+        queuedCardsDrawn: cycle.queuedCardsDrawn + resolution.nextDayCardsDrawn,
       };
-      let nextRun: RunState = { ...state.run, cycle: nextCycle };
+      let nextRun: RunState = {
+        ...state.run,
+        cycle: nextCycle,
+        history: [
+          ...state.run.history,
+          {
+            kind: "card-played",
+            nodeId: cycle.nodeId,
+            day: cycle.day,
+            cardId: definition.id,
+            taskId: resolution.taskId,
+            discipline: resolution.kind === "work" ? resolution.discipline : undefined,
+            label: resolution.label,
+          },
+        ],
+      };
       nextRun = addTechDebt(nextRun, resolution.techDebtAdded);
       return { ...state, run: nextRun };
     }

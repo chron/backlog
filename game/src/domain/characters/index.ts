@@ -20,3 +20,7 @@ export const characterStartingCards: readonly CardDefinition[] = characterConten
 export const characterRewardCards: readonly CardDefinition[] = characterContentCatalog.flatMap(
   (content) => content.rewardCards,
 );
+
+export const characterGeneratedCards: readonly CardDefinition[] = characterContentCatalog.flatMap(
+  (content) => content.generatedCards ?? [],
+);

@@ -2,6 +2,7 @@ import { disciplineLabel, getCard, getCycle } from "../domain/content";
 import type {
   CardDefinition,
   CardInstance,
+  CardTag,
   CycleReport,
   CycleState,
   DeveloperId,
@@ -35,9 +36,11 @@ interface ResolvedCardBase {
   blockGained: number;
   techDebtAdded: number;
   cardsDrawn: number;
+  nextDayCardsDrawn: number;
   focusGained: number;
   generatedCardIds: string[];
   queuedDistractions: number;
+  cycleWorkBonus?: { tag: CardTag; amount: number };
   fullStackAdded: number;
   triggeredPassiveIds: DeveloperId[];
   label: string;
@@ -52,14 +55,22 @@ export type CardResolution =
       workKind: WorkKind;
       scriptPowerAdded: number;
       scriptBlockAdded: number;
+      scriptInstallRunAmount: number;
+      scriptTriggerRunAmount: number;
       scriptRunAmount: number;
       pitchedIn: boolean;
+      countsAsWorkPlay: boolean;
     })
   | (ResolvedCardBase & {
       kind: "review";
       taskId: string;
       amount: number;
       stun: boolean;
+      scriptInstallations: readonly {
+        discipline: Discipline;
+        powerAdded: number;
+        runAmount: number;
+      }[];
     })
   | (ResolvedCardBase & {
       kind: "tactic";
@@ -77,6 +88,15 @@ export function requirementProgress(requirement: RequirementState): number {
 
 function remainingWork(requirement: RequirementState): number {
   return Math.max(0, requirement.target - requirementProgress(requirement));
+}
+
+export function requirementCompletedByVerifiedWork(
+  requirement: RequirementState,
+  verifiedAdded: number,
+  unverifiedAdded = 0,
+): boolean {
+  const remaining = remainingWork(requirement);
+  return remaining > 0 && verifiedAdded > 0 && verifiedAdded + unverifiedAdded >= remaining;
 }
 
 export function isTaskReady(task: TaskState): boolean {
@@ -237,9 +257,11 @@ export function resolveCardTarget(
     blockGained: tacticBlock,
     techDebtAdded: card.techDebtAdded ?? 0,
     cardsDrawn: card.cardsDrawn ?? 0,
+    nextDayCardsDrawn: card.nextDayCardsDrawn ?? 0,
     focusGained: card.focusGained ?? 0,
     generatedCardIds,
     queuedDistractions: card.queuedDistractions ?? 0,
+    cycleWorkBonus: card.cycleWorkBonus,
     fullStackAdded: card.fullStackAdded ?? 0,
     triggeredPassiveIds: [],
   };
@@ -270,8 +292,12 @@ export function resolveCardTarget(
       tacticBlock ? `Block ${tacticBlock}` : undefined,
       card.focusGained ? `Focus +${card.focusGained}` : undefined,
       card.cardsDrawn ? `Draw ${card.cardsDrawn}` : undefined,
+      card.nextDayCardsDrawn ? `Next Day · Draw +${card.nextDayCardsDrawn}` : undefined,
       card.queuedDistractions ? `Next Day · ${card.queuedDistractions} Distractions` : undefined,
       card.techDebtAdded ? `Debt +${card.techDebtAdded}` : undefined,
+      card.cycleWorkBonus
+        ? `${card.cycleWorkBonus.tag === "ai-assisted" ? "AI Assisted" : card.cycleWorkBonus.tag} Work +${card.cycleWorkBonus.amount}`
+        : undefined,
     ]
       .filter(Boolean)
       .join(" · ");
@@ -306,7 +332,33 @@ export function resolveCardTarget(
       triggeredPassiveIds = addTriggeredPassive(triggeredPassiveIds, "odin");
     }
     const amount = Math.min(available, card.amount);
+    const reviewedTask = verifyTask(task, amount);
+    const scriptPower = card.scriptPowerPerIncompleteRequirement ?? 0;
+    const scriptMultiplier = run.tools.includes("cron-upgrade") ? 2 : 1;
+    const scriptInstallations = reviewedTask.requirements
+      .filter((requirement) => scriptPower > 0 && remainingWork(requirement) > 0)
+      .map((requirement) => ({
+        discipline: requirement.discipline,
+        powerAdded: scriptPower,
+        runAmount: run.tools.includes("ci-runner")
+          ? Math.min(scriptPower * scriptMultiplier, remainingWork(requirement))
+          : 0,
+      }));
+    const passiveCardsDrawn = run.squad.includes("irene")
+      ? scriptInstallations.filter((installation) => {
+          const requirement = reviewedTask.requirements.find(
+            (candidate) => candidate.discipline === installation.discipline,
+          );
+          return (
+            requirement && requirementCompletedByVerifiedWork(requirement, installation.runAmount)
+          );
+        }).length
+      : 0;
+    if (passiveCardsDrawn > 0) {
+      triggeredPassiveIds = addTriggeredPassive(triggeredPassiveIds, "irene");
+    }
     const blockGained = (card.block ?? 0) + (run.tools.includes("test-suite") ? amount : 0);
+    const cardsDrawn = (card.cardsDrawn ?? 0) + passiveCardsDrawn;
     return {
       kind: "review",
       legal: true,
@@ -315,17 +367,27 @@ export function resolveCardTarget(
       amount,
       blockGained,
       techDebtAdded: 0,
-      cardsDrawn: card.cardsDrawn ?? 0,
+      cardsDrawn,
+      nextDayCardsDrawn: card.nextDayCardsDrawn ?? 0,
       focusGained: card.focusGained ?? 0,
       generatedCardIds,
       queuedDistractions: card.queuedDistractions ?? 0,
+      cycleWorkBonus: card.cycleWorkBonus,
       fullStackAdded: card.fullStackAdded ?? 0,
       stun,
+      scriptInstallations,
       triggeredPassiveIds,
       label: [
         `Verify ${amount}`,
+        scriptInstallations.length > 0
+          ? `Script +${scriptPower} · ${scriptInstallations.length} ${scriptInstallations.length === 1 ? "bar" : "bars"}`
+          : undefined,
+        scriptInstallations.reduce((total, installation) => total + installation.runAmount, 0) > 0
+          ? `Run +${scriptInstallations.reduce((total, installation) => total + installation.runAmount, 0)}`
+          : undefined,
         stun ? "Stun" : undefined,
         blockGained ? `Block ${blockGained}` : undefined,
+        cardsDrawn ? `Draw ${cardsDrawn}` : undefined,
       ]
         .filter(Boolean)
         .join(" · "),
@@ -347,9 +409,11 @@ export function resolveCardTarget(
       blockGained: card.block ?? 0,
       techDebtAdded: 0,
       cardsDrawn: card.cardsDrawn ?? 0,
+      nextDayCardsDrawn: card.nextDayCardsDrawn ?? 0,
       focusGained: card.focusGained ?? 0,
       generatedCardIds,
       queuedDistractions: card.queuedDistractions ?? 0,
+      cycleWorkBonus: card.cycleWorkBonus,
       fullStackAdded: card.fullStackAdded ?? 0,
       stun: card.stun ?? false,
       triggeredPassiveIds,
@@ -379,6 +443,7 @@ export function resolveCardTarget(
   const workKind: WorkKind =
     pitchedIn && !pairedPitchIn ? "unverified" : (card.workKind ?? "verified");
   const scriptMultiplier = run.tools.includes("cron-upgrade") ? 2 : 1;
+  const countsAsWorkPlay = card.amount > 0 && card.automation?.kind !== "trigger";
   let amount =
     card.automation?.kind === "trigger"
       ? requirement.scriptPower * scriptMultiplier
@@ -386,16 +451,21 @@ export function resolveCardTarget(
         ? 1
         : card.amount;
 
-  const prototypeBonus = cycle.prototypePower;
-  const fullStackBonus =
-    cycle.lastWorkDiscipline && cycle.lastWorkDiscipline !== target.discipline
-      ? cycle.fullStackPower
-      : 0;
-  amount += prototypeBonus + fullStackBonus;
-
   const aiAssisted = card.tags.includes("ai-assisted");
-  if (aiAssisted && run.tools.includes("enterprise-ai-licence")) {
-    amount += 2;
+  if (countsAsWorkPlay) {
+    const prototypeBonus = cycle.prototypePower;
+    const fullStackBonus =
+      cycle.lastWorkDiscipline && cycle.lastWorkDiscipline !== target.discipline
+        ? cycle.fullStackPower
+        : 0;
+    const cycleTagBonus = card.tags.reduce(
+      (total, tag) => total + (cycle.cardTagWorkBonuses[tag] ?? 0),
+      0,
+    );
+    amount += prototypeBonus + fullStackBonus + cycleTagBonus;
+    if (aiAssisted && run.tools.includes("enterprise-ai-licence")) {
+      amount += 2;
+    }
   }
 
   const workRemaining = remainingWork(requirement);
@@ -408,18 +478,26 @@ export function resolveCardTarget(
     (card.automation?.kind === "install" ? card.automation.power : 0) + madiScript;
   const scriptBlockAdded =
     card.automation?.kind === "install" ? (card.automation.blockPower ?? 0) : 0;
-  const blockGained = card.block ?? 0;
-  const scriptRunAmount =
+  const remainingAfterWork = Math.max(0, remainingWork(requirement) - amount);
+  const scriptInstallRunAmount =
     scriptPowerAdded > 0 && run.tools.includes("ci-runner")
-      ? Math.min(
-          scriptPowerAdded * scriptMultiplier,
-          Math.max(0, remainingWork(requirement) - amount),
-        )
+      ? Math.min(scriptPowerAdded * scriptMultiplier, remainingAfterWork)
       : 0;
-  const passiveCardsDrawn =
-    amount > 0 && workKind === "verified" && amount === workRemaining && run.squad.includes("irene")
-      ? 1
-      : 0;
+  const remainingAfterInstallRun = Math.max(0, remainingAfterWork - scriptInstallRunAmount);
+  const scriptTriggerRunAmount = card.triggerTargetScriptAfterWork
+    ? Math.min(
+        (requirement.scriptPower + scriptPowerAdded) * scriptMultiplier,
+        remainingAfterInstallRun,
+      )
+    : 0;
+  const scriptRunAmount = scriptInstallRunAmount + scriptTriggerRunAmount;
+  const blockGained = card.block ?? 0;
+  const verifiedCompletion = requirementCompletedByVerifiedWork(
+    requirement,
+    (workKind === "verified" ? amount : 0) + scriptRunAmount,
+    workKind === "unverified" ? amount : 0,
+  );
+  const passiveCardsDrawn = verifiedCompletion && run.squad.includes("irene") ? 1 : 0;
   if (passiveCardsDrawn) {
     triggeredPassiveIds = addTriggeredPassive(triggeredPassiveIds, "irene");
   }
@@ -440,7 +518,8 @@ export function resolveCardTarget(
                 : `+${amount} ${workKind === "verified" ? "Verified" : "Unverified"}`
               : undefined,
             scriptPowerAdded > 0 ? `Script +${scriptPowerAdded}` : undefined,
-            scriptRunAmount > 0 ? `Run +${scriptRunAmount}` : undefined,
+            scriptInstallRunAmount > 0 ? `Run +${scriptInstallRunAmount}` : undefined,
+            scriptTriggerRunAmount > 0 ? `Trigger +${scriptTriggerRunAmount}` : undefined,
             scriptBlockAdded > 0 ? `Guard +${scriptBlockAdded}` : undefined,
             blockGained > 0 ? `Block ${blockGained}` : undefined,
             techDebtAdded > 0 ? `Debt +${techDebtAdded}` : undefined,
@@ -453,7 +532,8 @@ export function resolveCardTarget(
             blockGained > 0 ? `Block ${blockGained}` : undefined,
             techDebtAdded > 0 ? `Debt +${techDebtAdded}` : undefined,
             scriptPowerAdded > 0 ? `Script +${scriptPowerAdded}` : undefined,
-            scriptRunAmount > 0 ? `Run +${scriptRunAmount}` : undefined,
+            scriptInstallRunAmount > 0 ? `Run +${scriptInstallRunAmount}` : undefined,
+            scriptTriggerRunAmount > 0 ? `Trigger +${scriptTriggerRunAmount}` : undefined,
             cardsDrawn > 0 ? `Draw ${cardsDrawn}` : undefined,
           ]
             .filter(Boolean)
@@ -469,21 +549,75 @@ export function resolveCardTarget(
     workKind,
     scriptPowerAdded,
     scriptBlockAdded,
+    scriptInstallRunAmount,
+    scriptTriggerRunAmount,
     scriptRunAmount,
     blockGained,
     techDebtAdded,
     cardsDrawn,
+    nextDayCardsDrawn: card.nextDayCardsDrawn ?? 0,
     focusGained: card.focusGained ?? 0,
     generatedCardIds,
     queuedDistractions: card.queuedDistractions ?? 0,
+    cycleWorkBonus: card.cycleWorkBonus,
     fullStackAdded: card.fullStackAdded ?? 0,
     pitchedIn,
+    countsAsWorkPlay,
     triggeredPassiveIds,
     label,
   };
 }
 
-export function verifyTask(task: TaskState, amount: number): TaskState {
+export function applyCardResolutionToTask(
+  task: TaskState,
+  resolution: Exclude<CardResolution, { legal: false }>,
+): TaskState {
+  if (resolution.kind === "review") {
+    const reviewedTask = verifyTask(task, resolution.amount);
+    return refreshTaskStatus({
+      ...reviewedTask,
+      stunned: resolution.stun || reviewedTask.stunned,
+      requirements: reviewedTask.requirements.map((requirement) => {
+        const installation = resolution.scriptInstallations.find(
+          (candidate) => candidate.discipline === requirement.discipline,
+        );
+        return installation
+          ? {
+              ...requirement,
+              verified: requirement.verified + installation.runAmount,
+              scriptPower: requirement.scriptPower + installation.powerAdded,
+            }
+          : requirement;
+      }),
+    });
+  }
+
+  if (resolution.kind === "tactic") {
+    return { ...task, stunned: resolution.stun || task.stunned };
+  }
+
+  return refreshTaskStatus({
+    ...task,
+    requirements: task.requirements.map((requirement) =>
+      requirement.discipline !== resolution.discipline
+        ? requirement
+        : {
+            ...requirement,
+            verified:
+              requirement.verified +
+              (resolution.workKind === "verified" ? resolution.amount : 0) +
+              resolution.scriptRunAmount,
+            unverified:
+              requirement.unverified +
+              (resolution.workKind === "unverified" ? resolution.amount : 0),
+            scriptPower: requirement.scriptPower + resolution.scriptPowerAdded,
+            scriptBlock: requirement.scriptBlock + resolution.scriptBlockAdded,
+          },
+    ),
+  });
+}
+
+function verifyTask(task: TaskState, amount: number): TaskState {
   let remaining = amount;
   const requirements = disciplineOrder
     .map((discipline) => task.requirements.find((item) => item.discipline === discipline))

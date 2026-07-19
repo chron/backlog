@@ -1,6 +1,6 @@
 import { getCard, getDeveloper } from "../domain/content";
-import type { CardInstance, DeveloperId, RunState, TaskState } from "../domain/models";
-import { isTaskReady, refreshTaskStatus, resolveCardTarget, verifyTask } from "./rules";
+import type { CardInstance, DeveloperId, RunState } from "../domain/models";
+import { applyCardResolutionToTask, isTaskReady, resolveCardTarget } from "./rules";
 import type { CardTarget } from "./rules";
 
 export interface CharacterCue {
@@ -41,7 +41,7 @@ export function getCardPresentation(
 
   const task = cycle.tasks.find((candidate) => candidate.taskId === resolution.taskId);
   if (!task) return undefined;
-  const resolvedTask = applyResolution(task, resolution);
+  const resolvedTask = applyCardResolutionToTask(task, resolution);
   const taskCompleted = !isTaskReady(task) && isTaskReady(resolvedTask);
   const ownPassiveCombo = Boolean(
     card.ownerId && resolution.triggeredPassiveIds.includes(card.ownerId),
@@ -70,40 +70,4 @@ export function getCardPresentation(
       title: taskCompleted ? "Task Done" : card.ownerId ? card.name : developer.passiveName,
     },
   };
-}
-
-function applyResolution(
-  task: TaskState,
-  resolution: Exclude<ReturnType<typeof resolveCardTarget>, { legal: false }>,
-): TaskState {
-  if (resolution.kind === "review") {
-    return {
-      ...verifyTask(task, resolution.amount),
-      stunned: resolution.stun || task.stunned,
-    };
-  }
-
-  if (resolution.kind === "tactic") {
-    return { ...task, stunned: resolution.stun || task.stunned };
-  }
-
-  return refreshTaskStatus({
-    ...task,
-    requirements: task.requirements.map((requirement) =>
-      requirement.discipline !== resolution.discipline
-        ? requirement
-        : {
-            ...requirement,
-            verified:
-              requirement.verified +
-              (resolution.workKind === "verified" ? resolution.amount : 0) +
-              resolution.scriptRunAmount,
-            unverified:
-              requirement.unverified +
-              (resolution.workKind === "unverified" ? resolution.amount : 0),
-            scriptPower: requirement.scriptPower + resolution.scriptPowerAdded,
-            scriptBlock: requirement.scriptBlock + resolution.scriptBlockAdded,
-          },
-    ),
-  });
 }

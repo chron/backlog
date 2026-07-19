@@ -7,7 +7,13 @@ import { RunVitals } from "../components/RunVitals";
 import { TaskPanel } from "../components/TaskPanel";
 import { TargetingArrow } from "../components/TargetingArrow";
 import { disciplineLabel, formatIntent, getCard, getCycle, getDeveloper } from "../domain/content";
-import type { CardInstance, CharacterMood, Discipline, DeveloperId } from "../domain/models";
+import type {
+  CardInstance,
+  CardTag,
+  CharacterMood,
+  Discipline,
+  DeveloperId,
+} from "../domain/models";
 import { getCardPresentation } from "../game/presentation";
 import type { CharacterCue } from "../game/presentation";
 import {
@@ -49,6 +55,15 @@ interface CeremonyState {
 
 interface ReactionState extends CharacterCue {
   id: number;
+}
+
+function cardTagLabel(tag: CardTag): string {
+  return tag === "ai-assisted"
+    ? "AI Assisted"
+    : tag
+        .split("-")
+        .map((part) => part.slice(0, 1).toUpperCase() + part.slice(1))
+        .join(" ");
 }
 
 export function CycleScreen({ dispatch, run, onInspectCards }: CycleScreenProps) {
@@ -412,6 +427,31 @@ export function CycleScreen({ dispatch, run, onInspectCards }: CycleScreenProps)
                   Switching target discipline adds +{cycle.fullStackPower} Work.
                 </span>
               </button>
+            )}
+            {(Object.entries(cycle.cardTagWorkBonuses) as [CardTag, number][]).map(
+              ([tag, amount]) =>
+                amount > 0 && (
+                  <button
+                    className="status-buff status-buff--automation"
+                    type="button"
+                    key={tag}
+                    aria-label={`${cardTagLabel(tag)} Work gains ${amount} this Cycle.`}
+                  >
+                    {cardTagLabel(tag)} +{amount}
+                    <span className="game-tooltip" role="tooltip">
+                      {cardTagLabel(tag)} Work gains +{amount} this Cycle.
+                    </span>
+                  </button>
+                ),
+            )}
+            {cycle.queuedCardsDrawn > 0 && (
+              <span className="status-counter">Next Draw +{cycle.queuedCardsDrawn}</span>
+            )}
+            {cycle.queuedDistractions > 0 && (
+              <span className="status-debuff">
+                Next Day · {cycle.queuedDistractions} Distraction
+                {cycle.queuedDistractions === 1 ? "" : "s"}
+              </span>
             )}
             {cycle.cardsPlayedThisDay > 0 && (
               <span className="status-counter">Plays {cycle.cardsPlayedThisDay}</span>

@@ -25,4 +25,26 @@ describe("card glossary", () => {
     expect(termsFor("feature-flag")).toEqual(["Stun", "Block"]);
     expect(termsFor("health-check")).toEqual(["Block", "Script", "Guard"]);
   });
+
+  it("covers Madi's planning, automation, and Generated token vocabulary", () => {
+    expect(termsFor("custom-toolchain")).toEqual(["AI Assisted", "Cycle Bonus", "Exhaust"]);
+    expect(termsFor("plan-it-out")).toEqual(["Next Draw", "Exhaust"]);
+    expect(termsFor("write-the-rfc")).toEqual(["Verify", "Script"]);
+    expect(termsFor("agentic-loop")).toEqual([
+      "Script",
+      "Trigger",
+      "AI Assisted",
+      "Unverified",
+      "Any",
+    ]);
+    expect(termsFor("sub-agent")).toEqual([
+      "Script",
+      "Trigger",
+      "AI Assisted",
+      "Unverified",
+      "Generated",
+      "Exhaust",
+      "Any",
+    ]);
+  });
 });

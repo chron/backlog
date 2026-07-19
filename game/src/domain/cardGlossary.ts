@@ -36,6 +36,12 @@ const glossary: readonly GlossaryDefinition[] = [
     appliesTo: (card) => card.id === "distraction" || Boolean(card.queuedDistractions),
   },
   {
+    id: "next-draw",
+    term: "Next Draw",
+    description: "Adds to the ordinary five-card draw at the start of the next Day.",
+    appliesTo: (card) => Boolean(card.nextDayCardsDrawn),
+  },
+  {
     id: "stun",
     term: "Stun",
     description: "Cancels one Task's Intent for this Day.",
@@ -51,7 +57,19 @@ const glossary: readonly GlossaryDefinition[] = [
     id: "script",
     term: "Script",
     description: "Adds Verified Work to its requirement at the start of every Day.",
-    appliesTo: (card) => Boolean(card.automation),
+    appliesTo: (card) =>
+      Boolean(
+        card.automation ||
+        card.scriptPowerPerIncompleteRequirement ||
+        card.triggerTargetScriptAfterWork,
+      ),
+  },
+  {
+    id: "trigger",
+    term: "Trigger",
+    description: "Runs the target requirement's full Script immediately.",
+    appliesTo: (card) =>
+      card.automation?.kind === "trigger" || Boolean(card.triggerTargetScriptAfterWork),
   },
   {
     id: "guard",
@@ -69,7 +87,14 @@ const glossary: readonly GlossaryDefinition[] = [
     id: "ai-assisted",
     term: "AI Assisted",
     description: "A card tag used by AI synergies and Madi's Custom Setup.",
-    appliesTo: (card) => card.tags.includes("ai-assisted"),
+    appliesTo: (card) =>
+      card.tags.includes("ai-assisted") || card.cycleWorkBonus?.tag === "ai-assisted",
+  },
+  {
+    id: "cycle-work-bonus",
+    term: "Cycle Bonus",
+    description: "Lasts for this Cycle. Playing another copy adds another stack.",
+    appliesTo: (card) => Boolean(card.cycleWorkBonus),
   },
   {
     id: "unverified",

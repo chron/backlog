@@ -33,37 +33,62 @@ interface OpenCardCollection {
 }
 
 function createAppInitialState(base: GameState): GameState {
-  if (!import.meta.env.DEV || new URLSearchParams(window.location.search).get("qa") !== "paul") {
+  const qa = new URLSearchParams(window.location.search).get("qa");
+  if (!import.meta.env.DEV || (qa !== "paul" && qa !== "madi")) {
     return base;
   }
 
   let state = gameReducer(base, { type: "START_RUN", seed: 0x0facade });
-  for (const developerId of ["paul", "odin", "madi"] as const) {
+  const squad =
+    qa === "madi" ? (["madi", "irene", "odin"] as const) : (["paul", "odin", "madi"] as const);
+  for (const developerId of squad) {
     state = gameReducer(state, { type: "TOGGLE_DEVELOPER", developerId });
   }
   state = gameReducer(state, { type: "CONFIRM_SQUAD" });
   state = gameReducer(state, { type: "VISIT_NODE", nodeId: "cycle-1" });
   if (!state.run?.cycle) return state;
 
-  const cardIds = [
-    "side-quest",
-    "full-stack",
-    "new-model-dropped",
-    "post-through-it",
-    "spike-it",
-    "ebb-and-flow",
-    "vibe-code",
-  ];
+  const cardIds =
+    qa === "madi"
+      ? [
+          "yak-shave",
+          "custom-toolchain",
+          "plan-it-out",
+          "write-the-rfc",
+          "agentic-loop",
+          "parallel-agents",
+          "agent-swarm",
+        ]
+      : [
+          "side-quest",
+          "full-stack",
+          "new-model-dropped",
+          "post-through-it",
+          "spike-it",
+          "ebb-and-flow",
+          "vibe-code",
+        ];
   return {
     ...state,
     run: {
       ...state.run,
       cycle: {
         ...state.run.cycle,
-        focus: 10,
+        focus: qa === "madi" ? 12 : 10,
+        tasks:
+          qa === "madi"
+            ? state.run.cycle.tasks.map((task) => ({
+                ...task,
+                requirements: task.requirements.map((requirement) => ({
+                  ...requirement,
+                  unverified: 1,
+                  scriptPower: requirement.discipline === "frontend" ? 2 : 0,
+                })),
+              }))
+            : state.run.cycle.tasks,
         hand: cardIds.map((cardId, index) => ({
           cardId,
-          instanceId: `qa-paul-${index + 1}`,
+          instanceId: `qa-${qa}-${index + 1}`,
         })),
       },
     },

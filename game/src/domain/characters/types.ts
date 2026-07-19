@@ -8,4 +8,5 @@ export interface CharacterContent<TDeveloperId extends DeveloperId = DeveloperId
   developer: Developer & { id: TDeveloperId };
   startingCard: OwnedCard<TDeveloperId>;
   rewardCards: readonly OwnedCard<TDeveloperId>[];
+  generatedCards?: readonly CardDefinition[];
 }

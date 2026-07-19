@@ -16,7 +16,7 @@ export type ToolId =
   | "enterprise-ai-licence"
   | "cron-upgrade";
 type CardKind = "work" | "review" | "tactic" | "status";
-type CardTag =
+export type CardTag =
   | "ai-assisted"
   | "automation"
   | "basic"
@@ -59,8 +59,12 @@ export interface CardDefinition {
   generatedCards?: { cardId: string; count: number };
   focusGained?: number;
   cardsDrawn?: number;
+  nextDayCardsDrawn?: number;
   techDebtAdded?: number;
   queuedDistractions?: number;
+  cycleWorkBonus?: { tag: CardTag; amount: number };
+  scriptPowerPerIncompleteRequirement?: number;
+  triggerTargetScriptAfterWork?: boolean;
   fullStackAdded?: number;
   spawnSideQuest?: boolean;
   display?: { value: string; label: string; rules?: string };
@@ -153,8 +157,10 @@ export interface CycleState {
   cardsPlayedThisDay: number;
   prototypePower: number;
   fullStackPower: number;
+  cardTagWorkBonuses: Partial<Record<CardTag, number>>;
   lastWorkDiscipline?: Discipline;
   queuedDistractions: number;
+  queuedCardsDrawn: number;
   defects: number;
   techDebtAdded: number;
 }
@@ -186,6 +192,15 @@ type RunHistoryEvent =
       focusGained: number;
     }
   | { kind: "card-added"; cardId: string; sourceNodeId: string }
+  | {
+      kind: "card-played";
+      nodeId: string;
+      day: number;
+      cardId: string;
+      taskId?: string;
+      discipline?: Discipline;
+      label: string;
+    }
   | { kind: "card-skipped"; sourceNodeId: string }
   | { kind: "tool-added"; toolId: ToolId; sourceNodeId: string };
 

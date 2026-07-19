@@ -8,7 +8,12 @@ import type {
   MapNode,
   ToolDefinition,
 } from "./models";
-import { characterRewardCards, characterStartingCards, developers } from "./characters";
+import {
+  characterGeneratedCards,
+  characterRewardCards,
+  characterStartingCards,
+  developers,
+} from "./characters";
 
 export { developers } from "./characters";
 
@@ -318,6 +323,7 @@ export const cards: readonly CardDefinition[] = [
   ...sharedStarterCards,
   ...characterStartingCards,
   ...characterRewardCards,
+  ...characterGeneratedCards,
   ...sharedCards,
 ];
 

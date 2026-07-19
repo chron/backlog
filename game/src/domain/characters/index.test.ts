@@ -1,7 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { cards } from "../content";
 import type { CardDefinition } from "../models";
-import { characterContents, characterRewardCards, characterStartingCards, developers } from ".";
+import {
+  characterContents,
+  characterGeneratedCards,
+  characterRewardCards,
+  characterStartingCards,
+  developers,
+} from ".";
 
 describe("character content aggregate", () => {
   it("keeps developer and card ids unique", () => {
@@ -31,6 +37,12 @@ describe("character content aggregate", () => {
       characterContents.map((content) => content.startingCard),
     );
     expect(characterRewardCards).toEqual(moduleRewardCards);
+    expect(characterGeneratedCards).toEqual(
+      characterContents.flatMap((content) =>
+        "generatedCards" in content ? content.generatedCards : [],
+      ),
+    );
+    expect(cards).toEqual(expect.arrayContaining([...characterGeneratedCards]));
 
     for (const content of characterContents) {
       const moduleCardIds = [

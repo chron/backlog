@@ -99,4 +99,42 @@ describe("getCardPresentation", () => {
       title: "Ebb & Flow",
     });
   });
+
+  it("gives Madi a rare hero moment while Generated agents keep the passive compact", () => {
+    const state = startCycle(["madi", "odin", "paul"]);
+    const baseRun = state.run;
+    if (!baseRun?.cycle) throw new Error("Expected an active Cycle");
+    const run = {
+      ...baseRun,
+      cycle: {
+        ...baseRun.cycle,
+        hand: [
+          ...baseRun.cycle.hand,
+          { cardId: "parallel-agents", instanceId: "test-parallel-agents" },
+          { cardId: "sub-agent", instanceId: "test-sub-agent", generated: true },
+        ],
+      },
+    };
+    const parallelAgents = run.cycle.hand.find(
+      (card) => card.instanceId === "test-parallel-agents",
+    );
+    const subAgent = run.cycle.hand.find((card) => card.instanceId === "test-sub-agent");
+    if (!parallelAgents || !subAgent) throw new Error("Expected Madi cards in hand");
+
+    expect(getCardPresentation(run, parallelAgents, { kind: "squad" })?.cue).toMatchObject({
+      developerId: "madi",
+      level: "hero",
+      title: "Parallel Agents",
+    });
+    expect(
+      getCardPresentation(run, subAgent, {
+        taskId: "status-composer",
+        discipline: "frontend",
+      })?.cue,
+    ).toMatchObject({
+      developerId: "madi",
+      level: "micro",
+      title: "Custom Setup",
+    });
+  });
 });
