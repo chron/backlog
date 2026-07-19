@@ -63,7 +63,7 @@ export interface CardDefinition {
   stun?: boolean;
   automation?: { kind: "install"; power: number; blockPower?: number } | { kind: "trigger" };
   exhaust?: boolean;
-  generatedCards?: { cardId: string; count: number };
+  generatedCards?: { cardId: string; count: number } | readonly { cardId: string; count: number }[];
   focusGained?: number;
   cardsDrawn?: number;
   nextDayCardsDrawn?: number;

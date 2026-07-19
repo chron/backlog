@@ -188,6 +188,18 @@ const sharedStarterCards: readonly CardDefinition[] = [
 
 const sharedCards: readonly CardDefinition[] = [
   {
+    id: "snippet",
+    name: "Snippet",
+    cost: 0,
+    kind: "work",
+    discipline: "flexible",
+    amount: 1,
+    workKind: "verified",
+    exhaust: true,
+    rules: "Any 1. Verified. Exhaust.",
+    tags: ["exhaust", "flexible", "generated"],
+  },
+  {
     id: "quick-fix",
     name: "Quick Fix",
     cost: 0,
@@ -198,6 +210,27 @@ const sharedCards: readonly CardDefinition[] = [
     exhaust: true,
     rules: "Any 2. Unverified. Exhaust.",
     tags: ["ai-assisted", "exhaust", "flexible", "generated"],
+  },
+  {
+    id: "checklist",
+    name: "Checklist",
+    cost: 0,
+    kind: "tactic",
+    amount: 0,
+    block: 1,
+    exhaust: true,
+    rules: "Gain 1 Block. Exhaust.",
+    tags: ["defense", "exhaust", "generated"],
+  },
+  {
+    id: "comment",
+    name: "Comment",
+    cost: 0,
+    kind: "review",
+    amount: 1,
+    exhaust: true,
+    rules: "Verify 1. Exhaust.",
+    tags: ["exhaust", "generated", "review"],
   },
   {
     id: "pair-programming",

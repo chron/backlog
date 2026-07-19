@@ -314,12 +314,15 @@ export function resolveCardTarget(
   const cost = effectiveCardCost(card, cycle, run.squad);
   if (cost > cycle.focus) return { legal: false, reason: "Not enough Focus." };
 
+  const generatedCardSpecs = card.generatedCards
+    ? Array.isArray(card.generatedCards)
+      ? card.generatedCards
+      : [card.generatedCards]
+    : [];
   const generatedCards: { cardId: string; dynamicDefinition?: CardDefinition }[] =
-    card.generatedCards
-      ? Array.from({ length: card.generatedCards.count }, () => ({
-          cardId: card.generatedCards?.cardId ?? "",
-        }))
-      : [];
+    generatedCardSpecs.flatMap((generated) =>
+      Array.from({ length: generated.count }, () => ({ cardId: generated.cardId })),
+    );
   if (card.generateLastWorkCopy && cycle.lastWorkCard) {
     const dynamicDefinition = createStudiedWorkCard(cycle.lastWorkCard);
     generatedCards.push({ cardId: dynamicDefinition.id, dynamicDefinition });

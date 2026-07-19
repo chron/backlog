@@ -122,16 +122,4 @@ export const odinContent = {
       rarity: "rare",
     },
   ],
-  generatedCards: [
-    {
-      id: "comment",
-      name: "Comment",
-      cost: 0,
-      kind: "review",
-      amount: 1,
-      exhaust: true,
-      rules: "Verify 1. Exhaust.",
-      tags: ["exhaust", "generated", "review"],
-    },
-  ],
 } as const satisfies CharacterContent<"odin">;
