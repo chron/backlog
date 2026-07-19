@@ -223,11 +223,27 @@ Custom Setup installs its Script before **Agentic Loop** or **Sub-Agent** trigge
 ### Steph — automation accelerator
 
 - **Fantasy:** make the paved road so smooth that the whole team moves faster.
-- **Passive direction:** whenever a Script or Guard is installed or upgraded, gain 1 Focus.
-- **Starter direction:** **One-Click Setup** — install a Script and immediately gain a small tempo benefit.
-- **Core space:** install, upgrade, trigger-now effects, temporary Macro-style cards.
+- **Passive:** **Paved Road** — whenever a Script or Guard is installed or upgraded, gain 1 Focus.
+- **Core space:** install, upgrade, trigger-now effects, and temporary Macros.
 - **Bridges:** Madi supplies frequent installs; Toby turns Guard into progress; Card Storm spends the refunded Focus.
-- **Rare direction:** **Golden Path** — install Script 1 on every incomplete requirement.
+
+Steph's catalogue is **LOCKED** for its first playable pass. Values may still move during playtesting.
+
+| Slot | Card | Cost | Effect |
+| --- | --- | ---: | --- |
+| Starter | **One-Click Setup** | 1 | Install Script 1, then trigger it. |
+| Normal | **Automate This Bit** | 1 | Install Script 2. |
+| Normal | **Guardrails, Not Gatekeepers** | 1 | Install Guard 2, then trigger it. |
+| Normal | **Refactor the Workflow** | 1 | Double the target requirement's Script and Guard. Unplayable if both are 0. |
+| Normal | **Hot Reload** | 1 | Trigger the target requirement's Script and Guard twice. |
+| Normal | **Make It a Command** | 1 | Generate 2 Macros. |
+| Rare | **Golden Path** | 2 | Install Script 1 on every incomplete requirement. Exhaust. |
+
+**Macro** is a zero-cost Generated token: trigger the target requirement's Script and Guard once; Exhaust.
+
+Paved Road has no once-per-Day limit. Each automation meter increased is a separate trigger: installing both Script and Guard gains 2 Focus, and doubling both with **Refactor the Workflow** does the same. **Golden Path** triggers Paved Road separately for every incomplete requirement it installs on, allowing a busy board to produce an indecent but finite Focus surplus. Triggering an existing Script or Guard does not activate Paved Road because its meter did not increase.
+
+Install-then-trigger cards resolve in that order, so **One-Click Setup** and **Guardrails, Not Gatekeepers** always have an immediate floor. **Hot Reload** and Macro skip automation types at 0. The cards' ordinary Focus costs, available automation targets, finite draw, and Exhausting Generated Macros are the natural constraints; do not add an artificial trigger cap before playtesting the complete engine.
 
 ### Elspeth — sustainable support
 
@@ -445,7 +461,6 @@ A character becomes playable only when their passive, Starter, five normal cards
 
 ## Open design questions
 
-- Does Steph need a distinct **Macro** token, or can her kit use Snippets plus immediate Script triggers?
 - Should Tech Debt payoffs inspect all persistent Debt, or only Debt currently visible in hand/draw/discard? Prefer the persistent deck count unless a card explicitly Exhausts a visible copy.
 - How much distributed Work can Seb create before three-Task encounters become automatic? Preserve the cascade, then tune values.
 - Can Matt's overflow Review cross to another Task? Default to the same Task for clarity; consider a rare that breaks the rule.
