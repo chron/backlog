@@ -51,4 +51,31 @@ describe("GameCard", () => {
     expect(markup).not.toContain('disabled=""');
     expect(markup).toContain("Psychological Safety");
   });
+
+  it("makes Rare cards visually explicit beyond their reward tag", () => {
+    const markup = renderToStaticMarkup(
+      <GameCard
+        instance={{ cardId: "architecture-review", instanceId: "test-rare" }}
+        effectiveCost={1}
+        selected={false}
+      />,
+    );
+
+    expect(markup).toContain("game-card--rare");
+    expect(markup).toContain('class="game-card__family">Rare</span>');
+  });
+
+  it("presents Tech Debt as a harmful Status without a Focus cost", () => {
+    const markup = renderToStaticMarkup(
+      <GameCard
+        instance={{ cardId: "tech-debt", instanceId: "test-debt" }}
+        effectiveCost={0}
+        selected={false}
+      />,
+    );
+
+    expect(markup).toContain("game-card--harmful-status");
+    expect(markup).toContain('<span class="game-card__owner">Status</span>');
+    expect(markup).not.toContain("game-card__cost");
+  });
 });

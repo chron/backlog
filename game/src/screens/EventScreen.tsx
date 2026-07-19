@@ -1,5 +1,8 @@
 import type { DispatchProps, RunProps } from "../app/types";
 import { CardCollectionEntry } from "../components/CardCollectionBrowser";
+import { GameCard } from "../components/GameCard";
+import { getCardForInstance } from "../domain/content";
+import type { CardInstance } from "../domain/models";
 import { getEvent } from "../domain/events";
 import { resolveEventChoice, type EventPendingSelection } from "../game/eventResolution";
 
@@ -22,6 +25,10 @@ export function EventScreen({
 }: EventScreenProps) {
   if (!run) return null;
   const event = getEvent(eventId);
+  const pendingUsesCards =
+    resolution?.pending.kind === "card" ||
+    resolution?.pending.kind === "draft" ||
+    resolution?.pending.kind === "guest";
 
   return (
     <section
@@ -48,19 +55,39 @@ export function EventScreen({
               ))}
             </div>
           )}
-          <div className="event-selection__options">
-            {resolution.pending.options.map((option) => (
-              <button
-                className={`event-option event-option--${resolution.pending.kind}`}
-                type="button"
-                key={option.id}
-                onClick={() => dispatch({ type: "CHOOSE_EVENT_OPTION", optionId: option.id })}
-              >
-                <strong>{option.label}</strong>
-                {option.rules && <span>{option.rules}</span>}
-                <small>Choose</small>
-              </button>
-            ))}
+          <div className={`event-selection__options${pendingUsesCards ? " is-card-options" : ""}`}>
+            {resolution.pending.options.map((option) => {
+              const eventCard = pendingUsesCards
+                ? eventSelectionCard(run.deck, option.id, option.cardId)
+                : undefined;
+              if (eventCard) {
+                const card = getCardForInstance(eventCard);
+                return (
+                  <div className="event-card-option" key={option.id}>
+                    <GameCard
+                      instance={eventCard}
+                      effectiveCost={card.cost}
+                      selected={false}
+                      onSelect={() =>
+                        dispatch({ type: "CHOOSE_EVENT_OPTION", optionId: option.id })
+                      }
+                    />
+                  </div>
+                );
+              }
+              return (
+                <button
+                  className={`event-option event-option--${resolution.pending.kind}`}
+                  type="button"
+                  key={option.id}
+                  onClick={() => dispatch({ type: "CHOOSE_EVENT_OPTION", optionId: option.id })}
+                >
+                  <strong>{option.label}</strong>
+                  {option.rules && <span>{option.rules}</span>}
+                  <small>Choose</small>
+                </button>
+              );
+            })}
           </div>
         </div>
       ) : (
@@ -92,5 +119,19 @@ export function EventScreen({
         </div>
       )}
     </section>
+  );
+}
+
+function eventSelectionCard(
+  deck: readonly CardInstance[],
+  optionId: string,
+  cardId?: string,
+): CardInstance | undefined {
+  if (!cardId) return undefined;
+  return (
+    deck.find((instance) => instance.instanceId === optionId) ?? {
+      cardId,
+      instanceId: `event-${optionId}`,
+    }
   );
 }

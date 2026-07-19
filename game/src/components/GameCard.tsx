@@ -34,9 +34,11 @@ export function GameCard({
   const glossaryEntries = getCardGlossaryEntries(card);
   const owner = card.ownerId ? getDeveloper(card.ownerId) : undefined;
   const unplayable = card.kind === "status" && !card.cycleFlexibleBlockBonus;
+  const rare = card.rarity === "rare" || card.tags.includes("rare");
+  const harmfulStatus = card.id === "tech-debt";
   const cardAccent = owner?.accent ?? disciplineAccent(card.discipline);
   const familyTags = [
-    card.tags.includes("rare") ? "Rare" : undefined,
+    rare ? "Rare" : undefined,
     card.tags.includes("ai-assisted") ? "AI Assisted" : undefined,
     card.tags.includes("automation") ? "Automation" : undefined,
     card.tags.includes("generated") ? "Generated" : undefined,
@@ -73,7 +75,7 @@ export function GameCard({
 
   return (
     <button
-      className={`game-card game-card--${card.kind}${owner ? " has-owner" : ""}${longTitle ? " game-card--long-title" : ""}${selected ? " is-selected" : ""}`}
+      className={`game-card game-card--${card.kind}${rare ? " game-card--rare" : ""}${harmfulStatus ? " game-card--harmful-status" : ""}${owner ? " has-owner" : ""}${longTitle ? " game-card--long-title" : ""}${selected ? " is-selected" : ""}`}
       style={{ "--card-accent": cardAccent } as React.CSSProperties}
       type="button"
       disabled={disabled || unplayable}
@@ -100,11 +102,13 @@ export function GameCard({
       )}
       <span className="game-card__owner">
         {owner?.name ??
-          (card.tags.includes("generated")
-            ? "Generated"
-            : card.tags.includes("basic")
-              ? "Basic"
-              : "Team")}
+          (card.kind === "status"
+            ? "Status"
+            : card.tags.includes("generated")
+              ? "Generated"
+              : card.tags.includes("basic")
+                ? "Basic"
+                : "Team")}
       </span>
       <strong className="game-card__title">{card.name}</strong>
       <span className="game-card__output" aria-hidden="true">

@@ -27,7 +27,6 @@ export function PassiveChip({ developerId, mood = "idle", reacting }: PassiveChi
           {developer.name} · {developer.passiveName}
         </strong>
         <span>{developer.passiveRules}</span>
-        <b>Always on</b>
       </span>
     </button>
   );

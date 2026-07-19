@@ -94,6 +94,37 @@ describe("EventScreen", () => {
     expect(markup).not.toContain("Power Ballad");
   });
 
+  it("renders Event card drafts as the same full cards used by rewards", () => {
+    const run: ReturnType<typeof testRun> = {
+      ...testRun(),
+      squad: ["paul", "odin", "madi"],
+    };
+    const pending = gameReducer(
+      {
+        screen: { name: "event", nodeId: "event-1", eventId: "quarterly-connect" },
+        run,
+      },
+      { type: "CHOOSE_EVENT", choiceId: "demo" },
+    );
+    if (pending.screen.name !== "event" || !pending.screen.resolution) {
+      throw new Error("Expected an Event card draft");
+    }
+
+    const markup = renderToStaticMarkup(
+      <EventScreen
+        dispatch={() => undefined}
+        run={pending.run}
+        eventId="quarterly-connect"
+        resolution={pending.screen.resolution}
+        onInspectDeck={() => undefined}
+      />,
+    );
+
+    expect(markup).toContain("event-selection__options is-card-options");
+    expect(markup.match(/class="game-card /g)).toHaveLength(3);
+    expect(markup).not.toContain("event-option--draft");
+  });
+
   it("reveals requested encounter titles without revealing Event identities", () => {
     const run = {
       ...testRun(),

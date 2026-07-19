@@ -44,7 +44,8 @@ export function TargetingArrow({ startX, startY, endX, endY, locked }: Targeting
           markerUnits="userSpaceOnUse"
           orient="auto"
         >
-          <path d="M 2 2 L 26 14 L 2 26 z" />
+          <path className="target-arrowhead__fill" d="M 1.5 1.5 L 26 14 L 1.5 26.5 Z" />
+          <path className="target-arrowhead__edge" d="M 1.5 1.5 L 26 14 L 1.5 26.5" />
         </marker>
       </defs>
       <path className="targeting-arrow__outline" d={path} />
