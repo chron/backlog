@@ -65,6 +65,7 @@ using the real game reducer:
 bun run playtest
 bun run playtest --runs 100 --json telemetry/playtest-latest.json
 bun run playtest --scenario automation --deck showcase
+bun run playtest --mixed --runs 20 --json telemetry/playtest-mixed-latest.json
 ```
 
 The default uses the ordinary Starter deck for a fair comparison with human
@@ -79,7 +80,9 @@ victory separately, alongside Days, ending Morale and Tech Debt, cards played
 per Day, peak Chain, installed Scripts, prevented damage, and dead hands.
 `--policy careful` and `--policy velocity` provide intentionally imperfect
 alternate risk profiles. The JSON option includes every raw run for deeper
-analysis or future charts.
+analysis or future charts. `--mixed` switches to twelve mixed squads arranged so
+every developer appears exactly three times without reproducing the three real
+workplace squads.
 
 ### Human calibration runs
 

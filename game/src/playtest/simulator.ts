@@ -42,7 +42,7 @@ export interface PlaytestScenario {
   squad: readonly [DeveloperId, DeveloperId, DeveloperId];
   bonusCardIds: readonly string[];
   preferredTags: readonly CardTag[];
-  expectedSignal: "cards" | "automation" | "completion" | "block" | "debt" | "chain";
+  expectedSignal: "general" | "cards" | "automation" | "completion" | "block" | "debt" | "chain";
 }
 
 export const playtestScenarios: readonly PlaytestScenario[] = [
@@ -180,6 +180,107 @@ export const playtestScenarios: readonly PlaytestScenario[] = [
     ],
     preferredTags: ["review", "exhaust"],
     expectedSignal: "chain",
+  },
+] as const;
+
+// A balanced incomplete roster matrix: every developer appears exactly three
+// times, while none of the authored workplace squads appear intact.
+export const mixedPlaytestScenarios: readonly PlaytestScenario[] = [
+  {
+    id: "mixed-paul-seb-nick",
+    name: "Paul / Seb / Nick",
+    squad: ["paul", "seb", "nick"],
+    bonusCardIds: [],
+    preferredTags: ["exhaust", "flexible"],
+    expectedSignal: "general",
+  },
+  {
+    id: "mixed-odin-toby-levi",
+    name: "Odin / Toby / Levi",
+    squad: ["odin", "toby", "levi"],
+    bonusCardIds: [],
+    preferredTags: ["review", "defense"],
+    expectedSignal: "general",
+  },
+  {
+    id: "mixed-irene-steph-kirsten",
+    name: "Irene / Steph / Kirsten",
+    squad: ["irene", "steph", "kirsten"],
+    bonusCardIds: [],
+    preferredTags: ["automation", "generated", "flexible"],
+    expectedSignal: "general",
+  },
+  {
+    id: "mixed-madi-elspeth-matt",
+    name: "Madi / Elspeth / Matt",
+    squad: ["madi", "elspeth", "matt"],
+    bonusCardIds: [],
+    preferredTags: ["automation", "defense", "review"],
+    expectedSignal: "general",
+  },
+  {
+    id: "mixed-paul-toby-kirsten",
+    name: "Paul / Toby / Kirsten",
+    squad: ["paul", "toby", "kirsten"],
+    bonusCardIds: [],
+    preferredTags: ["generated", "defense", "flexible"],
+    expectedSignal: "general",
+  },
+  {
+    id: "mixed-odin-steph-matt",
+    name: "Odin / Steph / Matt",
+    squad: ["odin", "steph", "matt"],
+    bonusCardIds: [],
+    preferredTags: ["review", "automation"],
+    expectedSignal: "general",
+  },
+  {
+    id: "mixed-irene-elspeth-nick",
+    name: "Irene / Elspeth / Nick",
+    squad: ["irene", "elspeth", "nick"],
+    bonusCardIds: [],
+    preferredTags: ["flexible", "defense", "exhaust"],
+    expectedSignal: "general",
+  },
+  {
+    id: "mixed-madi-seb-levi",
+    name: "Madi / Seb / Levi",
+    squad: ["madi", "seb", "levi"],
+    bonusCardIds: [],
+    preferredTags: ["automation", "ai-assisted"],
+    expectedSignal: "general",
+  },
+  {
+    id: "mixed-paul-steph-levi",
+    name: "Paul / Steph / Levi",
+    squad: ["paul", "steph", "levi"],
+    bonusCardIds: [],
+    preferredTags: ["automation", "flexible"],
+    expectedSignal: "general",
+  },
+  {
+    id: "mixed-odin-elspeth-kirsten",
+    name: "Odin / Elspeth / Kirsten",
+    squad: ["odin", "elspeth", "kirsten"],
+    bonusCardIds: [],
+    preferredTags: ["review", "defense", "generated"],
+    expectedSignal: "general",
+  },
+  {
+    id: "mixed-irene-seb-matt",
+    name: "Irene / Seb / Matt",
+    squad: ["irene", "seb", "matt"],
+    bonusCardIds: [],
+    preferredTags: ["review", "flexible"],
+    expectedSignal: "general",
+  },
+  {
+    id: "mixed-madi-toby-nick",
+    name: "Madi / Toby / Nick",
+    squad: ["madi", "toby", "nick"],
+    bonusCardIds: [],
+    preferredTags: ["automation", "defense", "exhaust"],
+    expectedSignal: "general",
   },
 ] as const;
 
@@ -513,7 +614,9 @@ function cycleStateValue(
             ? usefulBlock * 10
             : scenario.expectedSignal === "debt"
               ? Math.min(run.techDebt, 8) * 2
-              : cycle.chain.count * 8;
+              : scenario.expectedSignal === "chain"
+                ? cycle.chain.count * 8
+                : 0;
 
   return (
     base +
@@ -1133,10 +1236,12 @@ export function runPlaytestBatch(options: {
   policy?: PlaytestPolicy;
   deckMode?: PlaytestDeckMode;
   scenarioIds?: readonly string[];
+  scenarios?: readonly PlaytestScenario[];
 }): PlaytestRunResult[] {
+  const catalogue = options.scenarios ?? playtestScenarios;
   const scenarios = options.scenarioIds?.length
-    ? playtestScenarios.filter((scenario) => options.scenarioIds?.includes(scenario.id))
-    : playtestScenarios;
+    ? catalogue.filter((scenario) => options.scenarioIds?.includes(scenario.id))
+    : catalogue;
   return scenarios.flatMap((scenario, scenarioIndex) =>
     Array.from({ length: options.runsPerScenario }, (_, runIndex) =>
       simulatePlaytestRun(

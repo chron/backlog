@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { createPlaytestReport, formatPlaytestReport } from "./report";
-import { playtestScenarios, simulatePlaytestRun } from "./simulator";
+import {
+  mixedPlaytestScenarios,
+  playtestScenarios,
+  runPlaytestBatch,
+  simulatePlaytestRun,
+} from "./simulator";
 
 describe("scripted playtest harness", () => {
   it("includes the three real squads as first-class calibration scenarios", () => {
@@ -9,6 +14,31 @@ describe("scripted playtest harness", () => {
       "platform-squad",
       "panel-squad",
     ]);
+  });
+
+  it("balances the mixed matrix evenly across the complete roster", () => {
+    const appearances = new Map<string, number>();
+    const combinations = new Set<string>();
+    for (const scenario of mixedPlaytestScenarios) {
+      const combination = [...scenario.squad].sort().join("/");
+      combinations.add(combination);
+      for (const developerId of scenario.squad) {
+        appearances.set(developerId, (appearances.get(developerId) ?? 0) + 1);
+      }
+    }
+
+    expect(mixedPlaytestScenarios).toHaveLength(12);
+    expect(combinations.size).toBe(12);
+    expect([...appearances.values()]).toHaveLength(12);
+    expect([...appearances.values()].every((count) => count === 3)).toBe(true);
+    expect(
+      runPlaytestBatch({
+        runsPerScenario: 1,
+        seed: 77,
+        scenarioIds: [mixedPlaytestScenarios[0]!.id],
+        scenarios: mixedPlaytestScenarios,
+      })[0]?.scenarioId,
+    ).toBe(mixedPlaytestScenarios[0]!.id);
   });
 
   it("replays every build scenario deterministically through the real reducer", () => {

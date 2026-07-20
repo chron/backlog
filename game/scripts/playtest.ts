@@ -2,6 +2,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import {
+  mixedPlaytestScenarios,
   playtestScenarios,
   runPlaytestBatch,
   type PlaytestDeckMode,
@@ -17,6 +18,7 @@ const parsed = parseArgs({
     policy: { type: "string", default: "balanced" },
     deck: { type: "string", default: "starter" },
     scenario: { type: "string", multiple: true },
+    mixed: { type: "boolean" },
     json: { type: "string" },
     help: { type: "boolean", short: "h" },
   },
@@ -34,10 +36,11 @@ Usage: bun run playtest [options]
   --policy <name>     balanced, velocity, or careful
   --deck <mode>       starter or showcase (default: starter)
   --scenario <id>     Only run a named scenario; repeatable
+  --mixed             Run the curated mixed-squad matrix
   --json <path>       Also write the complete report and raw runs as JSON
   -h, --help          Show this help
 
-Scenarios: ${playtestScenarios.map((scenario) => scenario.id).join(", ")}`);
+Scenarios: ${[...playtestScenarios, ...mixedPlaytestScenarios].map((scenario) => scenario.id).join(", ")}`);
   process.exit(0);
 }
 
@@ -47,6 +50,7 @@ const policy = parsed.values.policy as PlaytestPolicy;
 const deckMode = parsed.values.deck as PlaytestDeckMode;
 const validPolicies: readonly PlaytestPolicy[] = ["balanced", "velocity", "careful"];
 const validDeckModes: readonly PlaytestDeckMode[] = ["starter", "showcase"];
+const scenarioCatalogue = parsed.values.mixed ? mixedPlaytestScenarios : playtestScenarios;
 
 if (!Number.isSafeInteger(runsPerScenario) || runsPerScenario < 1 || runsPerScenario > 10_000) {
   throw new Error("--runs must be an integer between 1 and 10000.");
@@ -61,7 +65,7 @@ if (!validDeckModes.includes(deckMode)) {
 
 const selectedIds = parsed.values.scenario;
 const unknownIds = selectedIds?.filter(
-  (id) => !playtestScenarios.some((scenario) => scenario.id === id),
+  (id) => !scenarioCatalogue.some((scenario) => scenario.id === id),
 );
 if (unknownIds?.length) throw new Error(`Unknown scenario: ${unknownIds.join(", ")}.`);
 
@@ -71,10 +75,11 @@ const runs = runPlaytestBatch({
   policy,
   deckMode,
   scenarioIds: selectedIds,
+  scenarios: scenarioCatalogue,
 });
 const selectedScenarios = selectedIds?.length
-  ? playtestScenarios.filter((scenario) => selectedIds.includes(scenario.id))
-  : playtestScenarios;
+  ? scenarioCatalogue.filter((scenario) => selectedIds.includes(scenario.id))
+  : scenarioCatalogue;
 const report = createPlaytestReport(runs, selectedScenarios);
 console.log(formatPlaytestReport(report));
 
