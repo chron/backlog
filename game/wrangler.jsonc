@@ -12,10 +12,4 @@
       "migrations_dir": "./migrations",
     },
   ],
-  "observability": {
-    "enabled": true,
-    "logs": {
-      "head_sampling_rate": 1,
-    },
-  },
 }
