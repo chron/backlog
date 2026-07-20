@@ -391,6 +391,9 @@ main:focus {
   right: 0.85rem;
   bottom: 0.85rem;
   display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  max-width: calc(100% - 1.7rem);
   padding: 0.3rem;
   border: 2px solid var(--ink);
   background: var(--panel);
@@ -4988,6 +4991,14 @@ main:focus {
   .title-screen__art {
     object-fit: cover;
     object-position: center top;
+  }
+
+  .title-screen__art--platform,
+  .title-screen__art--panel,
+  .title-screen__art--levi,
+  .title-screen__art--nick-sharkimedes {
+    object-fit: contain;
+    object-position: center bottom;
   }
 
   .canvas-note {

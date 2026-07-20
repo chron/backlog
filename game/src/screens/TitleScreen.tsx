@@ -1,7 +1,11 @@
 import { useEffect, useState } from "react";
 import { Trophy } from "lucide-react";
 import type { DispatchProps } from "../app/types";
+import titleLeviSolo from "../assets/title/title-levi-solo-v1.webp";
 import titleMergeConflict from "../assets/title/title-merge-conflict-v1.webp";
+import titleNickSharkimedes from "../assets/title/title-nick-sharkimedes-v1.webp";
+import titlePanel from "../assets/title/title-panel-v1.webp";
+import titlePlatform from "../assets/title/title-platform-v1.webp";
 import titleShipIt from "../assets/title/title-ship-it-v1.webp";
 import titleSquadCutIn from "../assets/title/title-squad-cut-in-v1.webp";
 import { formatLgtmExpansion, getLgtmExpansion, lgtmExpansions } from "../brand";
@@ -14,8 +18,12 @@ interface TitleScreenProps extends DispatchProps {
 
 const titleHeroOptions = {
   "cut-in": { label: "Squad Cut-In", src: titleSquadCutIn },
+  platform: { label: "Platform", src: titlePlatform },
   merge: { label: "Merge Conflict", src: titleMergeConflict },
+  panel: { label: "Panel", src: titlePanel },
   ship: { label: "Ship It", src: titleShipIt },
+  levi: { label: "Levi", src: titleLeviSolo },
+  "nick-sharkimedes": { label: "Nick + Sharkimedes", src: titleNickSharkimedes },
 } as const;
 
 type TitleHeroKey = keyof typeof titleHeroOptions;
@@ -115,7 +123,7 @@ export function TitleScreen({ dispatch, onOpenAchievements }: TitleScreenProps) 
         </div>
         {titleHeroKeys.map((heroKey) => (
           <img
-            className={`title-screen__art ${heroKey === titleHeroKey ? "is-active" : ""}`}
+            className={`title-screen__art title-screen__art--${heroKey} ${heroKey === titleHeroKey ? "is-active" : ""}`}
             src={titleHeroOptions[heroKey].src}
             alt=""
             key={heroKey}
