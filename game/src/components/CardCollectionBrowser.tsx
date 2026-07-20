@@ -217,13 +217,40 @@ function CollectionCard({
       ? disciplineLabel(card.discipline)
       : undefined;
   const output =
-    card.kind === "review"
-      ? "Verify"
-      : card.discipline === "flexible"
-        ? "Any"
-        : card.kind === "work"
-          ? "Work"
-          : "Status";
+    card.display?.label ??
+    (card.kind === "tactic"
+      ? card.stun
+        ? "Stun"
+        : card.automation?.kind === "install" && (card.automation.blockPower ?? 0) > 0
+          ? "Guard"
+          : "Block"
+      : card.kind === "review"
+        ? "Verify"
+        : card.discipline === "flexible"
+          ? "Any"
+          : card.kind === "work"
+            ? "Work"
+            : "Status");
+  const outputValue =
+    card.display?.value ??
+    (card.kind === "tactic"
+      ? card.stun
+        ? "!"
+        : card.block ||
+          (card.automation?.kind === "install"
+            ? card.automation.blockPower || card.automation.power
+            : undefined) ||
+          "×"
+      : card.amount || "×");
+  const ownerLabel = owner
+    ? owner.name
+    : card.kind === "status"
+      ? "Status"
+      : card.tags.includes("generated")
+        ? "Generated"
+        : card.tags.includes("basic")
+          ? "Basic"
+          : "Team";
   const className = `collection-card${owner ? " has-owner" : ""}${selected ? " is-selected" : ""}`;
   const style = {
     "--collection-accent": owner?.accent ?? collectionAccent(card.discipline),
@@ -231,10 +258,10 @@ function CollectionCard({
   const content = (
     <>
       <span className="collection-card__count">×{count}</span>
-      <span className="collection-card__owner">{owner?.name ?? "Basic"}</span>
+      <span className="collection-card__owner">{ownerLabel}</span>
       <strong>{card.name}</strong>
       <span className="collection-card__output" aria-hidden="true">
-        <b>{card.amount || "×"}</b>
+        <b>{outputValue}</b>
         <small>{output}</small>
       </span>
       <span className="collection-card__tags">

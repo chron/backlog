@@ -24,7 +24,7 @@ export const tools: readonly ToolDefinition[] = [
     id: "pairing-session",
     name: "Pairing Session",
     symbol: "<>⃝",
-    rules: "All Pitch In Work is Verified.",
+    rules: "Mismatched Work contributes 1 Verified instead of 1 Unverified.",
   },
   {
     id: "ci-runner",
@@ -271,10 +271,10 @@ const sharedCards: readonly CardDefinition[] = [
     cost: 1,
     kind: "work",
     discipline: "infra",
-    amount: 1,
+    amount: 2,
     workKind: "verified",
     automation: { kind: "install", power: 1 },
-    rules: "Infra 1. Install Script 1.",
+    rules: "Infra 2. Install Script 1.",
     tags: ["automation", "reward"],
   },
   {

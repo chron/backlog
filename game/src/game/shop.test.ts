@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { getCard } from "../domain/content";
 import { canDuplicateCard, canRefactorCard, createShopInventory } from "../domain/shop";
+import { reconcileTechDebt } from "./eventResolution";
 import { gameReducer, initialGameState, type GameState } from "./gameReducer";
 
 function startShop(credits = 300, seed = 0x5eed1234): GameState {
@@ -115,10 +116,31 @@ describe("Sharkimedes marketplace", () => {
 
     let debt = startShop();
     if (!debt.run) throw new Error("Expected a run");
-    debt = { ...debt, run: { ...debt.run, techDebt: 3 } };
+    debt = { ...debt, run: reconcileTechDebt(debt.run, 6) };
+    if (!debt.run) throw new Error("Expected a run with Tech Debt");
+    expect(debt.run.deck.filter((card) => card.cardId === "tech-debt")).toHaveLength(2);
     debt = gameReducer(debt, { type: "BUY_SHOP_SERVICE", serviceId: "debt-cleanup" });
     debt = gameReducer(debt, { type: "BUY_SHOP_SERVICE", serviceId: "debt-cleanup" });
-    expect(debt.run).toMatchObject({ techDebt: 1, credits: 250 });
+    expect(debt.run).toMatchObject({ techDebt: 0, credits: 250 });
+    expect(debt.run?.deck.some((card) => card.cardId === "tech-debt")).toBe(false);
+  });
+
+  it("lets Refactor remove a full Tech Debt card and its score", () => {
+    let state = startShop();
+    if (state.screen.name !== "shop" || !state.run) throw new Error("Expected a Shop");
+    state = { ...state, run: reconcileTechDebt(state.run, 3) };
+    if (!state.run) throw new Error("Expected a run with Tech Debt");
+    const debt = state.run.deck.find((card) => card.cardId === "tech-debt");
+    if (!debt) throw new Error("Expected Tech Debt in deck");
+
+    state = gameReducer(state, {
+      type: "BUY_SHOP_SERVICE",
+      serviceId: "refactor",
+      instanceId: debt.instanceId,
+    });
+
+    expect(state.run).toMatchObject({ techDebt: 0, credits: 260 });
+    expect(state.run?.deck.some((card) => card.cardId === "tech-debt")).toBe(false);
   });
 
   it("refreshes stock at an escalating price while preserving used services", () => {

@@ -68,6 +68,25 @@ describe("CardCollectionBrowser", () => {
     expect(markup).toContain("Remove");
   });
 
+  it("uses the full card's output language for compact tactics", () => {
+    const markup = renderToStaticMarkup(
+      <CardCollectionBrowser
+        cards={[
+          { cardId: "standup-cover", instanceId: "block" },
+          { cardId: "feature-flag", instanceId: "stun" },
+        ]}
+        title="Refactor"
+        onClose={() => undefined}
+      />,
+    );
+
+    expect(markup).toContain("Standup Cover");
+    expect(markup).toContain("Feature Flag");
+    expect(markup).toContain("<small>Block</small>");
+    expect(markup).toContain("<small>Stun</small>");
+    expect(markup).not.toContain("<small>Status</small>");
+  });
+
   it("keeps Generated provenance and Exhaust lifecycle visible in pile inspection", () => {
     const markup = renderToStaticMarkup(
       <CardCollectionBrowser

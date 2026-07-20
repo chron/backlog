@@ -79,6 +79,9 @@ describe("first Event batch", () => {
 
   it("resolves Coffee Summit's composed stabilising outcome exactly", () => {
     const run = { ...playableRun(), credits: 20, morale: 6 };
+    expect(getEvent("coffee-summit").setup).toBe(
+      "NZ and Melbourne agree to settle this properly. They do not agree on what ‘proper’ means.",
+    );
     const progress = advanceEventResolution(
       run,
       choice("coffee-summit", "order-for-everyone").effects,

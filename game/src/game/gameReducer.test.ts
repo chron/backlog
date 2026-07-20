@@ -328,6 +328,11 @@ describe("gameReducer", () => {
     expect(getCard("pixel-perfect")).toMatchObject({ ownerId: "matt", name: "Pixel Perfect" });
   });
 
+  it("trades Green Build's flexibility for more Work than Quick Script", () => {
+    expect(getCard("green-build")).toMatchObject({ discipline: "infra", amount: 2 });
+    expect(getCard("quick-script")).toMatchObject({ discipline: "flexible", amount: 1 });
+  });
+
   it("uses Pitch In for one Unverified Work on a mismatched requirement", () => {
     let state = startCycle();
     state = playCard(state, "frontend-3", "status-composer", "backend");

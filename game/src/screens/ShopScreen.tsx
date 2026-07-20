@@ -30,7 +30,7 @@ const serviceCopy: Readonly<
   duplicate: { name: "Clone", rules: "Copy one non-Rare card.", icon: Copy },
   "debt-cleanup": {
     name: "Clean Debt",
-    rules: "Remove 1 Tech Debt.",
+    rules: "Remove 3 Tech Debt.",
     icon: CircleDollarSign,
   },
 };

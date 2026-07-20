@@ -1847,7 +1847,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         if (state.run.techDebt <= 0) return state;
         return {
           ...state,
-          run: reconcileTechDebt({ ...state.run, credits: state.run.credits - price }, -1),
+          run: reconcileTechDebt({ ...state.run, credits: state.run.credits - price }, -3),
         };
       }
 
@@ -1861,17 +1861,26 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
           : canDuplicateCard(instance);
       if (!eligible) return state;
 
-      const nextDeck =
+      const serviceRun =
         action.serviceId === "refactor"
-          ? state.run.deck.filter((card) => card.instanceId !== instance.instanceId)
-          : [
-              ...state.run.deck,
-              {
-                cardId: instance.cardId,
-                dynamicDefinition: instance.dynamicDefinition,
-                instanceId: `card-${state.run.nextCardInstanceId}`,
-              },
-            ];
+          ? instance.cardId === "tech-debt"
+            ? reconcileTechDebt(state.run, -3)
+            : {
+                ...state.run,
+                deck: state.run.deck.filter((card) => card.instanceId !== instance.instanceId),
+              }
+          : {
+              ...state.run,
+              deck: [
+                ...state.run.deck,
+                {
+                  cardId: instance.cardId,
+                  dynamicDefinition: instance.dynamicDefinition,
+                  instanceId: `card-${state.run.nextCardInstanceId}`,
+                },
+              ],
+              nextCardInstanceId: state.run.nextCardInstanceId + 1,
+            };
       return {
         screen: {
           ...state.screen,
@@ -1881,11 +1890,8 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
           },
         },
         run: {
-          ...state.run,
+          ...serviceRun,
           credits: state.run.credits - price,
-          deck: nextDeck,
-          nextCardInstanceId:
-            state.run.nextCardInstanceId + (action.serviceId === "duplicate" ? 1 : 0),
         },
       };
     }
@@ -1929,10 +1935,13 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       } else {
         const instance = run.deck.find((card) => card.instanceId === action.instanceId);
         if (!instance || !canRefactorCard(run, instance)) return state;
-        run = {
-          ...run,
-          deck: run.deck.filter((card) => card.instanceId !== instance.instanceId),
-        };
+        run =
+          instance.cardId === "tech-debt"
+            ? reconcileTechDebt(run, -3)
+            : {
+                ...run,
+                deck: run.deck.filter((card) => card.instanceId !== instance.instanceId),
+              };
       }
 
       const completedRun = completeNode(run, state.screen.nodeId);

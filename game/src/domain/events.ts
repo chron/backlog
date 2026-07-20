@@ -283,7 +283,8 @@ export const eventDefinitions: readonly EventDefinition[] = [
   {
     id: "coffee-summit",
     title: "Coffee Summit",
-    setup: "NZ and Melbourne agree to settle this properly. They do not agree on proper.",
+    setup:
+      "NZ and Melbourne agree to settle this properly. They do not agree on what ‘proper’ means.",
     artLabel: "FINAL FINAL CUP",
     artTreatment: "scope",
     eligibility: alwaysEligible,

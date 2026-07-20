@@ -301,6 +301,14 @@ function triggeredAutomationAmount(run: RunState, power: number): number {
   );
 }
 
+function automationPacketLabel(source: "CI" | "Run", amount: number, run: RunState): string {
+  const modifiers = [
+    run.tools.includes("cron-upgrade") ? "Cron ×2" : undefined,
+    run.tools.includes("platypus") ? "Platypus +1" : undefined,
+  ].filter(Boolean);
+  return `${source} +${amount}${modifiers.length > 0 ? ` (${modifiers.join(", ")})` : ""}`;
+}
+
 function cardBlockWithTools(run: RunState, block: number): number {
   return block > 0 && run.tools.includes("pangolin") ? block + 2 : block;
 }
@@ -602,6 +610,34 @@ export function resolveCardTarget(
     ) {
       return { legal: false, reason: "Install a Script or Guard here first." };
     }
+    const installedScriptPower =
+      requirement.scriptPower + (card.automation?.kind === "install" ? card.automation.power : 0);
+    const installedGuardPower =
+      requirement.scriptBlock +
+      (card.automation?.kind === "install" ? (card.automation.blockPower ?? 0) : 0);
+    let previewRemaining = remainingWork(requirement);
+    const ciRunAmount =
+      card.automation?.kind === "install" &&
+      card.automation.power > 0 &&
+      run.tools.includes("ci-runner")
+        ? Math.min(triggeredAutomationAmount(run, card.automation.power), previewRemaining)
+        : 0;
+    previewRemaining -= ciRunAmount;
+    const afterInstallLabels = (card.triggerAutomationAfterInstall ?? []).map((meter) => {
+      if (meter === "guard") {
+        return automationPacketLabel(
+          "Run",
+          triggeredAutomationAmount(run, installedGuardPower),
+          run,
+        );
+      }
+      const amount = Math.min(
+        triggeredAutomationAmount(run, installedScriptPower),
+        previewRemaining,
+      );
+      previewRemaining -= amount;
+      return amount > 0 ? automationPacketLabel("Run", amount, run) : undefined;
+    });
     return {
       ...tacticBase,
       kind: "tactic",
@@ -615,9 +651,10 @@ export function resolveCardTarget(
         card.automation?.kind === "install" && card.automation.blockPower
           ? `Guard +${card.automation.blockPower}`
           : undefined,
+        ciRunAmount > 0 ? automationPacketLabel("CI", ciRunAmount, run) : undefined,
         card.doubleTargetAutomationMeters ? "Script + Guard ×2" : undefined,
         card.triggerTargetAutomation ? `Trigger ${card.triggerTargetAutomation.times}×` : undefined,
-        card.triggerAutomationAfterInstall ? "Trigger" : undefined,
+        ...afterInstallLabels,
       ]
         .filter(Boolean)
         .join(" · "),
@@ -1112,8 +1149,12 @@ export function resolveCardTarget(
                 : `+${amount} ${workKind === "verified" ? "Verified" : "Unverified"}`
               : undefined,
             scriptPowerAdded > 0 ? `Script +${scriptPowerAdded}` : undefined,
-            scriptInstallRunAmount > 0 ? `Run +${scriptInstallRunAmount}` : undefined,
-            scriptTriggerRunAmount > 0 ? `Trigger +${scriptTriggerRunAmount}` : undefined,
+            scriptInstallRunAmount > 0
+              ? automationPacketLabel("CI", scriptInstallRunAmount, run)
+              : undefined,
+            scriptTriggerRunAmount > 0
+              ? automationPacketLabel("Run", scriptTriggerRunAmount, run)
+              : undefined,
             verifiedWorkHits[0]
               ? `${disciplineLabel(verifiedWorkHits[0].discipline)} spill +${verifiedWorkHits[0].amount}`
               : undefined,
@@ -1141,8 +1182,12 @@ export function resolveCardTarget(
             blockGained > 0 ? `Block ${blockGained}` : undefined,
             techDebtAdded > 0 ? `Debt +${techDebtAdded}` : undefined,
             scriptPowerAdded > 0 ? `Script +${scriptPowerAdded}` : undefined,
-            scriptInstallRunAmount > 0 ? `Run +${scriptInstallRunAmount}` : undefined,
-            scriptTriggerRunAmount > 0 ? `Trigger +${scriptTriggerRunAmount}` : undefined,
+            scriptInstallRunAmount > 0
+              ? automationPacketLabel("CI", scriptInstallRunAmount, run)
+              : undefined,
+            scriptTriggerRunAmount > 0
+              ? automationPacketLabel("Run", scriptTriggerRunAmount, run)
+              : undefined,
             verifiedWorkHits[0]
               ? `${disciplineLabel(verifiedWorkHits[0].discipline)} spill +${verifiedWorkHits[0].amount}`
               : undefined,

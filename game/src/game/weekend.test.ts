@@ -5,6 +5,7 @@ import {
   weekendSideGigCredits,
   weekendSideGigMoraleCost,
 } from "../domain/weekend";
+import { reconcileTechDebt } from "./eventResolution";
 import { gameReducer, initialGameState, type GameState } from "./gameReducer";
 
 function startWeekend(morale = 6): GameState {
@@ -74,6 +75,24 @@ describe("Weekend stop", () => {
     expect(state.run?.deck).not.toContainEqual(removed);
     expect(state.run?.deck).toHaveLength(9);
     expect(state.run?.completedNodeIds).toContain("weekend-1");
+  });
+
+  it("lets a Weekend Refactor pay down one full Tech Debt card", () => {
+    let state = startWeekend();
+    if (state.screen.name !== "weekend" || !state.run) throw new Error("Expected a Weekend");
+    state = { ...state, run: reconcileTechDebt(state.run, 3) };
+    if (!state.run) throw new Error("Expected a run with Tech Debt");
+    const debt = state.run.deck.find((card) => card.cardId === "tech-debt");
+    if (!debt) throw new Error("Expected Tech Debt in deck");
+
+    state = gameReducer(state, {
+      type: "CHOOSE_WEEKEND",
+      choiceId: "refactor",
+      instanceId: debt.instanceId,
+    });
+
+    expect(state.run?.techDebt).toBe(0);
+    expect(state.run?.deck.some((card) => card.cardId === "tech-debt")).toBe(false);
   });
 
   it("keeps full-Morale Rest and minimum-deck Refactor visibly unavailable", () => {

@@ -2642,7 +2642,7 @@ main:focus {
   }
 
   .cycle-screen--boss {
-    grid-template-rows: 64px auto minmax(0, 1fr) 250px;
+    grid-template-rows: auto auto minmax(0, 1fr) 250px;
   }
 
   .task-board--1 {
@@ -5587,7 +5587,7 @@ main:focus {
     display: grid;
     height: 100dvh;
     min-height: 0;
-    grid-template-rows: 64px auto minmax(0, 1fr) 250px;
+    grid-template-rows: auto auto minmax(0, 1fr) 250px;
     gap: 0.7rem;
     padding-top: 0.7rem;
     padding-bottom: 0.35rem;

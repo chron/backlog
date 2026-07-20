@@ -34,7 +34,10 @@ export const shopServicePrices: Readonly<Record<ShopServiceId, number>> = {
 export const minimumDeckSize = 5;
 
 export function canRefactorCard(run: RunState, instance: CardInstance): boolean {
-  return run.deck.length > minimumDeckSize && instance.cardId !== "tech-debt";
+  return (
+    run.deck.length > minimumDeckSize &&
+    run.deck.some((candidate) => candidate.instanceId === instance.instanceId)
+  );
 }
 
 export function canDuplicateCard(instance: CardInstance): boolean {

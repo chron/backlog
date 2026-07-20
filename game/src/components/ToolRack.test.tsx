@@ -8,7 +8,7 @@ describe("ToolRack", () => {
 
     expect(markup).toContain('aria-label="Tools"');
     expect(markup).toContain('aria-label="Pairing Session"');
-    expect(markup).toContain("All Pitch In Work is Verified.");
+    expect(markup).toContain("Mismatched Work contributes 1 Verified instead of 1 Unverified.");
     expect(markup).toContain('aria-label="Merge Queue"');
     expect(markup).toContain("draw 2 cards and gain 1 Focus");
   });

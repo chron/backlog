@@ -166,7 +166,7 @@ describe("Madi's automation engine", () => {
       cardId: "agentic-loop",
       taskId: "status-composer",
       discipline: "frontend",
-      label: "Frontend +2 unverified · Script +1 · Trigger +1",
+      label: "Frontend +2 unverified · Script +1 · Run +1",
       generated: false,
       generatedByCardId: undefined,
       exhausted: false,
@@ -208,7 +208,7 @@ describe("Madi's automation engine", () => {
       scriptPower: 2,
     });
     expect(state.run?.history.at(-1)).toMatchObject({
-      label: "Frontend +2 unverified · Script +1 · Run +2 · Trigger +4",
+      label: "Frontend +2 unverified · Script +1 · CI +2 (Cron ×2) · Run +4 (Cron ×2)",
     });
   });
 
