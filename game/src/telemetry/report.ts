@@ -65,12 +65,8 @@ function summarizeGroups(
         wins,
         winRate: completed.length === 0 ? 0 : wins / completed.length,
         averageDurationMinutes: round(average(matching.map((run) => run.durationMs / 60_000))),
-        averageEndingMorale: round(
-          average(matching.flatMap((run) => run.endingMorale ?? [])),
-        ),
-        averageEndingTechDebt: round(
-          average(matching.flatMap((run) => run.endingTechDebt ?? [])),
-        ),
+        averageEndingMorale: round(average(matching.flatMap((run) => run.endingMorale ?? []))),
+        averageEndingTechDebt: round(average(matching.flatMap((run) => run.endingTechDebt ?? []))),
       };
     })
     .sort((left, right) => right.runs - left.runs || left.label.localeCompare(right.label));
@@ -84,9 +80,8 @@ export function createProductionTelemetryReport(
   const outcomes = [...new Set(runs.map((run) => run.outcome ?? `incomplete-on-${run.lastScreen}`))]
     .map((label) => ({
       label,
-      runs: runs.filter(
-        (run) => (run.outcome ?? `incomplete-on-${run.lastScreen}`) === label,
-      ).length,
+      runs: runs.filter((run) => (run.outcome ?? `incomplete-on-${run.lastScreen}`) === label)
+        .length,
     }))
     .sort((left, right) => right.runs - left.runs || left.label.localeCompare(right.label));
   return {
@@ -144,9 +139,11 @@ export function formatProductionTelemetryReport(report: ProductionTelemetryRepor
     "RECENT RUNS",
     ...(report.recentRuns.length === 0
       ? ["  The telemetry cupboard is currently bare."]
-      : report.recentRuns.slice(0, 12).map(
-          (run) =>
-            `  ${run.startedAt.slice(0, 16).replace("T", " ")}  ${(run.outcome ?? "incomplete").padEnd(10)}  ${(run.squad.join("/") || "no-squad").padEnd(24)}  ${duration(run.durationMs).padStart(7)}  M${String(run.endingMorale ?? "-").padStart(2)} D${String(run.endingTechDebt ?? "-").padStart(2)}  ${run.runId.slice(-8)}`,
-        )),
+      : report.recentRuns
+          .slice(0, 12)
+          .map(
+            (run) =>
+              `  ${run.startedAt.slice(0, 16).replace("T", " ")}  ${(run.outcome ?? "incomplete").padEnd(10)}  ${(run.squad.join("/") || "no-squad").padEnd(24)}  ${duration(run.durationMs).padStart(7)}  M${String(run.endingMorale ?? "-").padStart(2)} D${String(run.endingTechDebt ?? "-").padStart(2)}  ${run.runId.slice(-8)}`,
+          )),
   ].join("\n");
 }

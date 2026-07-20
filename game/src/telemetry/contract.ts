@@ -1,7 +1,7 @@
 export const telemetrySchemaVersion = 1 as const;
 export const maxTelemetryEventsPerBatch = 25;
 
-export const telemetryActionTypes = [
+const telemetryActionTypes = [
   "START_RUN",
   "TOGGLE_DEVELOPER",
   "CONFIRM_SQUAD",
@@ -28,7 +28,7 @@ export const telemetryActionTypes = [
   "RETURN_TITLE",
 ] as const;
 
-export const telemetryScreens = [
+const telemetryScreens = [
   "title",
   "squad",
   "map",
@@ -42,7 +42,7 @@ export const telemetryScreens = [
   "retro",
 ] as const;
 
-export const telemetryDetailKeys = [
+const telemetryDetailKeys = [
   "seed",
   "developerId",
   "nodeId",
@@ -59,10 +59,10 @@ export const telemetryDetailKeys = [
   "serviceId",
 ] as const;
 
-export type TelemetryActionType = (typeof telemetryActionTypes)[number];
-export type TelemetryScreen = (typeof telemetryScreens)[number];
-export type TelemetryDetailKey = (typeof telemetryDetailKeys)[number];
-export type TelemetryDetailValue = string | number | boolean | null;
+type TelemetryActionType = (typeof telemetryActionTypes)[number];
+type TelemetryScreen = (typeof telemetryScreens)[number];
+type TelemetryDetailKey = (typeof telemetryDetailKeys)[number];
+type TelemetryDetailValue = string | number | boolean | null;
 export type TelemetryDetails = Partial<Record<TelemetryDetailKey, TelemetryDetailValue>>;
 
 export interface ProductionRunSnapshot {
@@ -218,7 +218,9 @@ function isEvent(value: unknown): value is ProductionTelemetryEvent {
   );
 }
 
-export function parseProductionTelemetryBatch(value: unknown): ProductionTelemetryBatch | undefined {
+export function parseProductionTelemetryBatch(
+  value: unknown,
+): ProductionTelemetryBatch | undefined {
   if (!isRecord(value) || value.schemaVersion !== telemetrySchemaVersion) return undefined;
   if (typeof value.runId !== "string" || !/^[a-z0-9-]{1,80}$/.test(value.runId)) return undefined;
   if (
