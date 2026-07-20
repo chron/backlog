@@ -3,6 +3,14 @@ import { createPlaytestReport, formatPlaytestReport } from "./report";
 import { playtestScenarios, simulatePlaytestRun } from "./simulator";
 
 describe("scripted playtest harness", () => {
+  it("includes the three real squads as first-class calibration scenarios", () => {
+    expect(playtestScenarios.slice(0, 3).map((scenario) => scenario.id)).toEqual([
+      "research-squad",
+      "platform-squad",
+      "panel-squad",
+    ]);
+  });
+
   it("replays every build scenario deterministically through the real reducer", () => {
     const first = playtestScenarios.map((scenario, index) =>
       simulatePlaytestRun(scenario, 4_200 + index),
@@ -40,8 +48,27 @@ describe("scripted playtest harness", () => {
 
     expect(report.runs).toEqual(runs);
     expect(output).toContain("LGTM! // SCRIPTED PLAYTESTS");
-    expect(output).toContain("Card Storm");
+    expect(output).toContain("Research Squad");
+    expect(output).toContain("LAUNCH RATE");
+    expect(output).toContain("REACH");
+    expect(output).toContain("CLEAN");
     expect(output).toContain("FINAL RELEASE BOSSES");
     expect(output).toContain("SMOKE SIGNALS");
+  });
+
+  it("matches the launch shape of the three successful human calibration runs", () => {
+    const calibrations = [
+      ["research-squad", 1_631_439_361],
+      ["platform-squad", 2_226_205_479],
+      ["panel-squad", 3_674_038_866],
+    ] as const;
+
+    for (const [scenarioId, seed] of calibrations) {
+      const scenario = playtestScenarios.find((candidate) => candidate.id === scenarioId)!;
+      const run = simulatePlaytestRun(scenario, seed);
+      expect(run.reachedFinalRelease).toBe(true);
+      expect(run.launchedFinalRelease).toBe(true);
+      expect(run.cause).toBe("technically-shipped");
+    }
   });
 });

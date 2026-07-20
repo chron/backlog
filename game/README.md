@@ -58,8 +58,8 @@ exposing player data through a public reporting endpoint.
 
 ## Scripted balance runs
 
-Run the six current build families through seeded, headless acts using the real
-game reducer:
+Run the three real squads and six build families through seeded, headless acts
+using the real game reducer:
 
 ```bash
 bun run playtest
@@ -69,10 +69,16 @@ bun run playtest --scenario automation --deck showcase
 
 The default uses the ordinary Starter deck for a fair comparison with human
 runs. `--deck showcase` adds six build-defining cards to test an assembled
-engine. The terminal dashboard compares win rate, Days, ending Morale and Tech
-Debt, cards played per Day, peak Chain, installed Scripts, prevented damage, and
-dead hands. `--policy careful` and `--policy velocity` provide intentionally
-imperfect alternate pilots. The JSON option includes every raw run for deeper
+engine. The deterministic pilot plans a bounded sequence of plays, shipping
+decisions, and the real End Day resolution rather than greedily choosing one
+card at a time. It also skips weak rewards, values synergistic Tools and Shop
+services, and avoids Incidents when its current run looks too fragile.
+
+The terminal dashboard reports reaching Final Release, launching, and clean
+victory separately, alongside Days, ending Morale and Tech Debt, cards played
+per Day, peak Chain, installed Scripts, prevented damage, and dead hands.
+`--policy careful` and `--policy velocity` provide intentionally imperfect
+alternate risk profiles. The JSON option includes every raw run for deeper
 analysis or future charts.
 
 ### Human calibration runs

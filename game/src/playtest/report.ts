@@ -4,6 +4,10 @@ interface PlaytestScenarioSummary {
   scenarioId: string;
   scenarioName: string;
   runs: number;
+  reachedFinalRelease: number;
+  reachRate: number;
+  launchedFinalRelease: number;
+  launchRate: number;
   wins: number;
   winRate: number;
   stalled: number;
@@ -28,7 +32,13 @@ export interface PlaytestBatchReport {
   generatedAt: string;
   totalRuns: number;
   summaries: PlaytestScenarioSummary[];
-  bossWinRates: { bossId: string; runs: number; winRate: number }[];
+  bossWinRates: {
+    bossId: string;
+    runs: number;
+    reachRate: number;
+    launchRate: number;
+    winRate: number;
+  }[];
   outcomeCounts: { outcome: string; runs: number }[];
   diagnostics: string[];
   runs: PlaytestRunResult[];
@@ -45,11 +55,17 @@ function round(value: number, places = 1): number {
 
 function summarizeGroup(runs: readonly PlaytestRunResult[]): PlaytestScenarioSummary {
   const wins = runs.filter((run) => run.outcome === "victory").length;
+  const reachedFinalRelease = runs.filter((run) => run.reachedFinalRelease).length;
+  const launchedFinalRelease = runs.filter((run) => run.launchedFinalRelease).length;
   const days = runs.map((run) => run.days);
   return {
     scenarioId: runs[0]?.scenarioId ?? "unknown",
     scenarioName: runs[0]?.scenarioName ?? "Unknown",
     runs: runs.length,
+    reachedFinalRelease,
+    reachRate: runs.length === 0 ? 0 : reachedFinalRelease / runs.length,
+    launchedFinalRelease,
+    launchRate: runs.length === 0 ? 0 : launchedFinalRelease / runs.length,
     wins,
     winRate: runs.length === 0 ? 0 : wins / runs.length,
     stalled: runs.filter((run) => run.outcome === "stalled" || run.outcome === "incomplete").length,
@@ -90,6 +106,14 @@ export function createPlaytestReport(
     return {
       bossId,
       runs: bossRuns.length,
+      reachRate:
+        bossRuns.length === 0
+          ? 0
+          : bossRuns.filter((run) => run.reachedFinalRelease).length / bossRuns.length,
+      launchRate:
+        bossRuns.length === 0
+          ? 0
+          : bossRuns.filter((run) => run.launchedFinalRelease).length / bossRuns.length,
       winRate:
         bossRuns.length === 0
           ? 0
@@ -116,7 +140,14 @@ export function createPlaytestReport(
         `${summary.scenarioName}: loop guard tripped ${summary.loopGuardTrips} times; inspect for an infinite or excessively long turn.`,
       );
     }
-    if (summary.winRate === 0) diagnostics.push(`${summary.scenarioName}: no wins in this batch.`);
+    if (summary.reachRate === 0) {
+      diagnostics.push(`${summary.scenarioName}: never reached Final Release.`);
+    } else if (summary.launchRate === 0) {
+      diagnostics.push(`${summary.scenarioName}: reached Final Release but never launched.`);
+    }
+    if (summary.winRate === 0) {
+      diagnostics.push(`${summary.scenarioName}: no clean wins in this batch.`);
+    }
     if (summary.winRate === 1 && summary.averageEndingMorale >= 8) {
       diagnostics.push(
         `${summary.scenarioName}: 100% wins with high Morale; may be under-pressured.`,
@@ -168,7 +199,9 @@ export function formatPlaytestReport(report: PlaytestBatchReport): string {
   const human = report.runs.length > 0 && report.runs.every((run) => run.policy === "human");
   const rows = report.summaries.map((summary) => [
     pad(summary.scenarioName, 24, "left"),
-    `${bar(summary.winRate)} ${pad(percent(summary.winRate), 4)}`,
+    `${bar(summary.launchRate)} ${pad(percent(summary.launchRate), 4)}`,
+    pad(percent(summary.reachRate), 5),
+    pad(percent(summary.winRate), 5),
     pad(summary.averageEncounters.toFixed(1), 6),
     pad(summary.averageCyclesShipped.toFixed(1), 7),
     pad(summary.averageDays.toFixed(1), 5),
@@ -183,7 +216,9 @@ export function formatPlaytestReport(report: PlaytestBatchReport): string {
   ]);
   const header = [
     pad("BUILD", 24, "left"),
-    pad("WIN RATE", 17, "left"),
+    pad("LAUNCH RATE", 17, "left"),
+    pad("REACH", 5),
+    pad("CLEAN", 5),
     pad("FIGHTS", 6),
     pad("SHIPPED", 7),
     pad("DAYS", 5),
@@ -199,7 +234,7 @@ export function formatPlaytestReport(report: PlaytestBatchReport): string {
   const separator = header.map((column) => "─".repeat(column.length));
   const bossRows = report.bossWinRates.map(
     (boss) =>
-      `  ${pad(boss.bossId, 18, "left")} ${bar(boss.winRate, 16)} ${pad(percent(boss.winRate), 4)}  (${boss.runs} runs)`,
+      `  ${pad(boss.bossId, 25, "left")} ${pad(percent(boss.reachRate), 4)} reached · ${bar(boss.launchRate, 12)} ${pad(percent(boss.launchRate), 4)} launched · ${pad(percent(boss.winRate), 4)} clean  (${boss.runs} runs)`,
   );
   const diagnostics =
     report.diagnostics.length === 0
