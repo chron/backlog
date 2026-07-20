@@ -87,7 +87,9 @@ describe("card glossary", () => {
   });
 
   it("explains Seb's cascades and Matt's real overflow Review", () => {
-    expect(termsFor("use-the-component")).toEqual(["Shared Components"]);
+    expect(termsFor("use-the-component")).toEqual(["Spread"]);
+    expect(termsFor("extract-component")).toContain("Shared Components");
+    expect(termsFor("polish-the-primitives")).toEqual(["Spread", "Verify", "Clean"]);
     expect(termsFor("design-system-migration")).toEqual(["Script", "Exhaust"]);
     expect(termsFor("polish-budget")).toEqual(["Finishing Touches", "Exhaust"]);
     expect(termsFor("pixel-perfect")).toEqual([
@@ -100,21 +102,17 @@ describe("card glossary", () => {
   });
 
   it("explains Toby, Steph, and Elspeth's support mechanics", () => {
-    expect(termsFor("on-call")).toEqual(expect.arrayContaining(["Block", "Crunch Conversion"]));
+    expect(termsFor("on-call")).toEqual(["Block"]);
     expect(termsFor("useful-alerting")).toEqual(
       expect.arrayContaining(["Script", "Trigger", "Guard"]),
     );
-    expect(termsFor("refactor-the-workflow")).toEqual(
-      expect.arrayContaining(["Script", "Paved Road"]),
-    );
+    expect(termsFor("refactor-the-workflow")).toEqual(["Script"]);
     expect(termsFor("macro")).toEqual(
       expect.arrayContaining(["Script", "Trigger", "Guard", "Generated", "Exhaust"]),
     );
-    expect(termsFor("psychological-safety")).toEqual(
-      expect.arrayContaining(["Healthy Pace", "Exhaust"]),
-    );
+    expect(termsFor("psychological-safety")).toEqual(["Exhaust"]);
     expect(termsFor("healthy-guardrails")).toEqual(
-      expect.arrayContaining(["Script", "Trigger", "Guard", "Healthy Pace", "Any"]),
+      expect.arrayContaining(["Script", "Trigger", "Guard", "Any"]),
     );
   });
 });

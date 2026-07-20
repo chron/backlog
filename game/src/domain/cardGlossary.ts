@@ -18,17 +18,17 @@ const glossary: readonly GlossaryDefinition[] = [
     appliesTo: (card) => Boolean(card.spawnSideQuest),
   },
   {
+    id: "spread",
+    term: "Spread",
+    description: "Adds Verified Frontend Work to every other open Task.",
+    appliesTo: (card) => Boolean(card.frontendSpreadToOtherTasks || card.frontendSpreadIfTaskClean),
+  },
+  {
     id: "shared-components",
     term: "Shared Components",
     description:
       "Completing Frontend with Verified Work echoes 1 Frontend Work to every other open Task; echoes can cascade.",
-    appliesTo: (card) =>
-      Boolean(
-        card.frontendSpreadToOtherTasks ||
-        card.frontendWorkToEveryTask ||
-        card.extraSharedComponentsOnCompletion ||
-        card.frontendSpreadIfTaskClean,
-      ),
+    appliesTo: (card) => Boolean(card.extraSharedComponentsOnCompletion),
   },
   {
     id: "finishing-touches",
@@ -241,34 +241,6 @@ const glossary: readonly GlossaryDefinition[] = [
         card.triggerAllTaskGuardsAfterWork ||
         card.triggerTargetAutomation?.guard,
       ),
-  },
-  {
-    id: "crunch-conversion",
-    term: "Crunch Conversion",
-    description:
-      "With Toby, Block that prevents Crunch becomes equal Verified Work on the affected Task.",
-    appliesTo: (card) => Boolean(card.blockEqualIncomingMorale || card.crunchConversionMode),
-  },
-  {
-    id: "paved-road",
-    term: "Paved Road",
-    description: "With Steph, each Script or Guard meter increased grants 1 Focus.",
-    appliesTo: (card) =>
-      card.ownerId === "steph" &&
-      Boolean(
-        card.automation?.kind === "install" ||
-        card.doubleTargetAutomationMeters ||
-        card.scriptPowerPerIncompleteRequirement,
-      ),
-  },
-  {
-    id: "flexible-block",
-    term: "Healthy Pace",
-    description:
-      "With Elspeth, playing an explicitly Flexible card gains Block before its effects resolve.",
-    appliesTo: (card) =>
-      card.ownerId === "elspeth" &&
-      (card.tags.includes("flexible") || Boolean(card.cycleFlexibleBlockBonus)),
   },
   {
     id: "tech-debt",

@@ -1,11 +1,12 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
+import type { DeveloperId } from "../domain/models";
 import { gameReducer, initialGameState } from "../game/gameReducer";
 import { TaskPanel } from "./TaskPanel";
 
-function cycleFixture() {
+function cycleFixture(squad: readonly DeveloperId[] = ["paul", "odin", "madi"]) {
   let state = gameReducer(initialGameState, { type: "START_RUN", seed: 42 });
-  for (const developerId of ["paul", "odin", "madi"] as const) {
+  for (const developerId of squad) {
     state = gameReducer(state, { type: "TOGGLE_DEVELOPER", developerId });
   }
   state = gameReducer(state, { type: "CONFIRM_SQUAD" });
@@ -58,5 +59,27 @@ describe("TaskPanel", () => {
     expect(markup).toContain("5 Defects");
     expect(markup).toContain("+7 Debt");
     expect(markup).not.toContain("Morale lost");
+  });
+
+  it("exposes requirement drop targets for Script and Guard tactics", () => {
+    const run = cycleFixture(["seb", "toby", "steph"] as const);
+    const task = run.cycle!.tasks[0]!;
+    const requirement = task.requirements[0]!;
+
+    for (const cardId of ["one-click-setup", "guardrails-not-gatekeepers"] as const) {
+      const markup = renderToStaticMarkup(
+        <TaskPanel
+          run={run}
+          task={task}
+          taskName={task.name ?? task.taskId}
+          selectedCard={{ cardId, instanceId: `test-${cardId}` }}
+          onTarget={() => undefined}
+          onShip={() => undefined}
+        />,
+      );
+
+      expect(markup).toContain(`data-card-target="${task.taskId}:${requirement.discipline}"`);
+      expect(markup).toContain("is-targetable");
+    }
   });
 });

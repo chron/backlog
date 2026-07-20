@@ -47,6 +47,25 @@ describe("EventScreen", () => {
     expect(markup).toMatch(/<button[^>]*disabled=""[^>]*>.*Duet/s);
   });
 
+  it("previews fixed card rewards from the Event choice itself", () => {
+    const markup = renderToStaticMarkup(
+      <EventScreen
+        dispatch={() => undefined}
+        run={testRun()}
+        eventId="design-opened-a-pr"
+        onInspectDeck={() => undefined}
+      />,
+    );
+
+    expect(markup).toContain("choice-preview-wrap has-card-preview");
+    expect(markup).toContain("Card reward: Pair Programming.");
+    expect(markup).toContain("Pair Programming, costs 1 Focus");
+    expect(markup).toContain("choice-card-preview");
+    const previewMarkup = markup.match(/<div class="choice-card-preview"[^>]*>(.*?)<\/div>/s)?.[1];
+    expect(previewMarkup).toMatch(/<button[^>]*tabindex="-1"[^>]*aria-hidden="true"/s);
+    expect(previewMarkup).not.toContain("disabled");
+  });
+
   it("keeps authored Event titles hidden on the map", () => {
     const markup = renderToStaticMarkup(
       <MapScreen dispatch={() => undefined} run={testRun()} onInspectDeck={() => undefined} />,

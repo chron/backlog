@@ -120,7 +120,10 @@ export function TaskPanel({
                 discipline: requirement.discipline,
               })
             : undefined;
-          const legalTarget = selectedCard && preview?.legal && preview.kind === "work";
+          const legalTarget =
+            selectedCard &&
+            preview?.legal &&
+            (preview.kind === "work" || preview.kind === "tactic");
           const progress = requirementProgress(requirement);
           const verifiedPercent = (requirement.verified / requirement.target) * 100;
           const unverifiedPercent = (requirement.unverified / requirement.target) * 100;

@@ -1,7 +1,7 @@
 import type { DispatchProps, RunProps } from "../app/types";
 import { CardCollectionEntry } from "../components/CardCollectionBrowser";
 import { GameCard } from "../components/GameCard";
-import { getCardForInstance } from "../domain/content";
+import { getCard, getCardForInstance } from "../domain/content";
 import type { CardInstance } from "../domain/models";
 import { getEvent } from "../domain/events";
 import { resolveEventChoice, type EventPendingSelection } from "../game/eventResolution";
@@ -94,26 +94,54 @@ export function EventScreen({
         <div className="choice-stack">
           {event.choices.map((choice) => {
             const resolved = resolveEventChoice(choice, run);
+            const rewardCardId = choice.effects.find(
+              (effect) => effect.kind === "deck-surgery" && effect.operation === "add",
+            )?.cardId;
+            const rewardCard = rewardCardId ? getCard(rewardCardId) : undefined;
+            const rewardHelpId = rewardCard ? `event-choice-card-${choice.id}` : undefined;
             return (
-              <button
-                className={`choice choice--${choice.tone}`}
-                type="button"
+              <div
+                className={`choice-preview-wrap${rewardCard ? " has-card-preview" : ""}`}
                 key={choice.id}
-                disabled={Boolean(resolved.disabledReason)}
-                onClick={() => dispatch({ type: "CHOOSE_EVENT", choiceId: choice.id })}
               >
-                <strong>{choice.label}</strong>
-                <span className="choice__outcomes">
-                  {resolved.outcome.map((outcome) => (
-                    <span className={`choice__outcome is-${outcome.tone}`} key={outcome.text}>
-                      {outcome.text}
+                <button
+                  className={`choice choice--${choice.tone}`}
+                  type="button"
+                  disabled={Boolean(resolved.disabledReason)}
+                  aria-describedby={rewardHelpId}
+                  onClick={() => dispatch({ type: "CHOOSE_EVENT", choiceId: choice.id })}
+                >
+                  <strong>{choice.label}</strong>
+                  <span className="choice__outcomes">
+                    {resolved.outcome.map((outcome) => (
+                      <span className={`choice__outcome is-${outcome.tone}`} key={outcome.text}>
+                        {outcome.text}
+                      </span>
+                    ))}
+                  </span>
+                  {resolved.disabledReason && (
+                    <span className="choice__reason">{resolved.disabledReason}</span>
+                  )}
+                </button>
+                {rewardCard && rewardCardId && (
+                  <>
+                    <span className="sr-only" id={rewardHelpId}>
+                      Card reward: {rewardCard.name}. {rewardCard.rules}
                     </span>
-                  ))}
-                </span>
-                {resolved.disabledReason && (
-                  <span className="choice__reason">{resolved.disabledReason}</span>
+                    <div className="choice-card-preview" aria-hidden="true">
+                      <GameCard
+                        instance={{
+                          cardId: rewardCardId,
+                          instanceId: `event-preview-${choice.id}`,
+                        }}
+                        effectiveCost={rewardCard.cost}
+                        selected={false}
+                        presentationOnly
+                      />
+                    </div>
+                  </>
                 )}
-              </button>
+              </div>
             );
           })}
         </div>

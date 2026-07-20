@@ -7,7 +7,7 @@ import titleNickSharkimedes from "../assets/title/title-nick-sharkimedes-v1.webp
 import titlePanel from "../assets/title/title-panel-v1.webp";
 import titlePlatform from "../assets/title/title-platform-v1.webp";
 import titleShipIt from "../assets/title/title-ship-it-v1.webp";
-import titleSquadCutIn from "../assets/title/title-squad-cut-in-v1.webp";
+import titleSquadCutIn from "../assets/title/title-squad-cut-in-v2.webp";
 import { formatLgtmExpansion, getLgtmExpansion, lgtmExpansions } from "../brand";
 import { createRequestedRunSeed } from "../game/random";
 import { restartCombatTutorial } from "../tutorial/combatTutorialState";
@@ -17,29 +17,24 @@ interface TitleScreenProps extends DispatchProps {
 }
 
 const titleHeroOptions = {
-  "cut-in": { label: "Squad Cut-In", src: titleSquadCutIn },
-  platform: { label: "Platform", src: titlePlatform },
-  merge: { label: "Merge Conflict", src: titleMergeConflict },
-  panel: { label: "Panel", src: titlePanel },
-  ship: { label: "Ship It", src: titleShipIt },
-  levi: { label: "Levi", src: titleLeviSolo },
-  "nick-sharkimedes": { label: "Nick + Sharkimedes", src: titleNickSharkimedes },
+  "cut-in": titleSquadCutIn,
+  platform: titlePlatform,
+  merge: titleMergeConflict,
+  panel: titlePanel,
+  ship: titleShipIt,
+  levi: titleLeviSolo,
+  "nick-sharkimedes": titleNickSharkimedes,
 } as const;
 
 type TitleHeroKey = keyof typeof titleHeroOptions;
 
 const titleHeroKeys = Object.keys(titleHeroOptions) as TitleHeroKey[];
 
-function getRequestedTitleHero(): TitleHeroKey {
-  const requested = new URLSearchParams(window.location.search).get("hero");
-  return requested && requested in titleHeroOptions ? (requested as TitleHeroKey) : "cut-in";
-}
-
 export function TitleScreen({ dispatch, onOpenAchievements }: TitleScreenProps) {
   const [expansionIndex, setExpansionIndex] = useState(() =>
     Math.floor(Math.random() * lgtmExpansions.length),
   );
-  const [titleHeroKey, setTitleHeroKey] = useState(getRequestedTitleHero);
+  const [titleHeroKey, setTitleHeroKey] = useState<TitleHeroKey>("cut-in");
   const expansion = getLgtmExpansion(expansionIndex);
 
   useEffect(() => {
@@ -60,17 +55,10 @@ export function TitleScreen({ dispatch, onOpenAchievements }: TitleScreenProps) 
     }, 10_000);
 
     return () => window.clearInterval(interval);
-  }, [titleHeroKey]);
+  }, []);
 
   const startRun = () =>
     dispatch({ type: "START_RUN", seed: createRequestedRunSeed(window.location.search) });
-
-  const selectTitleHero = (heroKey: TitleHeroKey) => {
-    const url = new URL(window.location.href);
-    url.searchParams.set("hero", heroKey);
-    window.history.replaceState(null, "", url);
-    setTitleHeroKey(heroKey);
-  };
 
   return (
     <section className="screen title-screen" aria-labelledby="title-heading">
@@ -114,7 +102,8 @@ export function TitleScreen({ dispatch, onOpenAchievements }: TitleScreenProps) 
           </button>
         </div>
       </div>
-      <div className={`title-screen__canvas title-screen__canvas--${titleHeroKey}`}>
+      <figure className={`title-screen__canvas title-screen__canvas--${titleHeroKey}`}>
+        <figcaption className="sr-only">LGTM team artwork</figcaption>
         <div className="canvas-note canvas-note--one" aria-hidden="true">
           LOOKS GOOD*
         </div>
@@ -124,27 +113,12 @@ export function TitleScreen({ dispatch, onOpenAchievements }: TitleScreenProps) 
         {titleHeroKeys.map((heroKey) => (
           <img
             className={`title-screen__art title-screen__art--${heroKey} ${heroKey === titleHeroKey ? "is-active" : ""}`}
-            src={titleHeroOptions[heroKey].src}
+            src={titleHeroOptions[heroKey]}
             alt=""
             key={heroKey}
           />
         ))}
-        {import.meta.env.DEV && (
-          <fieldset className="title-art-picker">
-            <legend className="sr-only">Preview title artwork</legend>
-            {titleHeroKeys.map((heroKey) => (
-              <button
-                type="button"
-                key={heroKey}
-                aria-pressed={heroKey === titleHeroKey}
-                onClick={() => selectTitleHero(heroKey)}
-              >
-                {titleHeroOptions[heroKey].label}
-              </button>
-            ))}
-          </fieldset>
-        )}
-      </div>
+      </figure>
     </section>
   );
 }

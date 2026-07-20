@@ -9,6 +9,7 @@ interface GameCardProps {
   effectiveCost: number;
   selected: boolean;
   disabled?: boolean;
+  presentationOnly?: boolean;
   onSelect?: () => void;
   onPointerDown?: PointerEventHandler<HTMLButtonElement>;
   onPointerMove?: PointerEventHandler<HTMLButtonElement>;
@@ -22,6 +23,7 @@ export function GameCard({
   effectiveCost,
   selected,
   disabled,
+  presentationOnly,
   onSelect,
   onPointerDown,
   onPointerMove,
@@ -79,13 +81,15 @@ export function GameCard({
       style={{ "--card-accent": cardAccent } as React.CSSProperties}
       type="button"
       disabled={disabled || unplayable}
+      tabIndex={presentationOnly ? -1 : undefined}
+      aria-hidden={presentationOnly ? true : undefined}
       aria-describedby={glossaryEntries.length > 0 ? glossaryId : undefined}
       aria-pressed={unplayable || !onSelect ? undefined : selected}
-      onClick={unplayable ? undefined : onSelect}
-      onPointerDown={unplayable ? undefined : onPointerDown}
-      onPointerMove={unplayable ? undefined : onPointerMove}
-      onPointerUp={unplayable ? undefined : onPointerUp}
-      onPointerCancel={unplayable ? undefined : onPointerCancel}
+      onClick={unplayable || presentationOnly ? undefined : onSelect}
+      onPointerDown={unplayable || presentationOnly ? undefined : onPointerDown}
+      onPointerMove={unplayable || presentationOnly ? undefined : onPointerMove}
+      onPointerUp={unplayable || presentationOnly ? undefined : onPointerUp}
+      onPointerCancel={unplayable || presentationOnly ? undefined : onPointerCancel}
       aria-label={
         unplayable
           ? `${card.name}. ${card.rules}`
