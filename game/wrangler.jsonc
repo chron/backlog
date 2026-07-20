@@ -1,0 +1,21 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "lgtm",
+  "pages_build_output_dir": "./dist",
+  "compatibility_date": "2026-07-20",
+  "compatibility_flags": ["nodejs_compat"],
+  "d1_databases": [
+    {
+      "binding": "TELEMETRY_DB",
+      "database_name": "lgtm-telemetry",
+      "database_id": "7c31bb55-cc2b-4a50-9e05-c9dab494c4f4",
+      "migrations_dir": "./migrations",
+    },
+  ],
+  "observability": {
+    "enabled": true,
+    "logs": {
+      "head_sampling_rate": 1,
+    },
+  },
+}

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useReducer, useRef, useState } from "react";
+import { Settings } from "lucide-react";
 import {
   haveSameAchievements,
   loadAchievements,
@@ -24,9 +25,11 @@ import { WeekendScreen } from "../screens/WeekendScreen";
 import { developers, getCycle } from "../domain/content";
 import { eventDefinitions } from "../domain/events";
 import type { CardInstance, TaskState } from "../domain/models";
-import { logGameAction } from "../game/actionLog";
+import { discardQueuedProductionTelemetry, logGameAction } from "../game/actionLog";
 import type { GameAction } from "../game/gameReducer";
 import type { GameState } from "../game/gameReducer";
+import { SettingsModal } from "../settings/SettingsModal";
+import { loadTelemetryPreference, saveTelemetryPreference } from "../settings/settingsStore";
 
 interface OpenCardCollection {
   cards: readonly CardInstance[];
@@ -513,6 +516,8 @@ export function App() {
   }, []);
   const [cardCollection, setCardCollection] = useState<OpenCardCollection>();
   const [achievementsOpen, setAchievementsOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [telemetryEnabled, setTelemetryEnabled] = useState(loadTelemetryPreference);
   const [unlockedAchievements, setUnlockedAchievements] = useState<readonly AchievementId[]>(() =>
     loadAchievements(),
   );
@@ -661,6 +666,15 @@ export function App() {
       {state.run && !["title", "squad", "cycle"].includes(state.screen.name) && (
         <RunVitals run={state.run} floating />
       )}
+      <button
+        className="settings-trigger"
+        type="button"
+        onClick={() => setSettingsOpen(true)}
+        aria-label="Open settings"
+        aria-haspopup="dialog"
+      >
+        <Settings aria-hidden="true" />
+      </button>
       <main id="main" ref={mainRef} tabIndex={-1}>
         {screen}
       </main>
@@ -670,6 +684,17 @@ export function App() {
           title={cardCollection.title}
           orderHidden={cardCollection.orderHidden}
           onClose={() => setCardCollection(undefined)}
+        />
+      )}
+      {settingsOpen && (
+        <SettingsModal
+          telemetryEnabled={telemetryEnabled}
+          onTelemetryChange={(enabled) => {
+            setTelemetryEnabled(enabled);
+            saveTelemetryPreference(enabled);
+            if (!enabled) discardQueuedProductionTelemetry();
+          }}
+          onClose={() => setSettingsOpen(false)}
         />
       )}
     </div>

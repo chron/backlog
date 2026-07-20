@@ -32,6 +32,30 @@ The client batches writes briefly and flushes when the tab is hidden or closed.
 The logger is best-effort and development-only, so a missing sink never affects
 gameplay or production builds.
 
+## Anonymous production telemetry
+
+Production builds batch compact gameplay events to `/api/telemetry` when
+**Share playtest data** is enabled in Settings. Sharing is on by default and can
+be disabled from any screen. Events contain gameplay choices, timing, and run
+results—never names, photos, free text, or a device identifier.
+
+Cloudflare Pages Functions validate the fixed event contract before writing to
+the `lgtm-telemetry` D1 database. Event sequence numbers make retried batches
+idempotent. Local development keeps using the richer JSONL logs described above.
+
+Useful commands:
+
+```bash
+bun run dev:cloudflare
+bun run telemetry:migrate:local
+bun run telemetry:report --include-incomplete
+bun run telemetry:report --local --latest 10
+```
+
+The deployment workflow applies remote D1 migrations before publishing the
+Pages bundle. Production reports are read directly through Wrangler rather than
+exposing player data through a public reporting endpoint.
+
 ## Scripted balance runs
 
 Run the six current build families through seeded, headless acts using the real

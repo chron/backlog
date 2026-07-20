@@ -6,17 +6,23 @@
   "scripts": {
     "dev": "portless run --name lgtm vite",
     "dev:plain": "vite",
+    "dev:cloudflare": "wrangler pages dev",
     "build": "tsc -b && vite build",
     "typecheck": "tsc -b --pretty false",
-    "lint": "oxlint src --react-plugin --jsx-a11y-plugin --tsconfig tsconfig.app.json",
-    "format": "oxfmt --write src scripts README.md index.html package.json vite.config.ts tsconfig.json tsconfig.app.json tsconfig.node.json tsconfig.scripts.json",
-    "format:check": "oxfmt --check src scripts README.md index.html package.json vite.config.ts tsconfig.json tsconfig.app.json tsconfig.node.json tsconfig.scripts.json",
+    "lint": "oxlint src functions scripts --react-plugin --jsx-a11y-plugin",
+    "format": "oxfmt --write src functions scripts README.md index.html knip.json package.json vite.config.ts wrangler.jsonc tsconfig.json tsconfig.app.json tsconfig.functions.json tsconfig.node.json tsconfig.scripts.json",
+    "format:check": "oxfmt --check src functions scripts README.md index.html knip.json package.json vite.config.ts wrangler.jsonc tsconfig.json tsconfig.app.json tsconfig.functions.json tsconfig.node.json tsconfig.scripts.json",
     "knip": "knip",
-    "check": "bun run typecheck && bun run lint && bun run format:check && bun run knip && bun test",
+    "check": "bun run cf:typegen:check && bun run typecheck && bun run lint && bun run format:check && bun run knip && bun test",
     "test": "vitest run",
     "test:watch": "vitest",
     "playtest": "bun scripts/playtest.ts",
-    "playtest:human": "bun scripts/playtest-human.ts"
+    "playtest:human": "bun scripts/playtest-human.ts",
+    "telemetry:migrate:local": "wrangler d1 migrations apply lgtm-telemetry --local",
+    "telemetry:migrate:remote": "wrangler d1 migrations apply lgtm-telemetry --remote",
+    "telemetry:report": "bun scripts/telemetry-report.ts",
+    "cf:typegen": "wrangler types",
+    "cf:typegen:check": "wrangler types --check"
   },
   "dependencies": {
     "lucide-react": "^1.25.0",
@@ -34,6 +40,7 @@
     "portless": "^0.15.4",
     "typescript": "^7.0.2",
     "vite": "^8.1.5",
-    "vitest": "^4.1.10"
+    "vitest": "^4.1.10",
+    "wrangler": "^4.112.0"
   }
 }

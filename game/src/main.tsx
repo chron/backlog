@@ -5,6 +5,7 @@ import "./styles.css";
 import "./card-collection.css";
 import "./achievements.css";
 import "./tutorial/combat-tutorial.css";
+import "./settings/settings.css";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
