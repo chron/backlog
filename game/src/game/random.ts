@@ -37,3 +37,20 @@ export function sampleOne<T>(items: readonly T[], rngState: number): { item: T; 
     rngState: next.rngState,
   };
 }
+
+export function shuffle<T>(
+  items: readonly T[],
+  rngState: number,
+): { items: T[]; rngState: number } {
+  const shuffled = [...items];
+  let nextRngState = rngState;
+
+  for (let index = shuffled.length - 1; index > 0; index -= 1) {
+    const next = nextRandom(nextRngState);
+    nextRngState = next.rngState;
+    const swapIndex = Math.floor(next.value * (index + 1));
+    [shuffled[index], shuffled[swapIndex]] = [shuffled[swapIndex] as T, shuffled[index] as T];
+  }
+
+  return { items: shuffled, rngState: nextRngState };
+}

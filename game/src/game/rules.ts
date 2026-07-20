@@ -165,7 +165,8 @@ export function isTaskReady(task: TaskState): boolean {
 }
 
 export function isCycleShipped(cycle: CycleState): boolean {
-  const primaryTaskId = getEncounterCycleDefinition(cycle).primaryTaskId;
+  const definition = getEncounterCycleDefinition(cycle);
+  const primaryTaskId = definition.primaryTaskId;
   if (primaryTaskId) {
     const primaryShipped = cycle.tasks.some(
       (task) => task.taskId === primaryTaskId && task.status === "shipped",
@@ -173,9 +174,11 @@ export function isCycleShipped(cycle: CycleState): boolean {
     const sideQuestsShipped = cycle.tasks
       .filter((task) => task.role === "side-quest")
       .every((task) => task.status === "shipped");
-    const spawnedComplicationsShipped = cycle.tasks
-      .filter((task) => task.role === "complication")
-      .every((task) => task.status === "shipped");
+    const spawnedComplicationsShipped =
+      definition.kind === "incident" ||
+      cycle.tasks
+        .filter((task) => task.role === "complication")
+        .every((task) => task.status === "shipped");
     return primaryShipped && spawnedComplicationsShipped && sideQuestsShipped;
   }
   return cycle.tasks

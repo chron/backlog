@@ -81,7 +81,7 @@ import {
   resolveEventChoice,
   type EventPendingSelection,
 } from "./eventResolution";
-import { normalizeSeed, sampleOne } from "./random";
+import { normalizeSeed, sampleOne, shuffle } from "./random";
 import { resolveSebCascade, type SebTaskSnapshot, type SebWorkPacket } from "./sebMechanics";
 import { tobyCrunchConversions } from "../domain/characters/tobyMechanics";
 
@@ -325,22 +325,27 @@ function drawCards(
   originalDrawPile: readonly CardInstance[],
   originalDiscardPile: readonly CardInstance[],
   count: number,
+  rngState: number,
   replaceDistractions = false,
   statusDrawsExtra = false,
 ): {
   drawPile: CardInstance[];
   discardPile: CardInstance[];
   drawn: CardInstance[];
+  rngState: number;
 } {
   let drawPile = [...originalDrawPile];
   let discardPile = [...originalDiscardPile];
   const drawn: CardInstance[] = [];
   let targetCount = count;
+  let nextRngState = rngState;
 
   while (drawn.length < targetCount) {
     if (drawPile.length === 0) {
       if (discardPile.length === 0) break;
-      drawPile = [...discardPile];
+      const recycled = shuffle(discardPile, nextRngState);
+      drawPile = recycled.items;
+      nextRngState = recycled.rngState;
       discardPile = [];
     }
 
@@ -351,7 +356,7 @@ function drawCards(
     if (statusDrawsExtra && getCardForInstance(next).kind === "status") targetCount += 1;
   }
 
-  return { drawPile, discardPile, drawn };
+  return { drawPile, discardPile, drawn, rngState: nextRngState };
 }
 
 function createTaskState(task: TaskDefinition, spawnedDay: number): TaskState {
@@ -408,7 +413,7 @@ function createCycleState(
   nodeId: string,
   cycleId: string,
   definition: CycleDefinition = getCycle(cycleId),
-): CycleState {
+): { cycle: CycleState; rngState: number } {
   const openingFocus = run.nextCycleModifiers
     .filter((modifier) => modifier.kind === "opening-focus")
     .reduce((total, modifier) => total + modifier.amount, 0);
@@ -429,10 +434,12 @@ function createCycleState(
       ? [{ cardId: modifier.cardId, instanceId: `event-guest-${index + 1}` }]
       : [],
   );
+  const shuffledDeck = shuffle(run.deck, run.rngState);
   const firstDraw = drawCards(
-    [...queuedStatuses, ...guestCards, ...run.deck],
+    [...queuedStatuses, ...guestCards, ...shuffledDeck.items],
     [],
     5 + openingDraw,
+    shuffledDeck.rngState,
     run.tools.includes("noise-cancelling-headphones"),
     run.tools.includes("cat-tax"),
   );
@@ -506,7 +513,7 @@ function createCycleState(
     defects: 0,
     techDebtAdded: 0,
   };
-  return cycle;
+  return { cycle, rngState: firstDraw.rngState };
 }
 
 function addTechDebt(run: RunState, amount: number): RunState {
@@ -609,6 +616,7 @@ function applyTaskShipping(
     cycle.drawPile,
     cycle.discardPile,
     rewards.cardsDrawn,
+    run.rngState,
     run.tools.includes("noise-cancelling-headphones"),
     run.tools.includes("cat-tax"),
   );
@@ -632,6 +640,7 @@ function applyTaskShipping(
   };
   let nextRun: RunState = {
     ...run,
+    rngState: nextDraw.rngState,
     morale: run.morale,
     cycle: nextCycle,
     history: [
@@ -1149,6 +1158,7 @@ function endDay(run: RunState, cycle: CycleState): GameState {
     [...distractions, ...resolvedCycle.drawPile],
     resolvedCycle.discardPile,
     5 + cycle.queuedCardsDrawn + ireneDraws,
+    nextRun.rngState,
     run.tools.includes("noise-cancelling-headphones"),
     run.tools.includes("cat-tax"),
   );
@@ -1193,7 +1203,7 @@ function endDay(run: RunState, cycle: CycleState): GameState {
       nodeId: nextCycle.nodeId,
       cycleId: nextCycle.cycleId,
     },
-    run: { ...nextRun, cycle: nextCycle },
+    run: { ...nextRun, rngState: nextDraw.rngState, cycle: nextCycle },
   };
 }
 
@@ -1254,9 +1264,12 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       if ((node.kind === "cycle" || node.kind === "incident" || node.kind === "boss") && cycleId) {
         if (node.kind === "boss") {
           const boss = getBossDefinition(runAtNode.selectedBossId);
-          const baseCycle = createCycleState(runAtNode, node.id, cycleId, boss.project);
-          const bossCycle: CycleState = { ...baseCycle, boss: createBossEncounter(boss) };
-          const opened = resolveOpeningBossEffects({ ...runAtNode, cycle: bossCycle }, bossCycle);
+          const created = createCycleState(runAtNode, node.id, cycleId, boss.project);
+          const bossCycle: CycleState = { ...created.cycle, boss: createBossEncounter(boss) };
+          const opened = resolveOpeningBossEffects(
+            { ...runAtNode, rngState: created.rngState, cycle: bossCycle },
+            bossCycle,
+          );
           return {
             screen: { name: "cycle", nodeId: node.id, cycleId },
             run: {
@@ -1267,10 +1280,16 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
             },
           };
         }
-        const cycle = createCycleState(runAtNode, node.id, cycleId);
+        const created = createCycleState(runAtNode, node.id, cycleId);
         return {
           screen: { name: "cycle", nodeId: node.id, cycleId },
-          run: { ...runAtNode, cycle, nextCycleModifiers: [], pendingBounties: [] },
+          run: {
+            ...runAtNode,
+            rngState: created.rngState,
+            cycle: created.cycle,
+            nextCycleModifiers: [],
+            pendingBounties: [],
+          },
         };
       }
 
@@ -1345,12 +1364,14 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
             drawPile: [] as CardInstance[],
             discardPile: cycle.discardPile,
             drawn: [...cycle.drawPile],
+            rngState: state.run.rngState,
           }
         : resolution.cardsDrawn + rosterEffects.cardsDrawn > 0
           ? drawCards(
               cycle.drawPile,
               cycle.discardPile,
               resolution.cardsDrawn + rosterEffects.cardsDrawn,
+              state.run.rngState,
               state.run.tools.includes("noise-cancelling-headphones"),
               state.run.tools.includes("cat-tax"),
             )
@@ -1504,6 +1525,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       };
       let nextRun: RunState = {
         ...state.run,
+        rngState: cardDraw?.rngState ?? state.run.rngState,
         cycle: nextCycle,
         history: [
           ...state.run.history,

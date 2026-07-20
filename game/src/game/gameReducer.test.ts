@@ -14,6 +14,7 @@ import type { DeveloperId, Discipline, ToolId } from "../domain/models";
 import { gameReducer, initialGameState } from "./gameReducer";
 import type { GameState } from "./gameReducer";
 import { resolveEventChoice } from "./eventResolution";
+import { shuffle } from "./random";
 import { taskShippingPreview } from "./rules";
 
 function startCycle(
@@ -263,6 +264,63 @@ describe("gameReducer", () => {
     expect(getCard("flexible-2")).toMatchObject({ workKind: "verified", amount: 2 });
     expect(getCard("review-3")).toMatchObject({ kind: "review", amount: 3 });
     expect(getCard("standup-cover")).toMatchObject({ kind: "tactic", block: 4 });
+  });
+
+  it("shuffles the persistent deck before the opening draw", () => {
+    let state = gameReducer(initialGameState, { type: "START_RUN", seed: 4200 });
+    for (const developerId of ["paul", "irene", "madi"] as const) {
+      state = gameReducer(state, { type: "TOGGLE_DEVELOPER", developerId });
+    }
+    state = gameReducer(state, { type: "CONFIRM_SQUAD" });
+    if (!state.run) throw new Error("Expected a run");
+    const expected = shuffle(state.run.deck, state.run.rngState);
+
+    state = gameReducer(state, { type: "VISIT_NODE", nodeId: "cycle-1" });
+
+    expect(state.run?.cycle?.hand.map((card) => card.instanceId)).toEqual(
+      expected.items.slice(0, 5).map((card) => card.instanceId),
+    );
+    expect(state.run?.cycle?.drawPile.map((card) => card.instanceId)).toEqual(
+      expected.items.slice(5).map((card) => card.instanceId),
+    );
+    expect(state.run?.rngState).toBe(expected.rngState);
+    expect(state.run?.cycle?.hand.filter((card) => getCard(card.cardId).ownerId)).not.toHaveLength(
+      3,
+    );
+  });
+
+  it("shuffles the discard pile before drawing through it", () => {
+    let state = startCycleAt("cycle-2", ["paul", "odin", "irene"], 4200);
+    if (!state.run?.cycle) throw new Error("Expected an active Cycle");
+    const discardPile = ["standup-cover", "flexible-2", "frontend-3", "backend-3", "infra-3"].map(
+      (cardId, index) => ({ cardId, instanceId: `recycle-${index + 1}` }),
+    );
+    const rngState = 7301;
+    const expected = shuffle(discardPile, rngState);
+    state = {
+      ...state,
+      run: {
+        ...state.run,
+        rngState,
+        cycle: {
+          ...state.run.cycle,
+          focus: 0,
+          hand: [{ cardId: "ebb-and-flow", instanceId: "recycle-source" }],
+          drawPile: [],
+          discardPile,
+        },
+      },
+    };
+
+    state = playCardOnSquad(state, "ebb-and-flow");
+
+    expect(state.run?.cycle?.hand.map((card) => card.instanceId)).toEqual(
+      expected.items.slice(0, 3).map((card) => card.instanceId),
+    );
+    expect(state.run?.cycle?.drawPile.map((card) => card.instanceId)).toEqual(
+      expected.items.slice(3).map((card) => card.instanceId),
+    );
+    expect(state.run?.rngState).toBe(expected.rngState);
   });
 
   it("reserves Pixel Perfect for Matt and renames the shared reward to UI Polish", () => {
@@ -627,7 +685,7 @@ describe("gameReducer", () => {
     expect(state.run?.cycle?.resolvedIntents).toContain("Stunned · Spawn · Pager Storm");
   });
 
-  it("requires spawned Incident complications before queuing Tool then card rewards", () => {
+  it("clears spawned Incident complications when the primary Task ships", () => {
     let state = startCycleAt("incident-1", ["paul", "odin", "irene"], 24680);
     state = gameReducer(state, { type: "END_DAY" });
     if (!state.run?.cycle) throw new Error("Expected an active Incident");
@@ -654,41 +712,13 @@ describe("gameReducer", () => {
     };
 
     state = gameReducer(state, { type: "SHIP_TASK", taskId: "restore-service" });
-    expect(state.screen.name).toBe("cycle");
-    expect(state.run?.cycle?.tasks.map((task) => [task.taskId, task.status])).toEqual([
-      ["restore-service", "shipped"],
-      ["pager-storm", "open"],
-    ]);
-    if (!state.run?.cycle) throw new Error("Expected the Incident to continue");
-    state = {
-      ...state,
-      run: {
-        ...state.run,
-        cycle: {
-          ...state.run.cycle,
-          tasks: state.run.cycle.tasks.map((task) =>
-            task.taskId === "pager-storm"
-              ? {
-                  ...task,
-                  status: "ready" as const,
-                  requirements: task.requirements.map((requirement) => ({
-                    ...requirement,
-                    verified: requirement.target,
-                  })),
-                }
-              : task,
-          ),
-        },
-      },
-    };
-    state = gameReducer(state, { type: "SHIP_TASK", taskId: "pager-storm" });
     expect(state.screen.name).toBe("report");
     if (state.screen.name !== "report") throw new Error("Expected an Incident report");
     expect(state.screen.report).toMatchObject({ outcome: "shipped", toolReward: true });
     expect(state.screen.report.tasks).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ taskId: "restore-service", completed: true }),
-        expect.objectContaining({ taskId: "pager-storm", completed: true, cleared: false }),
+        expect.objectContaining({ taskId: "pager-storm", completed: false, cleared: true }),
       ]),
     );
     expect(state.run?.pendingToolReward?.toolIds).toHaveLength(3);
@@ -889,8 +919,15 @@ describe("gameReducer", () => {
     expect(state.run?.techDebt).toBe(4);
     expect(state.run?.cycle?.focus).toBe(1);
 
+    state = addCardToHand(state, "vibe-code");
+    const vibeCode = state.run?.cycle?.hand.find((card) => card.cardId === "vibe-code");
+    if (!vibeCode) throw new Error("Expected Vibe Code in hand");
     const beforeIllegalPlay = state;
-    state = playCard(state, "vibe-code", "status-composer", "frontend");
+    state = gameReducer(state, {
+      type: "PLAY_CARD",
+      instanceId: vibeCode.instanceId,
+      target: { taskId: "status-composer", discipline: "frontend" },
+    });
     expect(state).toBe(beforeIllegalPlay);
   });
 
