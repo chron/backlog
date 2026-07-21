@@ -1,6 +1,7 @@
 import { appendFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import react from "@vitejs/plugin-react";
+import { envStyle } from "env.style/vite";
 import { defineConfig, type Plugin } from "vite";
 
 const maxRequestBytes = 5 * 1024 * 1024;
@@ -49,5 +50,5 @@ function gameActionLogSink(): Plugin {
 }
 
 export default defineConfig({
-  plugins: [react(), gameActionLogSink()],
+  plugins: [react(), envStyle(), gameActionLogSink()],
 });
