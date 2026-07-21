@@ -14,6 +14,7 @@ interface TaskPanelProps {
   task: TaskState;
   taskName: string;
   taskRole?: "primary" | "complication" | "side-quest" | "bounty";
+  incidentRole?: "objective" | "optional";
   selectedCard?: CardInstance;
   hoveredTargetKey?: string;
   resolving?: boolean;
@@ -29,6 +30,7 @@ export function TaskPanel({
   task,
   taskName,
   taskRole,
+  incidentRole,
   selectedCard,
   hoveredTargetKey,
   resolving,
@@ -40,6 +42,16 @@ export function TaskPanel({
 }: TaskPanelProps) {
   const cycle = run.cycle;
   if (!cycle) return null;
+  const taskRoleLabel =
+    incidentRole === "objective"
+      ? "Objective"
+      : incidentRole === "optional"
+        ? "Optional Problem"
+        : taskRole === "side-quest"
+          ? "Side Quest"
+          : taskRole === "bounty"
+            ? "Bounty"
+            : taskRole;
   const ready = task.status === "ready";
   const bountyReward =
     task.bountyReward?.kind === "credits"
@@ -72,9 +84,7 @@ export function TaskPanel({
       <header className="task-panel__header">
         <div>
           <span className="task-panel__state">
-            {taskRole
-              ? `${taskRole === "side-quest" ? "Side Quest" : taskRole === "bounty" ? "Bounty" : taskRole} · `
-              : ""}
+            {taskRoleLabel ? `${taskRoleLabel} · ` : ""}
             {shipped ? "Shipped" : ready ? "Ready" : "Open"}
           </span>
           <h2>{taskName}</h2>
@@ -111,6 +121,12 @@ export function TaskPanel({
           </button>
         )}
       </header>
+
+      {incidentRole === "objective" && (
+        <p className="task-panel__incident-rule">
+          Ship this Task to resolve <span>Spawned Tasks optional</span>
+        </p>
+      )}
 
       <div className="requirement-stack">
         {task.requirements.map((requirement) => {

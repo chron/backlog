@@ -128,4 +128,65 @@ describe("TaskPanel", () => {
     expect(markup).toContain("CI +2");
     expect(markup.match(/is-preview-verified/g)?.length).toBeGreaterThanOrEqual(2);
   });
+
+  it("keeps one preview segment per target unit for full and Pitch In Work", () => {
+    const baseRun = cycleFixture();
+    const baseTask = baseRun.cycle!.tasks[0]!;
+    const task = {
+      ...baseTask,
+      requirements: [
+        { discipline: "frontend" as const, target: 2, verified: 0, unverified: 0, scriptPower: 0 },
+        { discipline: "backend" as const, target: 5, verified: 0, unverified: 0, scriptPower: 0 },
+      ],
+    };
+    const run = { ...baseRun, cycle: { ...baseRun.cycle!, tasks: [task] } };
+    const markup = renderToStaticMarkup(
+      <TaskPanel
+        run={run}
+        task={task}
+        taskName="Preview Matrix"
+        selectedCard={{ cardId: "frontend-3", instanceId: "test-frontend" }}
+        onTarget={() => undefined}
+        onShip={() => undefined}
+      />,
+    );
+
+    expect(markup.match(/is-preview-unverified/g)).toHaveLength(3);
+    expect(markup.match(/class="is-empty"/g)).toHaveLength(4);
+    expect(markup).toContain("--requirement-segments:2");
+    expect(markup).toContain("--requirement-segments:5");
+  });
+
+  it("labels Incident objectives and spawned Tasks without changing ordinary roles", () => {
+    const run = cycleFixture();
+    const task = run.cycle!.tasks[0]!;
+    const objective = renderToStaticMarkup(
+      <TaskPanel
+        run={run}
+        task={task}
+        taskName="Restore Service"
+        taskRole="primary"
+        incidentRole="objective"
+        onTarget={() => undefined}
+        onShip={() => undefined}
+      />,
+    );
+    const optional = renderToStaticMarkup(
+      <TaskPanel
+        run={run}
+        task={task}
+        taskName="Pager Storm"
+        taskRole="complication"
+        incidentRole="optional"
+        onTarget={() => undefined}
+        onShip={() => undefined}
+      />,
+    );
+
+    expect(objective).toContain("Objective · Open");
+    expect(objective).toContain("Ship this Task to resolve");
+    expect(objective).toContain("Spawned Tasks optional");
+    expect(optional).toContain("Optional Problem · Open");
+    expect(optional).not.toContain("task-panel__incident-rule");
+  });
 });

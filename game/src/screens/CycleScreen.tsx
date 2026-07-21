@@ -721,13 +721,23 @@ export function CycleScreen({ dispatch, run, onInspectCards }: CycleScreenProps)
       >
         {visibleTasks.map((task) => {
           const taskDefinition = definition.tasks.find((candidate) => candidate.id === task.taskId);
+          const taskRole = task.role ?? taskDefinition?.role;
+          const incidentRole =
+            definition.kind === "incident"
+              ? task.taskId === definition.primaryTaskId
+                ? ("objective" as const)
+                : taskRole === "complication"
+                  ? ("optional" as const)
+                  : undefined
+              : undefined;
           return (
             <TaskPanel
               key={task.taskId}
               run={run}
               task={task}
               taskName={task.name ?? taskDefinition?.name ?? task.taskId}
-              taskRole={task.role ?? taskDefinition?.role}
+              taskRole={taskRole}
+              incidentRole={incidentRole}
               selectedCard={selectedCard}
               hoveredTargetKey={aim?.hoveredTargetKey}
               resolving={ceremonyItem?.taskId === task.taskId}

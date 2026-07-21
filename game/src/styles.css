@@ -1422,15 +1422,23 @@ main:focus {
 
 .requirement__segments > .is-preview-verified,
 .requirement__segments > .is-preview-unverified {
+  position: relative;
+}
+
+.requirement__segments > .is-preview-verified::before,
+.requirement__segments > .is-preview-unverified::before {
+  position: absolute;
+  inset: 0;
+  content: "";
   opacity: 0;
   transition: opacity 120ms var(--ease-out-quint);
 }
 
-.requirement__segments > .is-preview-verified {
+.requirement__segments > .is-preview-verified::before {
   background: color-mix(in oklch, var(--mint) 72%, transparent);
 }
 
-.requirement__segments > .is-preview-unverified {
+.requirement__segments > .is-preview-unverified::before {
   background: repeating-linear-gradient(
     -45deg,
     color-mix(in oklch, var(--pink) 72%, transparent),
@@ -1440,9 +1448,29 @@ main:focus {
   );
 }
 
-.requirement.is-targetable:hover .requirement__segments > [class*="is-preview"],
-.requirement.is-aimed .requirement__segments > [class*="is-preview"] {
+.requirement.is-targetable:hover .requirement__segments > [class*="is-preview"]::before,
+.requirement.is-aimed .requirement__segments > [class*="is-preview"]::before {
   opacity: 1;
+}
+
+.task-panel__incident-rule {
+  display: flex;
+  width: fit-content;
+  margin: 0.4rem 0 0.1rem;
+  padding: 0.2rem 0.35rem;
+  border: 2px solid var(--ink);
+  align-items: center;
+  gap: 0.35rem;
+  background: var(--yellow);
+  box-shadow: 2px 2px 0 var(--ink);
+  font-size: 0.54rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.task-panel__incident-rule span {
+  padding-left: 0.35rem;
+  border-left: 1px solid var(--ink);
 }
 
 .requirement__script,
@@ -2426,6 +2454,11 @@ main:focus {
 
 .status-incident {
   color: var(--panel);
+  background: var(--coral);
+}
+
+.cycle-hud .cycle-counters > .status-incident {
+  color: var(--ink);
   background: var(--coral);
 }
 
