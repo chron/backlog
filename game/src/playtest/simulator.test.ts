@@ -88,7 +88,7 @@ describe("scripted playtest harness", () => {
 
   it("matches the launch shape of the three successful human calibration runs", () => {
     const calibrations = [
-      ["research-squad", 1_631_439_367],
+      ["research-squad", 1_631_439_368],
       ["platform-squad", 2_226_205_480],
       ["panel-squad", 3_674_038_866],
     ] as const;

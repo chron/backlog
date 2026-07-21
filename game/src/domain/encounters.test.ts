@@ -20,7 +20,7 @@ describe("tiered Cycle catalogue", () => {
   it("registers unique playable definitions for every tactical shape", () => {
     const ids = catalogue.map((cycle) => cycle.id);
     expect(new Set(ids).size).toBe(ids.length);
-    expect(ids).toHaveLength(15);
+    expect(ids).toHaveLength(21);
 
     const expectedShapes: EncounterShape[] = [
       "balanced",
@@ -37,6 +37,28 @@ describe("tiered Cycle catalogue", () => {
       expect(cycle.tasks.some((task) => task.role !== "complication")).toBe(true);
       expect(cycle.tasks.every((task) => task.intents.length <= cycle.maxDays)).toBe(true);
     }
+  });
+
+  it("balances the six release-morning additions without borrowing Mateja's AI Assist identity", () => {
+    const addedIds = [
+      "ai-powered-terms",
+      "update-order-form",
+      "panelist-onboarding-again",
+      "paul-already-demoed-it",
+      "slt-had-an-idea",
+      "we-should-have-that",
+    ];
+    const totals = { frontend: 0, backend: 0, infra: 0 };
+    for (const id of addedIds) {
+      const cycle = getCycle(id);
+      for (const task of cycle.tasks.filter((candidate) => candidate.role !== "complication")) {
+        for (const requirement of task.requirements) {
+          totals[requirement.discipline] += requirement.target;
+        }
+        expect(task.intents.some((intent) => intent?.kind === "ai-assist")).toBe(false);
+      }
+    }
+    expect(totals).toEqual({ frontend: 55, backend: 56, infra: 54 });
   });
 
   it("escalates base Work from early through mid and late pools", () => {
@@ -84,8 +106,9 @@ describe("tiered Cycle catalogue", () => {
     }
 
     expect(new Set(lineups.map((lineup) => lineup.early)).size).toBeGreaterThan(1);
-    expect(new Set(lineups.map((lineup) => lineup.tall)).size).toBeGreaterThan(1);
+    expect(new Set(lineups.map((lineup) => lineup.tall)).size).toBeGreaterThan(2);
+    expect(new Set(lineups.map((lineup) => lineup.wide)).size).toBeGreaterThan(1);
     expect(new Set(lineups.map((lineup) => lineup.mid)).size).toBeGreaterThan(2);
-    expect(new Set(lineups.map((lineup) => lineup.late)).size).toBeGreaterThan(3);
+    expect(new Set(lineups.map((lineup) => lineup.late)).size).toBeGreaterThan(5);
   });
 });

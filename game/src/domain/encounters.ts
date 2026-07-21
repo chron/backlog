@@ -99,6 +99,89 @@ export const authoredCycleCatalogue = [
     ],
   },
   {
+    id: "ai-powered-terms",
+    name: "AI-Powered Terms of Service",
+    tier: "early",
+    shape: "volatile",
+    maxDays: 4,
+    tasks: [
+      {
+        id: "consent-generator",
+        name: "Consent Generator",
+        requirements: [
+          { discipline: "frontend", target: 3 },
+          { discipline: "backend", target: 2 },
+        ],
+        intents: [
+          { kind: "interruption" },
+          { kind: "scope", discipline: "frontend", amount: 2 },
+          null,
+          { kind: "crunch", moraleLoss: 2 },
+        ],
+      },
+      {
+        id: "versioned-acceptance",
+        name: "Versioned Acceptance",
+        requirements: [
+          { discipline: "backend", target: 3 },
+          { discipline: "infra", target: 2 },
+        ],
+        intents: [null, null, { kind: "blocked", discipline: "infra" }],
+      },
+      {
+        id: "publish-fine-print",
+        name: "Publish the Fine Print",
+        requirements: [
+          { discipline: "frontend", target: 2 },
+          { discipline: "infra", target: 3 },
+        ],
+        intents: [
+          null,
+          { kind: "regression", discipline: "frontend", amount: 2 },
+          null,
+          { kind: "crunch", moraleLoss: 2 },
+        ],
+      },
+    ],
+  },
+  {
+    id: "update-order-form",
+    name: "Update the Order Form",
+    tier: "early",
+    shape: "balanced",
+    maxDays: 4,
+    tasks: [
+      {
+        id: "one-more-pricing-option",
+        name: "One More Pricing Option",
+        requirements: [
+          { discipline: "frontend", target: 6 },
+          { discipline: "backend", target: 2 },
+        ],
+        intents: [
+          { kind: "scope", discipline: "frontend", amount: 2 },
+          null,
+          { kind: "interruption" },
+          { kind: "crunch", moraleLoss: 3 },
+        ],
+      },
+      {
+        id: "pdf-that-still-matches",
+        name: "PDF That Still Matches",
+        requirements: [
+          { discipline: "backend", target: 3 },
+          { discipline: "infra", target: 5 },
+        ],
+        intents: [
+          null,
+          { kind: "scope", discipline: "backend", amount: 2 },
+          { kind: "regression", discipline: "infra", amount: 2 },
+          { kind: "crunch", moraleLoss: 2 },
+        ],
+      },
+    ],
+  },
+  {
     id: "marketing-site-astro",
     name: "Convert Marketing Site to Astro",
     tier: "mid",
@@ -377,6 +460,99 @@ export const authoredCycleCatalogue = [
     ],
   },
   {
+    id: "panelist-onboarding-again",
+    name: "Panelist Onboarding, Again",
+    tier: "mid",
+    shape: "wide",
+    maxDays: 5,
+    tasks: [
+      {
+        id: "welcome-flow-again",
+        name: "Welcome Flow",
+        requirements: [{ discipline: "frontend", target: 5 }],
+        intents: [
+          { kind: "scope", discipline: "frontend", amount: 3 },
+          null,
+          { kind: "regression", discipline: "frontend", amount: 2 },
+          { kind: "crunch", moraleLoss: 3 },
+        ],
+      },
+      {
+        id: "identity-check-again",
+        name: "Identity Check",
+        requirements: [
+          { discipline: "frontend", target: 2 },
+          { discipline: "backend", target: 4 },
+        ],
+        intents: [
+          { kind: "interruption" },
+          null,
+          { kind: "scope", discipline: "backend", amount: 3 },
+          null,
+          { kind: "crunch", moraleLoss: 3 },
+        ],
+      },
+      {
+        id: "email-journey-again",
+        name: "Email Journey",
+        requirements: [
+          { discipline: "frontend", target: 2 },
+          { discipline: "backend", target: 2 },
+          { discipline: "infra", target: 2 },
+        ],
+        intents: [
+          null,
+          { kind: "scope", discipline: "backend", amount: 2 },
+          null,
+          { kind: "blocked", discipline: "infra" },
+          { kind: "crunch", moraleLoss: 3 },
+        ],
+      },
+      {
+        id: "rollout-migration-again",
+        name: "Rollout & Migration",
+        requirements: [
+          { discipline: "frontend", target: 2 },
+          { discipline: "backend", target: 2 },
+          { discipline: "infra", target: 5 },
+        ],
+        intents: [
+          { kind: "blocked", discipline: "infra" },
+          null,
+          { kind: "crunch", moraleLoss: 2 },
+          { kind: "scope", discipline: "infra", amount: 3 },
+          { kind: "crunch", moraleLoss: 4 },
+        ],
+      },
+    ],
+  },
+  {
+    id: "paul-already-demoed-it",
+    name: "Paul Already Demoed It",
+    tier: "mid",
+    shape: "tall",
+    maxDays: 6,
+    tasks: [
+      {
+        id: "build-it-for-real",
+        name: "Build It For Real",
+        requirements: [
+          { discipline: "frontend", target: 7 },
+          { discipline: "backend", target: 11 },
+          { discipline: "infra", target: 10 },
+        ],
+        intents: [
+          { kind: "interruption" },
+          { kind: "scope", discipline: "backend", amount: 4 },
+          { kind: "blocked", discipline: "infra" },
+          { kind: "regression", discipline: "frontend", amount: 3 },
+          { kind: "scope", discipline: "infra", amount: 4 },
+          { kind: "crunch", moraleLoss: 6 },
+        ],
+      },
+    ],
+  },
+  {
     id: "change-ci-again",
     name: "Change CI Again",
     tier: "late",
@@ -594,6 +770,160 @@ export const authoredCycleCatalogue = [
     ],
   },
   {
+    id: "slt-had-an-idea",
+    name: "SLT Had an Idea",
+    tier: "late",
+    shape: "volatile",
+    maxDays: 6,
+    tasks: [
+      {
+        id: "reframe-the-experience",
+        name: "Reframe the Experience",
+        requirements: [
+          { discipline: "frontend", target: 7 },
+          { discipline: "backend", target: 3 },
+        ],
+        intents: [
+          { kind: "scope", discipline: "frontend", amount: 4 },
+          {
+            kind: "spawn",
+            taskId: "actually-one-more-thing",
+            taskName: "Actually, One More Thing",
+          },
+          null,
+          { kind: "regression", discipline: "backend", amount: 3 },
+          { kind: "crunch", moraleLoss: 4 },
+        ],
+      },
+      {
+        id: "move-the-goalposts",
+        name: "Move the Goalposts",
+        requirements: [
+          { discipline: "backend", target: 5 },
+          { discipline: "infra", target: 2 },
+        ],
+        intents: [
+          { kind: "interruption" },
+          { kind: "scope", discipline: "backend", amount: 4 },
+          null,
+          { kind: "crunch", moraleLoss: 3 },
+          null,
+          { kind: "crunch", moraleLoss: 6 },
+        ],
+      },
+      {
+        id: "migrate-the-data-pivot",
+        name: "Migrate the Data",
+        requirements: [
+          { discipline: "backend", target: 4 },
+          { discipline: "infra", target: 7 },
+        ],
+        intents: [
+          { kind: "blocked", discipline: "infra" },
+          null,
+          { kind: "scope", discipline: "infra", amount: 4 },
+          { kind: "regression", discipline: "backend", amount: 3 },
+          null,
+          { kind: "crunch", moraleLoss: 5 },
+        ],
+      },
+      {
+        id: "launch-the-pivot",
+        name: "Launch the Pivot",
+        requirements: [
+          { discipline: "frontend", target: 5 },
+          { discipline: "backend", target: 2 },
+          { discipline: "infra", target: 5 },
+        ],
+        intents: [
+          null,
+          { kind: "interruption" },
+          null,
+          { kind: "scope", discipline: "frontend", amount: 4 },
+          { kind: "crunch", moraleLoss: 4 },
+        ],
+      },
+      {
+        id: "actually-one-more-thing",
+        name: "Actually, One More Thing",
+        role: "complication",
+        requirements: [
+          { discipline: "frontend", target: 2 },
+          { discipline: "backend", target: 1 },
+          { discipline: "infra", target: 1 },
+        ],
+        intents: [{ kind: "interruption" }, null, { kind: "crunch", moraleLoss: 3 }],
+      },
+    ],
+  },
+  {
+    id: "we-should-have-that",
+    name: "We Should Have That",
+    tier: "late",
+    shape: "crunch",
+    maxDays: 6,
+    tasks: [
+      {
+        id: "looks-familiar",
+        name: "Looks Familiar",
+        requirements: [{ discipline: "frontend", target: 9 }],
+        intents: [
+          { kind: "scope", discipline: "frontend", amount: 3 },
+          { kind: "regression", discipline: "frontend", amount: 3 },
+          null,
+          { kind: "crunch", moraleLoss: 3 },
+          { kind: "scope", discipline: "frontend", amount: 3 },
+          { kind: "crunch", moraleLoss: 5 },
+        ],
+      },
+      {
+        id: "how-do-they-do-that",
+        name: "How Do They Do That?",
+        requirements: [
+          { discipline: "backend", target: 8 },
+          { discipline: "infra", target: 3 },
+        ],
+        intents: [
+          { kind: "interruption" },
+          null,
+          { kind: "scope", discipline: "backend", amount: 4 },
+          { kind: "blocked", discipline: "infra" },
+          null,
+          { kind: "crunch", moraleLoss: 5 },
+        ],
+      },
+      {
+        id: "make-it-ours",
+        name: "Make It Ours",
+        requirements: [
+          { discipline: "frontend", target: 5 },
+          { discipline: "backend", target: 5 },
+          { discipline: "infra", target: 5 },
+        ],
+        intents: [
+          null,
+          { kind: "scope", discipline: "backend", amount: 3 },
+          { kind: "regression", discipline: "frontend", amount: 3 },
+          null,
+          { kind: "crunch", moraleLoss: 4 },
+        ],
+      },
+      {
+        id: "launch-before-them",
+        name: "Launch Before Them",
+        requirements: [{ discipline: "infra", target: 5 }],
+        intents: [
+          { kind: "blocked", discipline: "infra" },
+          { kind: "crunch", moraleLoss: 2 },
+          null,
+          { kind: "scope", discipline: "infra", amount: 3 },
+          { kind: "crunch", moraleLoss: 4 },
+          { kind: "crunch", moraleLoss: 6 },
+        ],
+      },
+    ],
+  },
+  {
     id: "upgrade-every-dependency",
     name: "Upgrade Every Dependency",
     tier: "safe-incident",
@@ -703,6 +1033,9 @@ const earlyPool = authoredCycleCatalogue.filter(
 const tallPool = authoredCycleCatalogue.filter(
   (cycle) => cycle.tier === "mid" && cycle.shape === "tall",
 );
+const widePool = authoredCycleCatalogue.filter(
+  (cycle) => cycle.tier === "mid" && cycle.shape === "wide",
+);
 const midFlexPool = authoredCycleCatalogue.filter(
   (cycle) => cycle.tier === "mid" && cycle.shape !== "tall" && cycle.shape !== "wide",
 );
@@ -730,7 +1063,7 @@ export function selectEncounterLineup(seed: number): EncounterLineup {
     opener: "status-refresh",
     early: earlyPool[seededIndex(seed, 0x11, earlyPool.length)]!.id,
     tall: tallPool[seededIndex(seed, 0x22, tallPool.length)]!.id,
-    wide: "every-methodology",
+    wide: widePool[seededIndex(seed, 0x2a, widePool.length)]!.id,
     mid: midFlexPool[seededIndex(seed, 0x33, midFlexPool.length)]!.id,
     late: latePool[seededIndex(seed, 0x44, latePool.length)]!.id,
     safeIncidents: ["upgrade-every-dependency", "migrate-postgres-safely"],
