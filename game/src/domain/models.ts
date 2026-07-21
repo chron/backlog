@@ -138,6 +138,13 @@ export interface CardDefinition {
   focusIfTaskFullyVerified?: number;
   cardsDrawnIfTaskFullyVerified?: number;
   blockPerCompletedRequirement?: number;
+  copyNextCardEffect?: boolean;
+  verifiedWorkPerOpenTask?: number;
+  triggerEveryAutomation?: boolean;
+  reviewAllUnverified?: boolean;
+  workPerTechDebt?: number;
+  blockWorkPowerThisDay?: number;
+  exhaustAllTechDebtCards?: boolean;
   finishingTouchesEveryTask?: boolean;
   cardsDrawnPerTaskCleaned?: number;
   blockEqualIncomingMorale?: boolean;
@@ -289,6 +296,8 @@ export interface CycleState {
   dayWorkBonuses: readonly { amount: number; excludedTags: readonly CardTag[] }[];
   reviewStunFocusBonus: number;
   polishBudgetPower: number;
+  copiedCardEffectCount?: number;
+  blockWorkPower?: number;
   psychologicalSafetyStacks?: number;
   crunchConversionMode?: "source-task" | "all-open-tasks";
   lastWorkCard?: {

@@ -170,7 +170,21 @@ const glossary: readonly GlossaryDefinition[] = [
     id: "every-task",
     term: "Every Task",
     description: "Affects each unshipped Task that has eligible Unverified Work.",
-    appliesTo: (card) => Boolean(card.reviewEveryTask),
+    appliesTo: (card) => Boolean(card.reviewEveryTask || card.verifiedWorkPerOpenTask),
+  },
+  {
+    id: "copy-paste",
+    term: "Resolve Twice",
+    description:
+      "Repeats the next card's direct Work, Review, Block, Focus, draw, and generated-card effects without paying its cost twice.",
+    appliesTo: (card) => Boolean(card.copyNextCardEffect),
+  },
+  {
+    id: "protected-time",
+    term: "Protected Time",
+    description:
+      "For this Day, each later card that gains Block adds Verified Work to the smallest unfinished requirement.",
+    appliesTo: (card) => Boolean(card.blockWorkPowerThisDay),
   },
   {
     id: "distraction",
@@ -201,7 +215,8 @@ const glossary: readonly GlossaryDefinition[] = [
         card.blockEqualIncomingMorale ||
         card.blockPerOpenTask ||
         card.doubleCurrentBlock ||
-        card.cardsDrawnIfBlockCoversIncoming,
+        card.cardsDrawnIfBlockCoversIncoming ||
+        card.blockWorkPowerThisDay,
       ),
   },
   {
@@ -216,7 +231,8 @@ const glossary: readonly GlossaryDefinition[] = [
         card.triggerTargetScriptAfterWork ||
         card.scriptPowerOnEveryIncompleteFrontend ||
         card.doubleTargetAutomationMeters ||
-        card.triggerTargetAutomation,
+        card.triggerTargetAutomation ||
+        card.triggerEveryAutomation,
       ),
   },
   {
@@ -229,7 +245,8 @@ const glossary: readonly GlossaryDefinition[] = [
         card.triggerTargetScriptAfterWork ||
         card.triggerAutomationAfterInstall ||
         card.triggerTargetAutomation ||
-        card.triggerAllTaskGuardsAfterWork,
+        card.triggerAllTaskGuardsAfterWork ||
+        card.triggerEveryAutomation,
       ),
   },
   {
@@ -248,7 +265,9 @@ const glossary: readonly GlossaryDefinition[] = [
     id: "tech-debt",
     term: "Tech Debt",
     description: "Persists for the run. Every 3 adds an unplayable Tech Debt card to your deck.",
-    appliesTo: (card) => card.id === "tech-debt" || Boolean(card.techDebtAdded),
+    appliesTo: (card) =>
+      card.id === "tech-debt" ||
+      Boolean(card.techDebtAdded || card.workPerTechDebt || card.exhaustAllTechDebtCards),
   },
   {
     id: "ai-assisted",

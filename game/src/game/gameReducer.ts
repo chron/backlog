@@ -445,6 +445,50 @@ function createSideQuestState(cycle: CycleState, discipline: Discipline): TaskSt
   };
 }
 
+function applyProtectedTimeWork(
+  tasks: readonly TaskState[],
+  amount: number,
+): { tasks: TaskState[]; completedRequirement: boolean } {
+  if (amount <= 0) return { tasks: [...tasks], completedRequirement: false };
+  const target = tasks
+    .flatMap((task, taskIndex) =>
+      task.status === "shipped"
+        ? []
+        : task.requirements.map((requirement, requirementIndex) => ({
+            taskIndex,
+            requirementIndex,
+            remaining: Math.max(
+              0,
+              requirement.target - requirement.verified - requirement.unverified,
+            ),
+          })),
+    )
+    .filter(({ remaining }) => remaining > 0)
+    .sort(
+      (left, right) =>
+        left.remaining - right.remaining ||
+        left.taskIndex - right.taskIndex ||
+        left.requirementIndex - right.requirementIndex,
+    )[0];
+  if (!target) return { tasks: [...tasks], completedRequirement: false };
+  const applied = Math.min(amount, target.remaining);
+  return {
+    tasks: tasks.map((task, taskIndex) =>
+      taskIndex !== target.taskIndex
+        ? task
+        : refreshTaskStatus({
+            ...task,
+            requirements: task.requirements.map((requirement, requirementIndex) =>
+              requirementIndex === target.requirementIndex
+                ? { ...requirement, verified: requirement.verified + applied }
+                : requirement,
+            ),
+          }),
+    ),
+    completedRequirement: applied === target.remaining,
+  };
+}
+
 function createCycleState(
   run: RunState,
   nodeId: string,
@@ -546,6 +590,8 @@ function createCycleState(
     dayWorkBonuses: [],
     reviewStunFocusBonus: 0,
     polishBudgetPower: 0,
+    copiedCardEffectCount: 0,
+    blockWorkPower: 0,
     psychologicalSafetyStacks: 0,
     crunchConversionMode: "source-task",
     queuedDistractions: 0,
@@ -1237,6 +1283,8 @@ function endDay(run: RunState, cycle: CycleState): GameState {
     dayWorkBonuses: [],
     reviewStunFocusBonus: 0,
     polishBudgetPower: 0,
+    copiedCardEffectCount: 0,
+    blockWorkPower: 0,
     crunchConversionMode: "source-task",
     queuedDistractions: 0,
     queuedCardsDrawn: 0,
@@ -1399,18 +1447,34 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       }
       const rosterEffects = applyRosterBoardEffects(state.run, instance, resolution, tasks);
       tasks = [...rosterEffects.tasks];
+      const protectedTime = applyProtectedTimeWork(
+        tasks,
+        resolution.blockGained + rosterEffects.blockGained > 0 ? (cycle.blockWorkPower ?? 0) : 0,
+      );
+      tasks = protectedTime.tasks;
       const triggeredPassiveIds = [
         ...new Set([
           ...cycle.triggeredPassiveIds,
           ...resolution.triggeredPassiveIds,
           ...rosterEffects.triggeredPassiveIds,
+          ...(protectedTime.completedRequirement && state.run.squad.includes("irene")
+            ? (["irene"] as const)
+            : []),
         ]),
       ];
       const definition = getCardForInstance(instance);
       const exhausts = definition.exhaust === true;
-      const effectExhaustedCount = cycle.hand.filter((candidate) =>
-        resolution.exhaustedCardInstanceIds.includes(candidate.instanceId),
-      ).length;
+      const effectExhaustedCards = [...cycle.hand, ...cycle.drawPile, ...cycle.discardPile]
+        .filter((candidate) => resolution.exhaustedCardInstanceIds.includes(candidate.instanceId))
+        .map((candidate) => ({
+          ...candidate,
+          exhausted: {
+            day: cycle.day,
+            cause: "effect" as const,
+            sourceCardId: definition.id,
+          },
+        }));
+      const effectExhaustedCount = effectExhaustedCards.length;
       const exhaustedCount = effectExhaustedCount + (exhausts ? 1 : 0);
       const nickReview = state.run.squad.includes("nick")
         ? applyNickExhaustReviews(tasks, exhaustedCount)
@@ -1419,18 +1483,28 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       const garbageCollectorDraws = state.run.tools.includes("garbage-collector")
         ? exhaustedCount
         : 0;
-      const cardsToDraw = resolution.cardsDrawn + rosterEffects.cardsDrawn + garbageCollectorDraws;
+      const cardsToDraw =
+        resolution.cardsDrawn +
+        rosterEffects.cardsDrawn +
+        garbageCollectorDraws +
+        Number(protectedTime.completedRequirement && state.run.squad.includes("irene"));
+      const availableDrawPile = cycle.drawPile.filter(
+        (candidate) => !resolution.exhaustedCardInstanceIds.includes(candidate.instanceId),
+      );
+      const availableDiscardPile = cycle.discardPile.filter(
+        (candidate) => !resolution.exhaustedCardInstanceIds.includes(candidate.instanceId),
+      );
       const cardDraw = resolution.drawEntireDrawPile
         ? {
             drawPile: [] as CardInstance[],
-            discardPile: cycle.discardPile,
-            drawn: [...cycle.drawPile],
+            discardPile: availableDiscardPile,
+            drawn: [...availableDrawPile],
             rngState: state.run.rngState,
           }
         : cardsToDraw > 0
           ? drawCards(
-              cycle.drawPile,
-              cycle.discardPile,
+              availableDrawPile,
+              availableDiscardPile,
               cardsToDraw,
               state.run.rngState,
               state.run.tools.includes("noise-cancelling-headphones"),
@@ -1456,16 +1530,6 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       const discardedCards = cycle.hand.filter((candidate) =>
         resolution.discardedCardInstanceIds.includes(candidate.instanceId),
       );
-      const effectExhaustedCards = cycle.hand
-        .filter((candidate) => resolution.exhaustedCardInstanceIds.includes(candidate.instanceId))
-        .map((candidate) => ({
-          ...candidate,
-          exhausted: {
-            day: cycle.day,
-            cause: "effect" as const,
-            sourceCardId: definition.id,
-          },
-        }));
       const retrievedExhaustCard = resolution.retrievedExhaustCardInstanceId
         ? cycle.exhaustPile.find(
             (candidate) => candidate.instanceId === resolution.retrievedExhaustCardInstanceId,
@@ -1502,7 +1566,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         guardPower: rosterEffects.guardPower,
         techDebtAdded: cycle.techDebtAdded + resolution.techDebtAdded,
         tasks,
-        drawPile: cardDraw?.drawPile ?? cycle.drawPile,
+        drawPile: cardDraw?.drawPile ?? availableDrawPile,
         hand: [
           ...cycle.hand.filter(
             (candidate) =>
@@ -1524,8 +1588,8 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
             : candidate,
         ),
         discardPile: exhausts
-          ? [...(cardDraw?.discardPile ?? cycle.discardPile), ...discardedCards]
-          : [...(cardDraw?.discardPile ?? cycle.discardPile), ...discardedCards, instance],
+          ? [...(cardDraw?.discardPile ?? availableDiscardPile), ...discardedCards]
+          : [...(cardDraw?.discardPile ?? availableDiscardPile), ...discardedCards, instance],
         exhaustPile: [
           ...cycle.exhaustPile.filter(
             (candidate) => candidate.instanceId !== resolution.retrievedExhaustCardInstanceId,
@@ -1565,6 +1629,13 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
           : cycle.dayWorkBonuses,
         reviewStunFocusBonus: cycle.reviewStunFocusBonus + resolution.dayReviewStunFocusAdded,
         polishBudgetPower: cycle.polishBudgetPower + resolution.polishBudgetAdded,
+        copiedCardEffectCount: definition.copyNextCardEffect
+          ? (cycle.copiedCardEffectCount ?? 0) + 1
+          : 0,
+        blockWorkPower:
+          (cycle.blockWorkPower ?? 0) +
+          (definition.blockWorkPowerThisDay ?? 0) *
+            (definition.copyNextCardEffect ? 1 : 1 + (cycle.copiedCardEffectCount ?? 0)),
         psychologicalSafetyStacks:
           (cycle.psychologicalSafetyStacks ?? 0) + (definition.cycleFlexibleBlockBonus ? 1 : 0),
         crunchConversionMode: definition.crunchConversionMode ?? cycle.crunchConversionMode,

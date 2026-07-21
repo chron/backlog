@@ -780,11 +780,20 @@ function cardRewardScore(cardId: string, scenario: PlaytestScenario, run?: RunSt
     (card.cardsDrawn ?? 0) * 4 +
     (card.nextDayCardsDrawn ?? 0) * 3 +
     generatedCardCount(card) * 5 +
+    (card.copyNextCardEffect ? 16 : 0) +
+    (card.verifiedWorkPerOpenTask ?? 0) * 4 +
+    (card.triggerEveryAutomation ? (scenario.preferredTags.includes("automation") ? 24 : 12) : 0) +
+    (card.reviewAllUnverified ? (scenario.preferredTags.includes("review") ? 24 : 14) : 0) +
+    (card.blockWorkPowerThisDay ?? 0) * 10 +
+    (card.exhaustAllTechDebtCards
+      ? (run?.deck.filter((instance) => instance.cardId === "tech-debt").length ?? 0) * 8
+      : 0) +
     (card.stun || card.stunIntent ? 9 : 0) +
     (card.exhaust ? 2 : 0) +
     automation;
   const output =
-    card.amount * (card.workKind === "unverified" ? 2 : 3) +
+    (card.amount + (card.workPerTechDebt ?? 0) * (run?.techDebt ?? 0)) *
+      (card.workKind === "unverified" ? 2 : 3) +
     (card.kind === "review" ? card.amount * 2 : 0);
   return (
     output +

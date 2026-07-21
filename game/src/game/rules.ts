@@ -368,7 +368,7 @@ function createLearnedCard(card: CardDefinition): CardDefinition {
   };
 }
 
-export function resolveCardTarget(
+function resolveCardTargetOnce(
   run: RunState,
   instance: CardInstance,
   target: CardTarget,
@@ -384,19 +384,26 @@ export function resolveCardTarget(
   const cost = effectiveCardCost(card, cycle, run.squad, instance);
   if (cost > cycle.focus) return { legal: false, reason: "Not enough Focus." };
 
-  const exhaustedCardInstanceIds = card.exhaustHandTags
-    ? cycle.hand
+  const exhaustedCardInstanceIds = card.exhaustAllTechDebtCards
+    ? [...cycle.hand, ...cycle.drawPile, ...cycle.discardPile]
         .filter(
           (candidate) =>
-            candidate.instanceId !== instance.instanceId &&
-            card.exhaustHandTags?.some((tag) => getCardForInstance(candidate).tags.includes(tag)),
+            candidate.instanceId !== instance.instanceId && candidate.cardId === "tech-debt",
         )
         .map((candidate) => candidate.instanceId)
-    : card.exhaustOtherHand
+    : card.exhaustHandTags
       ? cycle.hand
-          .filter((candidate) => candidate.instanceId !== instance.instanceId)
+          .filter(
+            (candidate) =>
+              candidate.instanceId !== instance.instanceId &&
+              card.exhaustHandTags?.some((tag) => getCardForInstance(candidate).tags.includes(tag)),
+          )
           .map((candidate) => candidate.instanceId)
-      : [];
+      : card.exhaustOtherHand
+        ? cycle.hand
+            .filter((candidate) => candidate.instanceId !== instance.instanceId)
+            .map((candidate) => candidate.instanceId)
+        : [];
   const generatedCardSpecs = card.generatedCards
     ? Array.isArray(card.generatedCards)
       ? card.generatedCards
@@ -503,6 +510,7 @@ export function resolveCardTarget(
     nextDayCardsDrawn: card.nextDayCardsDrawn ?? 0,
     focusGained:
       (card.focusGained ?? 0) +
+      (card.exhaustAllTechDebtCards ? exhaustedCardInstanceIds.length : 0) +
       (card.focusPerGeneratedCardsPlayed
         ? Math.floor(cycle.generatedCardsPlayedThisDay / card.focusPerGeneratedCardsPlayed)
         : 0),
@@ -800,6 +808,91 @@ export function resolveCardTarget(
         return { legal: false, reason: "Not enough cards to reorder." };
       }
     }
+    if (card.exhaustAllTechDebtCards && exhaustedCardInstanceIds.length === 0) {
+      return { legal: false, reason: "No Tech Debt cards to exhaust." };
+    }
+    if (card.verifiedWorkPerOpenTask) {
+      const verifiedWorkHits = cycle.tasks.flatMap((task) => {
+        if (task.status === "shipped") return [];
+        const targetRequirement = task.requirements
+          .map((requirement, index) => ({
+            requirement,
+            index,
+            remaining: remainingWork(requirement),
+          }))
+          .filter(({ remaining }) => remaining > 0)
+          .sort((left, right) => left.remaining - right.remaining || left.index - right.index)[0];
+        return targetRequirement
+          ? [
+              {
+                taskId: task.taskId,
+                discipline: targetRequirement.requirement.discipline,
+                amount: Math.min(card.verifiedWorkPerOpenTask!, targetRequirement.remaining),
+              },
+            ]
+          : [];
+      });
+      if (verifiedWorkHits.length === 0) {
+        return { legal: false, reason: "No open Tasks need Work." };
+      }
+      const completions = verifiedWorkHits.filter((hit) => {
+        const requirement = cycle.tasks
+          .find((task) => task.taskId === hit.taskId)
+          ?.requirements.find((candidate) => candidate.discipline === hit.discipline);
+        return requirement && requirementCompletedByVerifiedWork(requirement, hit.amount);
+      }).length;
+      const passiveDraws = run.squad.includes("irene") ? completions : 0;
+      return {
+        ...tacticBase,
+        kind: "tactic",
+        stun: false,
+        verifiedWorkHits,
+        cardsDrawn: tacticBase.cardsDrawn + passiveDraws,
+        triggeredPassiveIds: passiveDraws > 0 ? ["irene"] : tacticBase.triggeredPassiveIds,
+        label: `All Hands · ${verifiedWorkHits.length} Work packets`,
+      };
+    }
+    if (card.triggerEveryAutomation) {
+      const verifiedWorkHits = cycle.tasks.flatMap((task) =>
+        task.status === "shipped"
+          ? []
+          : task.requirements.flatMap((requirement) => {
+              const amount = Math.min(
+                triggeredAutomationAmount(run, requirement.scriptPower),
+                remainingWork(requirement),
+              );
+              return amount > 0
+                ? [{ taskId: task.taskId, discipline: requirement.discipline, amount }]
+                : [];
+            }),
+      );
+      const guardBlock = triggeredAutomationAmount(run, cycle.guardPower);
+      if (verifiedWorkHits.length === 0 && guardBlock === 0) {
+        return { legal: false, reason: "Install a Script or Guard first." };
+      }
+      const completions = verifiedWorkHits.filter((hit) => {
+        const requirement = cycle.tasks
+          .find((task) => task.taskId === hit.taskId)
+          ?.requirements.find((candidate) => candidate.discipline === hit.discipline);
+        return requirement && requirementCompletedByVerifiedWork(requirement, hit.amount);
+      }).length;
+      const passiveDraws = run.squad.includes("irene") ? completions : 0;
+      return {
+        ...tacticBase,
+        kind: "tactic",
+        stun: false,
+        verifiedWorkHits,
+        blockGained: tacticBase.blockGained + guardBlock,
+        cardsDrawn: tacticBase.cardsDrawn + passiveDraws,
+        triggeredPassiveIds: passiveDraws > 0 ? ["irene"] : tacticBase.triggeredPassiveIds,
+        label: [
+          verifiedWorkHits.length > 0 ? `Run ${verifiedWorkHits.length} Scripts` : undefined,
+          guardBlock > 0 ? `Block ${guardBlock}` : undefined,
+        ]
+          .filter(Boolean)
+          .join(" · "),
+      };
+    }
     if (card.completeRequirementsAtMost) {
       const verifiedWorkHits = cycle.tasks.flatMap((task) =>
         task.status === "shipped"
@@ -871,6 +964,13 @@ export function resolveCardTarget(
       card.blockPerFinishingTouchesReview
         ? `Finishing Touches · Block ${card.blockPerFinishingTouchesReview}:1`
         : undefined,
+      card.copyNextCardEffect ? "Next card ×2" : undefined,
+      card.blockWorkPowerThisDay
+        ? `Block gained later · Work ${card.blockWorkPowerThisDay}`
+        : undefined,
+      card.exhaustAllTechDebtCards
+        ? `Exhaust ${exhaustedCardInstanceIds.length} Debt · Focus +${exhaustedCardInstanceIds.length}`
+        : undefined,
     ]
       .filter(Boolean)
       .join(" · ");
@@ -912,7 +1012,10 @@ export function resolveCardTarget(
 
     const scriptPower = card.scriptPowerPerIncompleteRequirement ?? 0;
     const reviews = targetTasks.map((task) => {
-      const amount = Math.min(taskUnverifiedWork(task), card.amount + generatedOutputBonus);
+      const amount = Math.min(
+        taskUnverifiedWork(task),
+        card.reviewAllUnverified ? taskUnverifiedWork(task) : card.amount + generatedOutputBonus,
+      );
       const reviewedTask = verifyTask(task, amount);
       return {
         taskId: task.taskId,
@@ -996,7 +1099,7 @@ export function resolveCardTarget(
       triggeredPassiveIds,
       label: [
         card.reviewEveryTask
-          ? `Verify ${card.amount} · ${reviews.length} ${reviews.length === 1 ? "Task" : "Tasks"}`
+          ? `${card.reviewAllUnverified ? "Verify all" : `Verify ${card.amount}`} · ${reviews.length} ${reviews.length === 1 ? "Task" : "Tasks"}`
           : `Verify ${amount}`,
         scriptInstallations.length > 0
           ? `Script +${scriptPower} · ${scriptInstallations.length} ${scriptInstallations.length === 1 ? "bar" : "bars"}`
@@ -1090,6 +1193,8 @@ export function resolveCardTarget(
       : pitchedIn
         ? 1
         : card.amount;
+
+  amount += (card.workPerTechDebt ?? 0) * run.techDebt;
 
   if (card.workPerOtherIncompleteFrontendTask) {
     amount +=
@@ -1317,6 +1422,85 @@ export function resolveCardTarget(
   };
 }
 
+function repeatResolvedCardEffect(
+  resolution: Exclude<CardResolution, { legal: false }>,
+  repeats: number,
+): Exclude<CardResolution, { legal: false }> {
+  if (repeats <= 1) return resolution;
+  const repeatedGeneratedCards = Array.from(
+    { length: repeats },
+    () => resolution.generatedCards,
+  ).flat();
+  const repeatedBase = {
+    blockGained: resolution.blockGained * repeats,
+    techDebtAdded: resolution.techDebtAdded * repeats,
+    cardsDrawn: resolution.cardsDrawn * repeats,
+    nextDayCardsDrawn: resolution.nextDayCardsDrawn * repeats,
+    focusGained: resolution.focusGained * repeats,
+    generatedCards: repeatedGeneratedCards,
+    verifiedWorkHits: resolution.verifiedWorkHits.map((hit) => ({
+      ...hit,
+      amount: hit.amount * repeats,
+    })),
+    returnDrawnToTop: resolution.returnDrawnToTop * repeats,
+    queuedDistractions: resolution.queuedDistractions * repeats,
+    cycleWorkBonus: resolution.cycleWorkBonus
+      ? { ...resolution.cycleWorkBonus, amount: resolution.cycleWorkBonus.amount * repeats }
+      : undefined,
+    dayWorkBonus: resolution.dayWorkBonus
+      ? { ...resolution.dayWorkBonus, amount: resolution.dayWorkBonus.amount * repeats }
+      : undefined,
+    dayReviewStunFocusAdded: resolution.dayReviewStunFocusAdded * repeats,
+    fullStackAdded: resolution.fullStackAdded * repeats,
+    polishBudgetAdded: resolution.polishBudgetAdded * repeats,
+    label: `Copy/Paste ×${repeats} · ${resolution.label}`,
+  };
+
+  if (resolution.kind === "work") {
+    return {
+      ...resolution,
+      ...repeatedBase,
+      amount: resolution.amount * repeats,
+      attemptedAmount: resolution.attemptedAmount * repeats,
+      overflow: resolution.overflow * repeats,
+      scriptPowerAdded: resolution.scriptPowerAdded * repeats,
+      guardPowerAdded: resolution.guardPowerAdded * repeats,
+      scriptInstallRunAmount: resolution.scriptInstallRunAmount * repeats,
+      scriptTriggerRunAmount: resolution.scriptTriggerRunAmount * repeats,
+      scriptRunAmount: resolution.scriptRunAmount * repeats,
+    };
+  }
+  if (resolution.kind === "review") {
+    return {
+      ...resolution,
+      ...repeatedBase,
+      amount: resolution.amount * repeats,
+      reviews: resolution.reviews.map((review) => ({
+        ...review,
+        amount: review.amount * repeats,
+        scriptInstallations: review.scriptInstallations.map((installation) => ({
+          ...installation,
+          powerAdded: installation.powerAdded * repeats,
+          runAmount: installation.runAmount * repeats,
+        })),
+      })),
+    };
+  }
+  return { ...resolution, ...repeatedBase };
+}
+
+export function resolveCardTarget(
+  run: RunState,
+  instance: CardInstance,
+  target: CardTarget,
+): CardResolution {
+  const resolution = resolveCardTargetOnce(run, instance, target);
+  const cycle = run.cycle;
+  const card = getCardForInstance(instance);
+  if (!resolution.legal || !cycle || card.copyNextCardEffect) return resolution;
+  return repeatResolvedCardEffect(resolution, 1 + (cycle.copiedCardEffectCount ?? 0));
+}
+
 export function applyCardResolutionToTask(
   task: TaskState,
   resolution: Exclude<CardResolution, { legal: false }>,
@@ -1359,17 +1543,24 @@ export function applyCardResolutionToTask(
       requirements: task.requirements.map((requirement) =>
         requirement.discipline !== resolution.discipline
           ? requirement
-          : {
-              ...requirement,
-              verified:
-                requirement.verified +
-                (resolution.workKind === "verified" ? resolution.amount : 0) +
+          : (() => {
+              const directAmount = Math.min(resolution.amount, remainingWork(requirement));
+              const scriptAmount = Math.min(
                 resolution.scriptRunAmount,
-              unverified:
-                requirement.unverified +
-                (resolution.workKind === "unverified" ? resolution.amount : 0),
-              scriptPower: requirement.scriptPower + resolution.scriptPowerAdded,
-            },
+                Math.max(0, remainingWork(requirement) - directAmount),
+              );
+              return {
+                ...requirement,
+                verified:
+                  requirement.verified +
+                  (resolution.workKind === "verified" ? directAmount : 0) +
+                  scriptAmount,
+                unverified:
+                  requirement.unverified +
+                  (resolution.workKind === "unverified" ? directAmount : 0),
+                scriptPower: requirement.scriptPower + resolution.scriptPowerAdded,
+              };
+            })(),
       ),
     }),
     resolution.verifiedWorkHits,
@@ -1831,7 +2022,12 @@ function applyVerifiedWorkHits(
       const amount = taskHits
         .filter((hit) => hit.discipline === requirement.discipline)
         .reduce((total, hit) => total + hit.amount, 0);
-      return amount > 0 ? { ...requirement, verified: requirement.verified + amount } : requirement;
+      return amount > 0
+        ? {
+            ...requirement,
+            verified: requirement.verified + Math.min(amount, remainingWork(requirement)),
+          }
+        : requirement;
     }),
   });
 }
