@@ -37,19 +37,22 @@ export function AchievementsScreen({ unlocked, onBack }: AchievementsScreenProps
   return (
     <section className="screen achievements-screen" aria-labelledby="achievements-heading">
       <header className="achievements-heading">
-        <div>
-          <h1 id="achievements-heading" className="display-title">
-            ACHIEVEMENTS
-          </h1>
-        </div>
-        <div
-          className="achievements-tally"
-          aria-label={`${unlocked.length} of ${achievementDefinitions.length} unlocked`}
-        >
-          <strong>
-            {unlocked.length}/{achievementDefinitions.length}
-          </strong>
-          <span>Unlocked</span>
+        <h1 id="achievements-heading" className="display-title">
+          ACHIEVEMENTS
+        </h1>
+        <div className="achievements-heading__controls">
+          <button className="button button--secondary" type="button" onClick={onBack}>
+            Back
+          </button>
+          <div
+            className="achievements-tally"
+            aria-label={`${unlocked.length} of ${achievementDefinitions.length} unlocked`}
+          >
+            <strong>
+              {unlocked.length}/{achievementDefinitions.length}
+            </strong>
+            <span>Unlocked</span>
+          </div>
         </div>
       </header>
 
@@ -82,12 +85,6 @@ export function AchievementsScreen({ unlocked, onBack }: AchievementsScreenProps
             </article>
           );
         })}
-      </div>
-
-      <div className="achievements-actions">
-        <button className="button button--secondary" type="button" onClick={onBack}>
-          Back
-        </button>
       </div>
     </section>
   );

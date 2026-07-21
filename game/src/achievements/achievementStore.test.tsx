@@ -81,6 +81,9 @@ describe("achievement progress", () => {
     expect(markup).toContain("achievement-tile--major is-unlocked");
     expect(markup).toContain("is-locked");
     expect(markup).toContain("2 of 32 unlocked");
+    expect(markup.indexOf(">Back</button>")).toBeLessThan(
+      markup.indexOf('aria-label="Achievement gallery"'),
+    );
   });
 
   it("unlocks achievements for every newly playable roster member", () => {
