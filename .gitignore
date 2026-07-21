@@ -16,3 +16,4 @@ __pycache__/
 
 # Local Cloudflare CLI state
 .wrangler/
+.env

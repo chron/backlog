@@ -12,5 +12,5 @@
     "noUnusedParameters": true,
     "types": ["./worker-configuration.d.ts"]
   },
-  "include": ["functions", "src/telemetry/contract.ts"]
+  "include": ["functions", "worker", "src/telemetry/contract.ts"]
 }

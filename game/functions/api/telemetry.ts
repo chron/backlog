@@ -192,21 +192,24 @@ export async function persistTelemetryBatch(
   ]);
 }
 
-export const onRequestPost: PagesFunction<Env> = async (context) => {
-  const requestOrigin = context.request.headers.get("origin");
-  if (requestOrigin && requestOrigin !== new URL(context.request.url).origin) {
+export async function handleTelemetryRequest(
+  request: Request,
+  database: D1Database,
+): Promise<Response> {
+  const requestOrigin = request.headers.get("origin");
+  if (requestOrigin && requestOrigin !== new URL(request.url).origin) {
     return Response.json({ error: "Cross-origin telemetry is not accepted." }, { status: 403 });
   }
 
-  const contentType = context.request.headers.get("content-type")?.toLowerCase() ?? "";
+  const contentType = request.headers.get("content-type")?.toLowerCase() ?? "";
   if (!contentType.startsWith("application/json") && !contentType.startsWith("text/plain")) {
     return Response.json({ error: "Expected JSON." }, { status: 415 });
   }
 
   try {
-    const batch = parseProductionTelemetryBatch(await readBoundedJson(context.request));
+    const batch = parseProductionTelemetryBatch(await readBoundedJson(request));
     if (!batch) return Response.json({ error: "Invalid telemetry batch." }, { status: 400 });
-    await persistTelemetryBatch(context.env.TELEMETRY_DB, batch);
+    await persistTelemetryBatch(database, batch);
     return new Response(null, { status: 204, headers: noStoreHeaders });
   } catch (error) {
     if (error instanceof RequestBodyTooLargeError) {
@@ -223,4 +226,4 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
     );
     return Response.json({ error: "Telemetry unavailable." }, { status: 500 });
   }
-};
+}
