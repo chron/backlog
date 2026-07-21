@@ -1,15 +1,24 @@
-import { Briefcase, Coffee, GitPullRequest } from "lucide-react";
+import { ArrowLeft, Briefcase, Coffee, GitPullRequest, Sparkles } from "lucide-react";
 import { useState } from "react";
 import panelMascot from "../assets/mascots/panel.svg";
 import platformMascot from "../assets/mascots/platform.svg";
 import researchMascot from "../assets/mascots/research.svg";
 import type { DispatchProps, RunProps } from "../app/types";
 import { CardCollectionBrowser, CardCollectionEntry } from "../components/CardCollectionBrowser";
+import { CharacterPortrait } from "../components/CharacterPortrait";
+import { GameCard } from "../components/GameCard";
+import { getCard } from "../domain/content";
 import { canRefactorCard } from "../domain/shop";
-import { getWeekendChoiceState, type WeekendChoiceId } from "../domain/weekend";
+import {
+  getWeekendChoiceState,
+  getWeekendSquadDraftCardIds,
+  isFinalWeekend,
+  type WeekendChoiceId,
+} from "../domain/weekend";
 
 type WeekendScreenProps = DispatchProps &
   RunProps & {
+    nodeId: string;
     onInspectDeck: () => void;
   };
 
@@ -37,20 +46,41 @@ const weekendChoices = [
   },
 ] as const;
 
-export function WeekendScreen({ dispatch, run, onInspectDeck }: WeekendScreenProps) {
+export function WeekendScreen({ dispatch, run, nodeId, onInspectDeck }: WeekendScreenProps) {
   const [refactoring, setRefactoring] = useState(false);
+  const [drafting, setDrafting] = useState(false);
   if (!run) return null;
+
+  const choices = isFinalWeekend(nodeId)
+    ? [
+        ...weekendChoices,
+        {
+          id: "squad-draft" as const,
+          label: "One Last PR",
+          note: "Sneak in one final idea.",
+          icon: Sparkles,
+        },
+      ]
+    : weekendChoices;
+  const draftCardIds = getWeekendSquadDraftCardIds(run, nodeId);
 
   function choose(choiceId: WeekendChoiceId) {
     if (choiceId === "refactor") {
       setRefactoring(true);
       return;
     }
+    if (choiceId === "squad-draft") {
+      setDrafting(true);
+      return;
+    }
     dispatch({ type: "CHOOSE_WEEKEND", choiceId });
   }
 
   return (
-    <section className="screen weekend-screen" aria-labelledby="weekend-heading">
+    <section
+      className={`screen weekend-screen${drafting ? " is-drafting" : ""}`}
+      aria-labelledby="weekend-heading"
+    >
       <header className="weekend-heading">
         <div>
           <span>Out of office</span>
@@ -66,34 +96,86 @@ export function WeekendScreen({ dispatch, run, onInspectDeck }: WeekendScreenPro
         <i>Sun</i>
       </div>
 
-      <div className="weekend-choice-grid" aria-label="Weekend plans">
-        {weekendChoices.map((choice, index) => {
-          const state = getWeekendChoiceState(choice.id, run);
-          const Icon = choice.icon;
-          return (
+      {drafting ? (
+        <div className="weekend-draft" aria-label="One Last PR card draft">
+          <div className="weekend-draft__intro">
+            <Sparkles aria-hidden="true" strokeWidth={3} />
+            <strong>ONE LAST PR</strong>
+            <span>Costs 2 Morale</span>
             <button
-              className={`weekend-choice weekend-choice--${choice.id}`}
+              className="button button--text weekend-draft__back"
               type="button"
-              key={choice.id}
-              disabled={Boolean(state.disabledReason)}
-              onClick={() => choose(choice.id)}
+              onClick={() => setDrafting(false)}
             >
-              <span className="weekend-choice__number">0{index + 1}</span>
-              <Icon className="weekend-choice__icon" aria-hidden="true" strokeWidth={3} />
-              <span className="weekend-choice__copy">
-                <strong>{choice.label}</strong>
-                <small>{state.disabledReason ?? choice.note}</small>
-              </span>
-              <span className="weekend-choice__outcomes">
-                {state.outcomes.map((outcome) => (
-                  <b key={outcome}>{outcome}</b>
-                ))}
-              </span>
-              <img src={choice.mascot} alt="" draggable={false} />
+              <ArrowLeft aria-hidden="true" strokeWidth={3} />
+              Back
             </button>
-          );
-        })}
-      </div>
+          </div>
+          <div className="weekend-draft__cards">
+            {draftCardIds.map((cardId, index) => {
+              const card = getCard(cardId);
+              return (
+                <div
+                  className="weekend-draft__card"
+                  key={cardId}
+                  style={{ "--draft-index": index } as React.CSSProperties}
+                >
+                  <GameCard
+                    instance={{ cardId, instanceId: `weekend-draft-${cardId}` }}
+                    effectiveCost={card.cost}
+                    selected={false}
+                    onSelect={() =>
+                      dispatch({ type: "CHOOSE_WEEKEND", choiceId: "squad-draft", cardId })
+                    }
+                  />
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ) : (
+        <div
+          className={`weekend-choice-grid${choices.length === 4 ? " has-final-choice" : ""}`}
+          aria-label="Weekend plans"
+        >
+          {choices.map((choice, index) => {
+            const state = getWeekendChoiceState(choice.id, run, nodeId);
+            const Icon = choice.icon;
+            return (
+              <button
+                className={`weekend-choice weekend-choice--${choice.id}`}
+                type="button"
+                key={choice.id}
+                disabled={Boolean(state.disabledReason)}
+                onClick={() => choose(choice.id)}
+              >
+                <span className="weekend-choice__number">0{index + 1}</span>
+                <Icon className="weekend-choice__icon" aria-hidden="true" strokeWidth={3} />
+                <span className="weekend-choice__copy">
+                  <strong>{choice.label}</strong>
+                  <small>{state.disabledReason ?? choice.note}</small>
+                </span>
+                <span className="weekend-choice__outcomes">
+                  {state.outcomes.map((outcome) => (
+                    <b key={outcome}>{outcome}</b>
+                  ))}
+                </span>
+                {"mascot" in choice ? (
+                  <img src={choice.mascot} alt="" draggable={false} />
+                ) : (
+                  <span className="weekend-choice__squad" aria-hidden="true">
+                    {run.squad.map((developerId) => (
+                      <span className="weekend-choice__squad-member" key={developerId}>
+                        <CharacterPortrait developerId={developerId} mode="token" decorative />
+                      </span>
+                    ))}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {refactoring && (
         <CardCollectionBrowser

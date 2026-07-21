@@ -25,9 +25,11 @@ import {
 } from "../domain/shop";
 import {
   getWeekendChoiceState,
+  getWeekendSquadDraftCardIds,
   weekendRestAmount,
   weekendSideGigCredits,
   weekendSideGigMoraleCost,
+  weekendSquadDraftMoraleCost,
   type WeekendChoiceId,
 } from "../domain/weekend";
 import {
@@ -149,7 +151,12 @@ export type GameAction =
       instanceId?: string;
     }
   | { type: "REFRESH_SHOP" }
-  | { type: "CHOOSE_WEEKEND"; choiceId: WeekendChoiceId; instanceId?: string }
+  | {
+      type: "CHOOSE_WEEKEND";
+      choiceId: WeekendChoiceId;
+      instanceId?: string;
+      cardId?: string;
+    }
   | { type: "LEAVE_NODE" }
   | { type: "RETURN_TITLE" };
 
@@ -2074,7 +2081,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
 
     case "CHOOSE_WEEKEND": {
       if (state.screen.name !== "weekend" || !state.run) return state;
-      const choice = getWeekendChoiceState(action.choiceId, state.run);
+      const choice = getWeekendChoiceState(action.choiceId, state.run, state.screen.nodeId);
       if (choice.disabledReason) return state;
 
       let run = state.run;
@@ -2089,7 +2096,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
           credits: run.credits + weekendSideGigCredits,
           morale: run.morale - weekendSideGigMoraleCost,
         };
-      } else {
+      } else if (action.choiceId === "refactor") {
         const instance = run.deck.find((card) => card.instanceId === action.instanceId);
         if (!instance || !canRefactorCard(run, instance)) return state;
         run =
@@ -2099,6 +2106,25 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
                 ...run,
                 deck: run.deck.filter((card) => card.instanceId !== instance.instanceId),
               };
+      } else {
+        const cardIds = getWeekendSquadDraftCardIds(run, state.screen.nodeId);
+        if (!action.cardId || !cardIds.includes(action.cardId)) return state;
+        run = {
+          ...run,
+          morale: run.morale - weekendSquadDraftMoraleCost,
+          deck: [
+            ...run.deck,
+            {
+              cardId: action.cardId,
+              instanceId: `card-${run.nextCardInstanceId}`,
+            },
+          ],
+          nextCardInstanceId: run.nextCardInstanceId + 1,
+          history: [
+            ...run.history,
+            { kind: "card-added", cardId: action.cardId, sourceNodeId: state.screen.nodeId },
+          ],
+        };
       }
 
       const completedRun = completeNode(run, state.screen.nodeId);

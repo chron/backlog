@@ -18,7 +18,7 @@ import type {
   ToolId,
 } from "../domain/models";
 import { canDuplicateCard, canRefactorCard, shopServicePrices } from "../domain/shop";
-import { getWeekendChoiceState } from "../domain/weekend";
+import { getWeekendChoiceState, getWeekendSquadDraftCardIds } from "../domain/weekend";
 import {
   gameReducer,
   initialGameState,
@@ -1172,6 +1172,17 @@ function nextNonCycleAction(
           choiceId: "refactor",
           instanceId: weakest.instanceId,
         };
+      }
+      const draftCardId = [...getWeekendSquadDraftCardIds(state.run, state.screen.nodeId)].sort(
+        (left, right) =>
+          cardRewardScore(right, scenario, state.run!) -
+          cardRewardScore(left, scenario, state.run!),
+      )[0];
+      if (
+        draftCardId &&
+        !getWeekendChoiceState("squad-draft", state.run, state.screen.nodeId).disabledReason
+      ) {
+        return { type: "CHOOSE_WEEKEND", choiceId: "squad-draft", cardId: draftCardId };
       }
       return !getWeekendChoiceState("side-gig", state.run).disabledReason
         ? { type: "CHOOSE_WEEKEND", choiceId: "side-gig" }

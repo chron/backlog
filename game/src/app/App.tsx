@@ -321,20 +321,39 @@ function createAppInitialState(base: GameState): GameState {
     return gameReducer(shopMap, { type: "VISIT_NODE", nodeId: "shop-1" });
   }
   if (qa === "weekend" && state.run) {
-    const requestedMorale = Number(searchParams.get("morale"));
+    const finalWeekend = searchParams.get("final") === "1";
+    const requestedMoraleParam = searchParams.get("morale");
+    const requestedMorale = Number(requestedMoraleParam);
     const weekendMap: GameState = {
       screen: { name: "map" },
       run: {
         ...state.run,
         morale:
-          Number.isFinite(requestedMorale) && requestedMorale >= 0
+          requestedMoraleParam !== null && Number.isFinite(requestedMorale) && requestedMorale >= 0
             ? Math.min(state.run.maxMorale, requestedMorale)
             : 6,
-        currentNodeId: "event-2",
-        completedNodeIds: ["cycle-1", "event-1", "cycle-2", "incident-1", "event-2"],
+        currentNodeId: finalWeekend ? "event-4" : "event-2",
+        completedNodeIds: finalWeekend
+          ? [
+              "cycle-1",
+              "event-1",
+              "cycle-2",
+              "incident-1",
+              "event-2",
+              "weekend-1",
+              "cycle-3",
+              "event-3",
+              "cycle-4",
+              "incident-2",
+              "event-4",
+            ]
+          : ["cycle-1", "event-1", "cycle-2", "incident-1", "event-2"],
       },
     };
-    return gameReducer(weekendMap, { type: "VISIT_NODE", nodeId: "weekend-1" });
+    return gameReducer(weekendMap, {
+      type: "VISIT_NODE",
+      nodeId: finalWeekend ? "weekend-2" : "weekend-1",
+    });
   }
   if ((qa === "odin" || qa === "irene") && state.run) {
     state = {
@@ -658,6 +677,7 @@ export function App() {
           <WeekendScreen
             dispatch={dispatch}
             run={state.run}
+            nodeId={state.screen.nodeId}
             onInspectDeck={() =>
               state.run && setCardCollection({ title: "Deck", cards: state.run.deck })
             }

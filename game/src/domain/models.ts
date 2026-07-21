@@ -449,7 +449,7 @@ export type RunHistoryEvent =
   | {
       kind: "weekend-resolved";
       nodeId: string;
-      choiceId: "rest" | "refactor" | "side-gig";
+      choiceId: "rest" | "refactor" | "side-gig" | "squad-draft";
       outcome: readonly string[];
     }
   | { kind: "boss-selected"; bossId: string }

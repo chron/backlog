@@ -4,7 +4,7 @@ import { gameReducer, initialGameState } from "../game/gameReducer";
 import { WeekendScreen } from "./WeekendScreen";
 
 describe("WeekendScreen", () => {
-  it("renders the calendar break, three exact plans, outcomes, and Deck access", () => {
+  it("renders the calendar break, three early plans, outcomes, and Deck access", () => {
     let state = gameReducer(initialGameState, { type: "START_RUN", seed: 42 });
     for (const developerId of ["paul", "odin", "madi"] as const) {
       state = gameReducer(state, { type: "TOGGLE_DEVELOPER", developerId });
@@ -13,7 +13,12 @@ describe("WeekendScreen", () => {
     const run = state.run && { ...state.run, morale: 6 };
 
     const markup = renderToStaticMarkup(
-      <WeekendScreen dispatch={() => undefined} run={run} onInspectDeck={() => undefined} />,
+      <WeekendScreen
+        dispatch={() => undefined}
+        run={run}
+        nodeId="weekend-1"
+        onInspectDeck={() => undefined}
+      />,
     );
 
     expect(markup).toContain("WEEKEND");
@@ -25,5 +30,27 @@ describe("WeekendScreen", () => {
     expect(markup).toContain("+$80");
     expect(markup).toContain("−2 Morale");
     expect(markup).toContain("Inspect Deck, 10 cards");
+    expect(markup).not.toContain("One Last PR");
+  });
+
+  it("adds the boss-relevant One Last PR plan only at the final Weekend", () => {
+    let state = gameReducer(initialGameState, { type: "START_RUN", seed: 42 });
+    for (const developerId of ["paul", "odin", "madi"] as const) {
+      state = gameReducer(state, { type: "TOGGLE_DEVELOPER", developerId });
+    }
+    state = gameReducer(state, { type: "CONFIRM_SQUAD" });
+
+    const markup = renderToStaticMarkup(
+      <WeekendScreen
+        dispatch={() => undefined}
+        run={state.run}
+        nodeId="weekend-2"
+        onInspectDeck={() => undefined}
+      />,
+    );
+
+    expect(markup).toContain("One Last PR");
+    expect(markup).toContain("Gain 1 Squad card");
+    expect(markup).toContain("−2 Morale");
   });
 });
