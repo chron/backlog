@@ -3,6 +3,8 @@ import { useEffect, useId, useRef } from "react";
 interface SettingsModalProps {
   telemetryEnabled: boolean;
   onTelemetryChange: (enabled: boolean) => void;
+  tutorialEnabled: boolean;
+  onTutorialChange: (enabled: boolean) => void;
   onClose: () => void;
 }
 
@@ -16,6 +18,8 @@ const focusableSelector = [
 export function SettingsModal({
   telemetryEnabled,
   onTelemetryChange,
+  tutorialEnabled,
+  onTutorialChange,
   onClose,
 }: SettingsModalProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
@@ -81,23 +85,43 @@ export function SettingsModal({
         </header>
 
         <div className="settings-modal__body">
-          <div className="settings-modal__copy">
-            <strong>Share playtest data</strong>
-            <p id={descriptionId}>
-              Send anonymous choices, run timing, and balance results. Never names, photos, or a
-              device ID.
-            </p>
+          <div className="settings-modal__row">
+            <div className="settings-modal__copy">
+              <strong>Show tutorial</strong>
+              <p>Guide the next run through its first Cycle.</p>
+            </div>
+            <button
+              className="settings-toggle"
+              type="button"
+              role="switch"
+              aria-label="Show tutorial on next run"
+              aria-checked={tutorialEnabled}
+              onClick={() => onTutorialChange(!tutorialEnabled)}
+            >
+              <span aria-hidden="true" />
+              <b>{tutorialEnabled ? "On" : "Off"}</b>
+            </button>
           </div>
-          <button
-            className="settings-toggle"
-            type="button"
-            role="switch"
-            aria-checked={telemetryEnabled}
-            onClick={() => onTelemetryChange(!telemetryEnabled)}
-          >
-            <span aria-hidden="true" />
-            <b>{telemetryEnabled ? "On" : "Off"}</b>
-          </button>
+          <div className="settings-modal__row">
+            <div className="settings-modal__copy">
+              <strong>Share playtest data</strong>
+              <p id={descriptionId}>
+                Send anonymous choices, run timing, and balance results. Never names, photos, or a
+                device ID.
+              </p>
+            </div>
+            <button
+              className="settings-toggle"
+              type="button"
+              role="switch"
+              aria-label="Share playtest data"
+              aria-checked={telemetryEnabled}
+              onClick={() => onTelemetryChange(!telemetryEnabled)}
+            >
+              <span aria-hidden="true" />
+              <b>{telemetryEnabled ? "On" : "Off"}</b>
+            </button>
+          </div>
         </div>
 
         <footer className="settings-modal__actions">

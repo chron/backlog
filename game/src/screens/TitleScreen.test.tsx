@@ -12,5 +12,6 @@ describe("TitleScreen", () => {
     expect(markup.match(/class="title-screen__art /g)).toHaveLength(7);
     expect(markup).not.toContain("title-art-picker");
     expect(markup).not.toContain("aria-pressed");
+    expect(markup).not.toContain("Tutorial Run");
   });
 });

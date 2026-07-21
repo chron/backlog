@@ -97,10 +97,18 @@
 
 .settings-modal__body {
   display: grid;
-  padding: 1.35rem 1.25rem;
+}
+
+.settings-modal__row {
+  display: grid;
+  padding: 1.15rem 1.25rem;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: 1.25rem;
+}
+
+.settings-modal__row + .settings-modal__row {
+  border-top: 2px solid color-mix(in oklch, var(--ink) 24%, transparent);
 }
 
 .settings-modal__copy strong {
@@ -174,7 +182,7 @@
     width: 42px;
   }
 
-  .settings-modal__body {
+  .settings-modal__row {
     grid-template-columns: 1fr;
   }
 

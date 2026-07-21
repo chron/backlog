@@ -3795,7 +3795,12 @@ main:focus {
   overflow: hidden;
 }
 
+.event-screen > * {
+  min-width: 0;
+}
+
 .event-screen .screen-heading {
+  padding-right: clamp(17rem, 27vw, 20rem);
   margin-bottom: 0;
 }
 
@@ -5049,6 +5054,10 @@ main:focus {
     grid-template-rows: repeat(4, auto);
     align-content: start;
     overflow: visible;
+  }
+
+  .event-screen .screen-heading {
+    padding-right: 0;
   }
 
   .event-art,

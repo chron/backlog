@@ -30,6 +30,11 @@ import type { GameAction } from "../game/gameReducer";
 import type { GameState } from "../game/gameReducer";
 import { SettingsModal } from "../settings/SettingsModal";
 import { loadTelemetryPreference, saveTelemetryPreference } from "../settings/settingsStore";
+import {
+  completeCombatTutorial,
+  restartCombatTutorial,
+  shouldShowCombatTutorial,
+} from "../tutorial/combatTutorialState";
 
 interface OpenCardCollection {
   cards: readonly CardInstance[];
@@ -518,6 +523,7 @@ export function App() {
   const [achievementsOpen, setAchievementsOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [telemetryEnabled, setTelemetryEnabled] = useState(loadTelemetryPreference);
+  const [tutorialEnabled, setTutorialEnabled] = useState(shouldShowCombatTutorial);
   const [unlockedAchievements, setUnlockedAchievements] = useState<readonly AchievementId[]>(() =>
     loadAchievements(),
   );
@@ -669,7 +675,10 @@ export function App() {
       <button
         className="settings-trigger"
         type="button"
-        onClick={() => setSettingsOpen(true)}
+        onClick={() => {
+          setTutorialEnabled(shouldShowCombatTutorial());
+          setSettingsOpen(true);
+        }}
         aria-label="Open settings"
         aria-haspopup="dialog"
       >
@@ -689,10 +698,16 @@ export function App() {
       {settingsOpen && (
         <SettingsModal
           telemetryEnabled={telemetryEnabled}
+          tutorialEnabled={tutorialEnabled}
           onTelemetryChange={(enabled) => {
             setTelemetryEnabled(enabled);
             saveTelemetryPreference(enabled);
             if (!enabled) discardQueuedProductionTelemetry();
+          }}
+          onTutorialChange={(enabled) => {
+            setTutorialEnabled(enabled);
+            if (enabled) restartCombatTutorial();
+            else completeCombatTutorial();
           }}
           onClose={() => setSettingsOpen(false)}
         />

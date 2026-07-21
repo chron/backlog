@@ -10,7 +10,6 @@ import titleShipIt from "../assets/title/title-ship-it-v1.webp";
 import titleSquadCutIn from "../assets/title/title-squad-cut-in-v2.webp";
 import { formatLgtmExpansion, getLgtmExpansion, lgtmExpansions } from "../brand";
 import { createRequestedRunSeed } from "../game/random";
-import { restartCombatTutorial } from "../tutorial/combatTutorialState";
 
 interface TitleScreenProps extends DispatchProps {
   onOpenAchievements: () => void;
@@ -89,16 +88,6 @@ export function TitleScreen({ dispatch, onOpenAchievements }: TitleScreenProps) 
           >
             <Trophy aria-hidden="true" />
             Achievements
-          </button>
-          <button
-            className="button button--text"
-            type="button"
-            onClick={() => {
-              restartCombatTutorial();
-              startRun();
-            }}
-          >
-            Tutorial Run
           </button>
         </div>
       </div>
