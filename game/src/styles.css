@@ -1139,9 +1139,11 @@ main:focus {
   box-shadow: 5px 5px 0 var(--ink);
   color: var(--ink);
   line-height: 1.3;
+  overflow-wrap: anywhere;
   text-align: left;
   text-transform: none;
   transform: translateX(-50%) rotate(-1deg);
+  white-space: normal;
 }
 
 .game-tooltip strong,
