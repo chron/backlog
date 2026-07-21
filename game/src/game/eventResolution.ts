@@ -280,6 +280,7 @@ export function resolveEventChoice(
 
 export function reconcileTechDebt(run: RunState, amount: number): RunState {
   const techDebt = Math.max(0, run.techDebt + amount);
+  const debtGained = Math.max(0, techDebt - run.techDebt);
   const supportedCards = Math.floor(techDebt / techDebtCardThreshold);
   const debtCards = run.deck.filter((card) => card.cardId === "tech-debt");
   let deck = [...run.deck];
@@ -292,7 +293,13 @@ export function reconcileTechDebt(run: RunState, amount: number): RunState {
     deck.push({ cardId: "tech-debt", instanceId: `card-${nextCardInstanceId}` });
     nextCardInstanceId += 1;
   }
-  return { ...run, techDebt, deck, nextCardInstanceId };
+  return {
+    ...run,
+    techDebt,
+    credits: run.credits + (run.tools.includes("venture-debt") ? debtGained * 10 : 0),
+    deck,
+    nextCardInstanceId,
+  };
 }
 
 function addPersistentCard(run: RunState, cardId: string, source?: CardInstance): RunState {

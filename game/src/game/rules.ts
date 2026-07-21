@@ -409,6 +409,9 @@ export function resolveCardTarget(
       })),
     );
   }
+  if (generatedCards.length > 0 && run.tools.includes("boilerplate-generator")) {
+    generatedCards.push({ cardId: "snippet" });
+  }
   const generatedOutputBonus =
     run.squad.includes("kirsten") && isGeneratedCardInstance(instance) ? 1 : 0;
   const exhaustedCardInstanceIds = card.exhaustHandTags
@@ -438,6 +441,15 @@ export function resolveCardTarget(
       transfersBetweenTasks: card.transferChainThisDay || cycle.chain.transfersBetweenTasks,
     };
   }
+  const chainMilestoneBaseline =
+    cycle.chain.taskId && chainAfterPlay.taskId === cycle.chain.taskId
+      ? cycle.chain.count
+      : cycle.chain.transfersBetweenTasks
+        ? cycle.chain.count
+        : 0;
+  const pomodoroDraws = run.tools.includes("pomodoro-timer")
+    ? Math.max(0, Math.floor(chainAfterPlay.count / 3) - Math.floor(chainMilestoneBaseline / 3))
+    : 0;
   const printedBlock =
     (card.block ?? 0) +
     ((card.block ?? 0) > 0 ? generatedOutputBonus : 0) +
@@ -473,7 +485,8 @@ export function resolveCardTarget(
         ? card.cardsDrawnIfBlockCoversIncoming
         : 0) +
       (card.drawIfContinuesChain && chainedTaskBeforePlay ? card.drawIfContinuesChain : 0) +
-      (card.exhaustHandTags ? exhaustedCardInstanceIds.length : 0),
+      (card.exhaustHandTags ? exhaustedCardInstanceIds.length : 0) +
+      pomodoroDraws,
     nextDayCardsDrawn: card.nextDayCardsDrawn ?? 0,
     focusGained:
       (card.focusGained ?? 0) +
@@ -1028,6 +1041,9 @@ export function resolveCardTarget(
 
   if (countsAsWorkPlay) {
     amount += generatedOutputBonus;
+    if (card.discipline === "flexible" && run.tools.includes("t-shaped-team")) {
+      amount += 1;
+    }
     amount += (card.amountPerGeneratedCardPlayed ?? 0) * cycle.generatedCardsPlayedThisDay;
     amount +=
       (card.workPerRetainedCard ?? 0) *

@@ -359,6 +359,42 @@ function drawCards(
   return { drawPile, discardPile, drawn, rngState: nextRngState };
 }
 
+function techDebtCardsDrawn(cards: readonly CardInstance[]): number {
+  return cards.filter((card) => card.cardId === "tech-debt").length;
+}
+
+function newlyCompletedByVerifiedWork(
+  beforeTasks: readonly TaskState[],
+  afterTasks: readonly TaskState[],
+): number {
+  return afterTasks.reduce((total, afterTask) => {
+    const beforeTask = beforeTasks.find((task) => task.taskId === afterTask.taskId);
+    if (!beforeTask) return total;
+    return (
+      total +
+      afterTask.requirements.filter((afterRequirement) => {
+        const beforeRequirement = beforeTask.requirements.find(
+          (requirement) => requirement.discipline === afterRequirement.discipline,
+        );
+        if (!beforeRequirement) return false;
+        const beforeRemaining = Math.max(
+          0,
+          beforeRequirement.target - beforeRequirement.verified - beforeRequirement.unverified,
+        );
+        const afterRemaining = Math.max(
+          0,
+          afterRequirement.target - afterRequirement.verified - afterRequirement.unverified,
+        );
+        return (
+          beforeRemaining > 0 &&
+          afterRemaining === 0 &&
+          afterRequirement.verified > beforeRequirement.verified
+        );
+      }).length
+    );
+  }, 0);
+}
+
 function createTaskState(task: TaskDefinition, spawnedDay: number): TaskState {
   return {
     taskId: task.id,
@@ -474,7 +510,11 @@ function createCycleState(
     cycleId,
     startingMorale: run.morale,
     day: 1,
-    focus: 3 + openingFocus,
+    focus:
+      3 +
+      openingFocus +
+      (run.tools.includes("healthy-runway") ? Math.floor(run.credits / 50) : 0) +
+      (run.tools.includes("institutional-knowledge") ? techDebtCardsDrawn(firstDraw.drawn) : 0),
     block: 0,
     tasks: [
       ...definition.tasks
@@ -627,7 +667,10 @@ function applyTaskShipping(
     ),
     defects: cycle.defects + preview.defects,
     techDebtAdded: cycle.techDebtAdded + preview.techDebt,
-    focus: cycle.focus + rewards.focusGained,
+    focus:
+      cycle.focus +
+      rewards.focusGained +
+      (run.tools.includes("institutional-knowledge") ? techDebtCardsDrawn(nextDraw.drawn) : 0),
     prototypePower: cycle.prototypePower + (task.prototypeReward ?? 0),
     drawPile: nextDraw.drawPile,
     hand: [...cycle.hand, ...nextDraw.drawn],
@@ -1162,11 +1205,20 @@ function endDay(run: RunState, cycle: CycleState): GameState {
     run.tools.includes("noise-cancelling-headphones"),
     run.tools.includes("cat-tax"),
   );
+  const definitionOfDoneBlock = run.tools.includes("definition-of-done")
+    ? newlyCompletedByVerifiedWork(resolvedCycle.tasks, rosterStart.tasks) * 2
+    : 0;
   const nextCycle: CycleState = {
     ...resolvedCycle,
     day: cycle.day + 1,
-    focus: 3 + (run.tools.includes("timezone-wrangler") ? cycle.focus : 0),
-    block: rosterStart.block + (run.tools.includes("error-budget") ? resolvedCycle.block : 0),
+    focus:
+      3 +
+      (run.tools.includes("timezone-wrangler") ? cycle.focus : 0) +
+      (run.tools.includes("institutional-knowledge") ? techDebtCardsDrawn(nextDraw.drawn) : 0),
+    block:
+      rosterStart.block +
+      definitionOfDoneBlock +
+      (run.tools.includes("error-budget") ? resolvedCycle.block : 0),
     tasks: rosterStart.tasks,
     drawPile: nextDraw.drawPile,
     hand: [...retainedHand, ...nextDraw.drawn],
@@ -1359,6 +1411,16 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
           ...rosterEffects.triggeredPassiveIds,
         ]),
       ];
+      const definition = getCardForInstance(instance);
+      const exhausts = definition.exhaust === true;
+      const effectExhaustedCount = cycle.hand.filter((candidate) =>
+        resolution.exhaustedCardInstanceIds.includes(candidate.instanceId),
+      ).length;
+      const exhaustedCount = effectExhaustedCount + (exhausts ? 1 : 0);
+      const garbageCollectorDraws = state.run.tools.includes("garbage-collector")
+        ? exhaustedCount
+        : 0;
+      const cardsToDraw = resolution.cardsDrawn + rosterEffects.cardsDrawn + garbageCollectorDraws;
       const cardDraw = resolution.drawEntireDrawPile
         ? {
             drawPile: [] as CardInstance[],
@@ -1366,11 +1428,11 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
             drawn: [...cycle.drawPile],
             rngState: state.run.rngState,
           }
-        : resolution.cardsDrawn + rosterEffects.cardsDrawn > 0
+        : cardsToDraw > 0
           ? drawCards(
               cycle.drawPile,
               cycle.discardPile,
-              resolution.cardsDrawn + rosterEffects.cardsDrawn,
+              cardsToDraw,
               state.run.rngState,
               state.run.tools.includes("noise-cancelling-headphones"),
               state.run.tools.includes("cat-tax"),
@@ -1387,9 +1449,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
           day: cycle.day,
         },
       }));
-      const definition = getCardForInstance(instance);
       const generatedPlay = isGeneratedCardInstance(instance);
-      const exhausts = definition.exhaust === true;
       const exhaustedInstance: CardInstance = exhausts
         ? { ...instance, exhausted: { day: cycle.day, cause: "played" } }
         : instance;
@@ -1412,7 +1472,6 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
             (candidate) => candidate.instanceId === resolution.retrievedExhaustCardInstanceId,
           )
         : undefined;
-      const exhaustedCount = effectExhaustedCards.length + (exhausts ? 1 : 0);
       const nickFocus = state.run.squad.includes("nick") ? exhaustedCount : 0;
       if (nickFocus > 0 && !triggeredPassiveIds.includes("nick")) {
         triggeredPassiveIds.push("nick");
@@ -1423,6 +1482,13 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
           (cardTagWorkBonuses[resolution.cycleWorkBonus.tag] ?? 0) +
           resolution.cycleWorkBonus.amount;
       }
+      const definitionOfDoneBlock = state.run.tools.includes("definition-of-done")
+        ? newlyCompletedByVerifiedWork(cycle.tasks, tasks) * 2
+        : 0;
+      const institutionalKnowledgeFocus =
+        state.run.tools.includes("institutional-knowledge") && cardDraw
+          ? techDebtCardsDrawn(cardDraw.drawn)
+          : 0;
       const nextCycle: CycleState = {
         ...cycle,
         focus:
@@ -1430,8 +1496,10 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
           resolution.cost +
           resolution.focusGained +
           rosterEffects.focusGained +
-          nickFocus,
-        block: cycle.block + resolution.blockGained + rosterEffects.blockGained,
+          nickFocus +
+          institutionalKnowledgeFocus,
+        block:
+          cycle.block + resolution.blockGained + rosterEffects.blockGained + definitionOfDoneBlock,
         techDebtAdded: cycle.techDebtAdded + resolution.techDebtAdded,
         tasks,
         drawPile: cardDraw?.drawPile ?? cycle.drawPile,

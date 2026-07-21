@@ -821,7 +821,7 @@ function toolScore(toolId: ToolId, run: RunState, scenario: PlaytestScenario): n
     case "enterprise-ai-licence":
       return base + (preferred.has("ai-assisted") ? 22 : -4) - run.techDebt * 1.5;
     case "pairing-session":
-      return base + (preferred.has("flexible") || preferred.has("review") ? 18 : 8);
+      return base + (preferred.has("flexible") || preferred.has("review") ? 10 : 8);
     case "cat-tax":
       return (
         base + (run.deck.some((card) => getCardForInstance(card).tags.includes("status")) ? 16 : 2)
@@ -830,6 +830,22 @@ function toolScore(toolId: ToolId, run: RunState, scenario: PlaytestScenario): n
       return base + (scenario.expectedSignal === "chain" ? 20 : 8);
     case "noise-cancelling-headphones":
       return base + 12;
+    case "garbage-collector":
+      return base + (preferred.has("exhaust") || preferred.has("generated") ? 24 : 8);
+    case "institutional-knowledge":
+      return base + run.deck.filter((card) => card.cardId === "tech-debt").length * 6;
+    case "definition-of-done":
+      return base + (scenario.expectedSignal === "completion" ? 22 : 12);
+    case "pomodoro-timer":
+      return base + (scenario.expectedSignal === "chain" ? 26 : 6);
+    case "t-shaped-team":
+      return base + (preferred.has("flexible") ? 24 : 7);
+    case "venture-debt":
+      return base + Math.min(run.techDebt * 2, 18) + (run.credits < 100 ? 8 : 2);
+    case "healthy-runway":
+      return base + Math.floor(run.credits / 50) * 8;
+    case "boilerplate-generator":
+      return base + (preferred.has("generated") ? 26 : 8);
   }
 }
 
@@ -847,8 +863,12 @@ function routeScore(node: MapNode, run: RunState, policy: PlaytestPolicy): numbe
     case "cycle":
       return node.id.includes("safe") ? 65 : 55;
     case "incident": {
-      const threshold = policy === "careful" ? 17 : policy === "velocity" ? 12 : 15;
-      return run.morale >= threshold ? 76 : 28;
+      const threshold = policy === "careful" ? 12 : policy === "velocity" ? 8 : 11;
+      const completedIncidents = run.completedNodeIds.filter((nodeId) =>
+        nodeId.startsWith("incident-"),
+      ).length;
+      const incidentBudget = policy === "velocity" ? 2 : 1;
+      return run.morale >= threshold && completedIncidents < incidentBudget ? 76 : 28;
     }
   }
 }

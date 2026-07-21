@@ -5,6 +5,7 @@ import {
   formatIntent,
   getCard,
   getCycle,
+  standardToolIds,
   tools,
 } from "../domain/content";
 import { getBossDefinition } from "../domain/bosses";
@@ -13,7 +14,7 @@ import { selectEncounterLineup } from "../domain/encounters";
 import type { DeveloperId, Discipline, ToolId } from "../domain/models";
 import { gameReducer, initialGameState } from "./gameReducer";
 import type { GameState } from "./gameReducer";
-import { resolveEventChoice } from "./eventResolution";
+import { reconcileTechDebt, resolveEventChoice } from "./eventResolution";
 import { shuffle } from "./random";
 import { taskShippingPreview } from "./rules";
 
@@ -1693,7 +1694,8 @@ describe("gameReducer", () => {
   });
 
   it("authors unrestricted build-shaping and event-exclusive Tools", () => {
-    expect(tools).toHaveLength(13);
+    expect(tools).toHaveLength(21);
+    expect(standardToolIds).toHaveLength(16);
     expect(tools.map((tool) => tool.id)).toEqual([
       "pairing-session",
       "ci-runner",
@@ -1703,6 +1705,14 @@ describe("gameReducer", () => {
       "noise-cancelling-headphones",
       "enterprise-ai-licence",
       "cron-upgrade",
+      "garbage-collector",
+      "institutional-knowledge",
+      "definition-of-done",
+      "pomodoro-timer",
+      "t-shaped-team",
+      "venture-debt",
+      "healthy-runway",
+      "boilerplate-generator",
       "cat-tax",
       "reef-shark",
       "platypus",
@@ -1860,5 +1870,185 @@ describe("gameReducer", () => {
     };
     state = gameReducer(state, { type: "END_DAY" });
     expect(state.run?.cycle?.tasks[0]?.requirements[0]).toMatchObject({ verified: 2 });
+  });
+
+  it("draws once for every card Exhausted with Garbage Collector", () => {
+    let state = withTools(startCycle(), "garbage-collector");
+    state = addCardToHand(state, "ebb-and-flow");
+    if (!state.run?.cycle) throw new Error("Expected an active Cycle");
+    const ebb = state.run.cycle.hand.find((card) => card.cardId === "ebb-and-flow");
+    if (!ebb) throw new Error("Expected Ebb & Flow");
+    state = {
+      ...state,
+      run: {
+        ...state.run,
+        cycle: {
+          ...state.run.cycle,
+          hand: [ebb],
+          drawPile: [
+            { cardId: "frontend-3", instanceId: "gc-1" },
+            { cardId: "backend-3", instanceId: "gc-2" },
+            { cardId: "infra-3", instanceId: "gc-3" },
+            { cardId: "flexible-2", instanceId: "gc-4" },
+          ],
+          discardPile: [],
+        },
+      },
+    };
+    state = playCardOnSquad(state, "ebb-and-flow");
+    expect(state.run?.cycle?.hand.map((card) => card.instanceId)).toEqual([
+      "gc-1",
+      "gc-2",
+      "gc-3",
+      "gc-4",
+    ]);
+  });
+
+  it("turns drawn Tech Debt into Focus with Institutional Knowledge", () => {
+    let state = withTools(startCycle(), "institutional-knowledge");
+    state = addCardToHand(state, "ebb-and-flow");
+    if (!state.run?.cycle) throw new Error("Expected an active Cycle");
+    const ebb = state.run.cycle.hand.find((card) => card.cardId === "ebb-and-flow");
+    if (!ebb) throw new Error("Expected Ebb & Flow");
+    state = {
+      ...state,
+      run: {
+        ...state.run,
+        cycle: {
+          ...state.run.cycle,
+          focus: 3,
+          hand: [ebb],
+          drawPile: [
+            { cardId: "tech-debt", instanceId: "knowledge-debt" },
+            { cardId: "frontend-3", instanceId: "knowledge-2" },
+            { cardId: "backend-3", instanceId: "knowledge-3" },
+          ],
+          discardPile: [],
+        },
+      },
+    };
+    state = playCardOnSquad(state, "ebb-and-flow");
+    expect(state.run?.cycle?.focus).toBe(7);
+  });
+
+  it("turns direct and scripted Verified completions into Block with Definition of Done", () => {
+    let direct = withTools(startCycle(), "definition-of-done");
+    if (!direct.run?.cycle) throw new Error("Expected an active Cycle");
+    direct = {
+      ...direct,
+      run: {
+        ...direct.run,
+        cycle: {
+          ...direct.run.cycle,
+          tasks: direct.run.cycle.tasks.map((task) => ({
+            ...task,
+            requirements: task.requirements.map((requirement) => ({
+              ...requirement,
+              verified: requirement.target - 1,
+            })),
+          })),
+        },
+      },
+    };
+    direct = playCard(direct, "snippet", "status-composer", "frontend");
+    expect(direct.run?.cycle?.block).toBe(2);
+
+    let scripted = withTools(startCycle(), "definition-of-done");
+    if (!scripted.run?.cycle) throw new Error("Expected an active Cycle");
+    scripted = {
+      ...scripted,
+      run: {
+        ...scripted.run,
+        cycle: {
+          ...scripted.run.cycle,
+          tasks: scripted.run.cycle.tasks.map((task) => ({
+            ...task,
+            requirements: task.requirements.map((requirement) => ({
+              ...requirement,
+              verified: requirement.target - 1,
+              scriptPower: 1,
+            })),
+          })),
+        },
+      },
+    };
+    scripted = gameReducer(scripted, { type: "END_DAY" });
+    expect(scripted.run?.cycle?.block).toBe(4);
+  });
+
+  it("draws whenever Chain reaches a multiple of three with Pomodoro Timer", () => {
+    let state = withTools(startCycle(), "pomodoro-timer");
+    if (!state.run?.cycle) throw new Error("Expected an active Cycle");
+    state = {
+      ...state,
+      run: {
+        ...state.run,
+        cycle: {
+          ...state.run.cycle,
+          focus: 3,
+          hand: [
+            { cardId: "flexible-2", instanceId: "chain-1" },
+            { cardId: "flexible-2", instanceId: "chain-2" },
+            { cardId: "flexible-2", instanceId: "chain-3" },
+          ],
+          drawPile: [{ cardId: "review-3", instanceId: "pomodoro-draw" }],
+          discardPile: [],
+        },
+      },
+    };
+    for (const instanceId of ["chain-1", "chain-2", "chain-3"]) {
+      state = gameReducer(state, {
+        type: "PLAY_CARD",
+        instanceId,
+        target: { taskId: "status-composer", discipline: "frontend" },
+      });
+    }
+    expect(state.run?.cycle?.chain.count).toBe(3);
+    expect(state.run?.cycle?.hand.map((card) => card.instanceId)).toContain("pomodoro-draw");
+  });
+
+  it("adds one Work to Flexible cards with T-Shaped Team", () => {
+    let state = withTools(startCycle(), "t-shaped-team");
+    state = playCard(state, "flexible-2", "status-composer", "frontend");
+    expect(state.run?.cycle?.tasks[0]?.requirements[0]).toMatchObject({ verified: 3 });
+  });
+
+  it("funds every point of new Tech Debt with Venture Debt", () => {
+    const state = withTools(startCycle(), "venture-debt");
+    if (!state.run) throw new Error("Expected a run");
+    const indebted = reconcileTechDebt(state.run, 3);
+    expect(indebted).toMatchObject({ techDebt: 3, credits: 70 });
+    expect(reconcileTechDebt(indebted, -2)).toMatchObject({ techDebt: 1, credits: 70 });
+  });
+
+  it("converts each $50 held into opening Focus with Healthy Runway", () => {
+    const enterCycle = (credits: number) => {
+      let state = gameReducer(initialGameState, { type: "START_RUN", seed: 123 });
+      for (const developerId of ["paul", "irene", "madi"] as const) {
+        state = gameReducer(state, { type: "TOGGLE_DEVELOPER", developerId });
+      }
+      state = gameReducer(state, { type: "CONFIRM_SQUAD" });
+      if (!state.run) throw new Error("Expected a run");
+      state = {
+        ...state,
+        run: { ...state.run, credits, tools: ["healthy-runway"] },
+      };
+      return gameReducer(state, { type: "VISIT_NODE", nodeId: "cycle-1" });
+    };
+    expect(enterCycle(49).run?.cycle?.focus).toBe(3);
+    expect(enterCycle(50).run?.cycle?.focus).toBe(4);
+    expect(enterCycle(100).run?.cycle?.focus).toBe(5);
+  });
+
+  it("adds exactly one non-recursive Snippet to each card-generation event", () => {
+    let state = withTools(startCycle(["kirsten", "paul", "madi"]), "boilerplate-generator");
+    state = playCardOnSquad(state, "give-it-a-go");
+    const generated = state.run?.cycle?.hand.filter((card) => card.generated);
+    expect(generated?.map((card) => card.cardId)).toEqual([
+      "snippet",
+      "checklist",
+      "comment",
+      "snippet",
+    ]);
   });
 });
