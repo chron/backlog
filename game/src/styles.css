@@ -1528,12 +1528,13 @@ main:focus {
 
 .task-ship__quality {
   position: relative;
-  max-width: 22ch;
+  max-width: none;
   padding: 0;
   border: 0;
   color: inherit;
   background: transparent;
   cursor: help;
+  flex: 1 1 auto;
   font-family: inherit;
   font-size: 0.62rem;
   font-weight: 900;
@@ -2582,6 +2583,13 @@ main:focus {
   border-width: 1px;
   box-shadow: none;
   font-size: 0.48rem;
+}
+
+:is(.task-board--4, .task-board--compact) .task-ship__button {
+  position: relative;
+  bottom: 0.2rem;
+  min-height: 42px;
+  padding: 0.3rem 0.65rem;
 }
 
 .cycle-screen--boss .task-board--1 .task-panel {
