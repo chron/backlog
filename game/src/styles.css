@@ -2146,7 +2146,7 @@ main:focus {
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   gap: 0.35rem;
-  background: color-mix(in oklch, var(--panel) 82%, transparent);
+  background: transparent;
   box-shadow: none;
   overflow: visible;
   scrollbar-width: thin;

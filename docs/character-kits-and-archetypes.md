@@ -372,7 +372,7 @@ The Unverified discipline Basics give Matt ambient material from the opening enc
 ### Nick — hand planner and Exhaust engine
 
 - **Fantasy:** clear the calendar, organise the chaos, and make an enormous turn look suspiciously well planned.
-- **Passive:** **Well Organised** — whenever a card Exhausts, gain 1 Focus.
+- **Passive:** **Well Organised** — whenever a card Exhausts, gain 1 Focus and Review 1 on the Task with the most Unverified Work.
 - **Core space:** Exhaust, Retain, draw ordering, temporary copies, planned burst turns.
 - **Bridges:** Kirsten supplies fuel; Levi spends the Focus in one long Chain; Odin benefits from holding the right answer.
 
@@ -388,7 +388,7 @@ Nick's catalogue is **LOCKED** for its first playable pass. Values may still mov
 | Normal | **Deep Work** | 1 | Backend 3 Verified, plus 2 Work for every Retained card currently in hand. |
 | Rare | **No Meetings** | 1 | Exhaust every other card in hand, then draw the rest of your draw pile. Exhaust. |
 
-Well Organised triggers for cards Exhausted by playing them and by effects that remove them from hand. Each card produces a separate Focus trigger, including Status and Generated cards. Focus may overfill.
+Well Organised triggers for cards Exhausted by playing them and by effects that remove them from hand. Each card produces a separate Focus trigger and one point of Review, including Status and Generated cards. Focus may overfill. Every Review point re-evaluates the open Task with the most Unverified Work; ties use board order, and disciplines clean up in Frontend, Backend, then Infra order. If every Task is clean, the Focus still triggers.
 
 **Put a Pin in It** gives its chosen card Retain and a stackable cost reduction for the current Cycle, to a minimum of 0. **Prioritise Ruthlessly** resolves its draw before the player chooses and orders exactly two cards to return; it is unplayable unless two cards will be available after drawing. **Timebox It** counts only earlier Exhausts, then triggers Well Organised when it Exhausts after resolution. **Deep Work** counts Retain markers currently in hand without consuming them.
 

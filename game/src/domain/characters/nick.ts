@@ -9,7 +9,8 @@ export const nickContent = {
     name: "Nick",
     role: "CTO",
     passiveName: "Well Organised",
-    passiveRules: "Whenever a card Exhausts, gain 1 Focus.",
+    passiveRules:
+      "Whenever a card Exhausts, gain 1 Focus and Review 1 on the Task with the most Unverified Work.",
     startingCardId: "clear-the-calendar",
     accent: "oklch(0.58 0.17 245)",
     art: { idle: nickIdle, thinking: nickThinking, success: nickSuccess },

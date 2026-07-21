@@ -84,6 +84,7 @@ import {
 import { normalizeSeed, sampleOne, shuffle } from "./random";
 import { resolveSebCascade, type SebTaskSnapshot, type SebWorkPacket } from "./sebMechanics";
 import { tobyCrunchConversions } from "../domain/characters/tobyMechanics";
+import { applyNickExhaustReviews } from "../domain/characters/nickMechanics";
 
 type Screen =
   | { name: "title" }
@@ -1408,6 +1409,10 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         resolution.exhaustedCardInstanceIds.includes(candidate.instanceId),
       ).length;
       const exhaustedCount = effectExhaustedCount + (exhausts ? 1 : 0);
+      const nickReview = state.run.squad.includes("nick")
+        ? applyNickExhaustReviews(tasks, exhaustedCount)
+        : { tasks, reviewed: 0, reviewedTaskIds: [] };
+      tasks = [...nickReview.tasks];
       const garbageCollectorDraws = state.run.tools.includes("garbage-collector")
         ? exhaustedCount
         : 0;

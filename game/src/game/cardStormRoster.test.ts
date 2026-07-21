@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { eligibleRewardCardIds, getCard } from "../domain/content";
 import type { CardInstance, DeveloperId, Discipline } from "../domain/models";
 import { gameReducer, initialGameState, type GameState } from "./gameReducer";
-import { effectiveCardCost } from "./rules";
+import { effectiveCardCost, taskUnverifiedWork } from "./rules";
 import { useTestCycle } from "./testSupport";
 
 function startCycle(
@@ -194,6 +194,24 @@ describe("Nick's Exhaust planner", () => {
       "flexible-2",
       "review-3",
     );
+    if (!state.run?.cycle) throw new Error("Expected an active Cycle");
+    state = {
+      ...state,
+      run: {
+        ...state.run,
+        cycle: {
+          ...state.run.cycle,
+          tasks: state.run.cycle.tasks.map((task, taskIndex) => ({
+            ...task,
+            requirements: task.requirements.map((requirement, requirementIndex) => ({
+              ...requirement,
+              unverified:
+                requirementIndex === 0 ? (taskIndex === 0 ? 1 : taskIndex === 1 ? 3 : 0) : 0,
+            })),
+          })),
+        },
+      },
+    };
     const frontend = state.run?.cycle?.hand.find((card) => card.cardId === "frontend-3")!;
     const focusBefore = state.run?.cycle?.focus ?? 0;
     state = play(state, "clear-the-calendar", {
@@ -202,12 +220,16 @@ describe("Nick's Exhaust planner", () => {
     });
     expect(state.run?.cycle).toMatchObject({ focus: focusBefore, cardsExhaustedThisDay: 1 });
     expect(state.run?.cycle?.exhaustPile.map((card) => card.cardId)).toContain("frontend-3");
+    expect(taskUnverifiedWork(state.run!.cycle!.tasks[1]!)).toBe(2);
 
     state = play(state, "inbox-zero", { kind: "squad" });
     expect(state.run?.cycle?.exhaustPile.map((card) => card.cardId)).toEqual(
       expect.arrayContaining(["distraction", "tech-debt", "inbox-zero"]),
     );
     expect(state.run?.cycle?.cardsExhaustedThisDay).toBe(4);
+    expect(
+      state.run?.cycle?.tasks.reduce((total, task) => total + taskUnverifiedWork(task), 0),
+    ).toBe(0);
   });
 
   it("Retains discounted plans, reorders Draw, and cashes setup into Work and Block", () => {
