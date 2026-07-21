@@ -3,6 +3,7 @@ import {
   describeIntent,
   eligibleRewardCardIds,
   formatIntent,
+  getActMap,
   getCard,
   getCycle,
   standardToolIds,
@@ -1648,12 +1649,12 @@ describe("gameReducer", () => {
     const runEventRoute = (seed: number) => {
       let state = startMap([], seed);
       const eventIds: string[] = [];
-      const route = [
-        ["cycle-1", "event-1"],
-        ["incident-1", "event-2"],
-        ["cycle-3", "event-3"],
-        ["incident-2", "event-4"],
-      ] as const;
+      const edges = getActMap(seed).edges;
+      const route = ["event-1", "event-2", "event-3", "event-4"].map((eventNodeId) => {
+        const sourceNodeId = edges.find((edge) => edge.toNodeId === eventNodeId)?.fromNodeId;
+        if (!sourceNodeId) throw new Error(`Expected a route into ${eventNodeId}`);
+        return [sourceNodeId, eventNodeId] as const;
+      });
       for (const [sourceNodeId, eventNodeId] of route) {
         if (!state.run) throw new Error("Expected a run");
         state = {

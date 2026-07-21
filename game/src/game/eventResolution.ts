@@ -4,8 +4,8 @@ import {
   standardToolIds,
   getCard,
   getCardForInstance,
+  getActMap,
   getTool,
-  mapEdges,
 } from "../domain/content";
 import {
   resolveEventRequirement,
@@ -318,7 +318,7 @@ function addPersistentCard(run: RunState, cardId: string, source?: CardInstance)
 
 function revealUpcomingNodes(run: RunState, count: number): EventMapModifier {
   const edges = [
-    ...mapEdges,
+    ...getActMap(run.seed).edges,
     ...run.mapModifiers.flatMap((modifier) =>
       modifier.kind === "connection" ? [modifier.edge] : [],
     ),
@@ -655,7 +655,7 @@ export function revealedMapNodeIds(run: RunState): ReadonlySet<string> {
 
 export function effectiveMapEdges(run: RunState) {
   return [
-    ...mapEdges,
+    ...getActMap(run.seed).edges,
     ...run.mapModifiers.flatMap((modifier) =>
       modifier.kind === "connection" ? [modifier.edge] : [],
     ),

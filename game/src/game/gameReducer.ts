@@ -5,9 +5,9 @@ import {
   getCardForInstance,
   getCycle,
   getDeveloper,
+  getActMap,
   getMapNodeCycleId,
   isMapNodeAvailable,
-  mapNodes,
   squadRewardCardIds,
   standardToolIds,
   starterBasicCardIds,
@@ -1288,7 +1288,9 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
 
     case "VISIT_NODE": {
       if (state.screen.name !== "map" || !state.run) return state;
-      const node = mapNodes.find((candidate) => candidate.id === action.nodeId);
+      const node = getActMap(state.run.seed).nodes.find(
+        (candidate) => candidate.id === action.nodeId,
+      );
       if (
         !node ||
         state.run.completedNodeIds.includes(node.id) ||

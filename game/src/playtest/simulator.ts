@@ -1,9 +1,9 @@
 import {
   getCard,
   getCardForInstance,
+  getActMap,
   getTool,
   isMapNodeAvailable,
-  mapNodes,
 } from "../domain/content";
 import { getEvent } from "../domain/events";
 import { getEncounterCycleDefinition } from "../domain/bosses";
@@ -25,6 +25,7 @@ import {
   type GameAction,
   type GameState,
 } from "../game/gameReducer";
+import { effectiveMapEdges } from "../game/eventResolution";
 import {
   effectiveCardCost,
   incomingMorale,
@@ -1021,9 +1022,14 @@ function nextNonCycleAction(
         : { type: "CONFIRM_SQUAD" };
     }
     case "map": {
-      const available = mapNodes
-        .filter((node) =>
-          isMapNodeAvailable(node, state.run!.currentNodeId, state.run!.completedNodeIds),
+      const available = getActMap(state.run.seed)
+        .nodes.filter((node) =>
+          isMapNodeAvailable(
+            node,
+            state.run!.currentNodeId,
+            state.run!.completedNodeIds,
+            effectiveMapEdges(state.run!),
+          ),
         )
         .sort(
           (left, right) =>

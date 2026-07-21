@@ -1,9 +1,9 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import type { DispatchProps, RunProps } from "../app/types";
 import { CardCollectionEntry } from "../components/CardCollectionBrowser";
 import { CharacterToken } from "../components/CharacterToken";
 import { getBossDefinition } from "../domain/bosses";
-import { getCycle, getMapNodeCycleId, isMapNodeAvailable, mapNodes } from "../domain/content";
+import { getActMap, getCycle, getMapNodeCycleId, isMapNodeAvailable } from "../domain/content";
 import type { MapNode, RunState } from "../domain/models";
 import { effectiveMapEdges, revealedMapNodeIds } from "../game/eventResolution";
 
@@ -13,8 +13,6 @@ type MapScreenProps = DispatchProps &
   };
 
 type MapNodeState = "available" | "current" | "locked" | "visited";
-
-const mapNodeById = new Map(mapNodes.map((node) => [node.id, node]));
 
 function getNodeState(node: MapNode, run: RunState): MapNodeState {
   if (node.id === run.currentNodeId) return "current";
@@ -72,6 +70,8 @@ function nodeRewardLabel(node: MapNode): string | undefined {
 
 export function MapScreen({ dispatch, run, onInspectDeck }: MapScreenProps) {
   const viewportRef = useRef<HTMLDivElement>(null);
+  const nodes = useMemo(() => getActMap(run?.seed ?? 1).nodes, [run?.seed]);
+  const mapNodeById = useMemo(() => new Map(nodes.map((node) => [node.id, node])), [nodes]);
   const edges = run ? effectiveMapEdges(run) : [];
   const revealed = run ? revealedMapNodeIds(run) : new Set<string>();
   const boss = run ? getBossDefinition(run.selectedBossId) : undefined;
@@ -79,7 +79,7 @@ export function MapScreen({ dispatch, run, onInspectDeck }: MapScreenProps) {
   useEffect(() => {
     const viewport = viewportRef.current;
     const availableNodes = run
-      ? mapNodes.filter((node) => getNodeState(node, run) === "available")
+      ? nodes.filter((node) => getNodeState(node, run) === "available")
       : [];
     if (!viewport || availableNodes.length === 0) return;
     const activeY =
@@ -89,7 +89,7 @@ export function MapScreen({ dispatch, run, onInspectDeck }: MapScreenProps) {
     const top = (activeY / 100) * canvas.offsetHeight - viewport.clientHeight / 2;
     const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     viewport.scrollTo({ top: Math.max(0, top), behavior: reducedMotion ? "auto" : "smooth" });
-  }, [run]);
+  }, [nodes, run]);
 
   return (
     <section className="screen map-screen" aria-labelledby="map-heading">
@@ -156,7 +156,7 @@ export function MapScreen({ dispatch, run, onInspectDeck }: MapScreenProps) {
             })}
           </svg>
 
-          {mapNodes.map((node) => {
+          {nodes.map((node) => {
             const state = run ? getNodeState(node, run) : "locked";
             const typeLabel = nodeTypeLabel(node);
             const cycleId = run ? getMapNodeCycleId(node, run.seed) : node.cycleId;
