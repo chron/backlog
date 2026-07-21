@@ -19,7 +19,6 @@ describe("EventScreen", () => {
         dispatch={() => undefined}
         run={{ ...testRun(), morale: 9 }}
         eventId="quarterly-connect"
-        onInspectDeck={() => undefined}
       />,
     );
 
@@ -36,7 +35,6 @@ describe("EventScreen", () => {
         dispatch={() => undefined}
         run={{ ...testRun(), credits: 10 }}
         eventId="karaoke-night"
-        onInspectDeck={() => undefined}
       />,
     );
 
@@ -49,12 +47,7 @@ describe("EventScreen", () => {
 
   it("previews fixed card rewards from the Event choice itself", () => {
     const markup = renderToStaticMarkup(
-      <EventScreen
-        dispatch={() => undefined}
-        run={testRun()}
-        eventId="design-opened-a-pr"
-        onInspectDeck={() => undefined}
-      />,
+      <EventScreen dispatch={() => undefined} run={testRun()} eventId="design-opened-a-pr" />,
     );
 
     expect(markup).toContain("choice-preview-wrap has-card-preview");
@@ -67,9 +60,7 @@ describe("EventScreen", () => {
   });
 
   it("keeps authored Event titles hidden on the map", () => {
-    const markup = renderToStaticMarkup(
-      <MapScreen dispatch={() => undefined} run={testRun()} onInspectDeck={() => undefined} />,
-    );
+    const markup = renderToStaticMarkup(<MapScreen dispatch={() => undefined} run={testRun()} />);
 
     expect(markup).not.toContain("Quarterly Connect");
     expect(markup).not.toContain("One Tiny Thing");
@@ -103,7 +94,6 @@ describe("EventScreen", () => {
         run={pending.run}
         eventId="karaoke-night"
         resolution={pending.screen.resolution}
-        onInspectDeck={() => undefined}
       />,
     );
 
@@ -135,7 +125,6 @@ describe("EventScreen", () => {
         run={pending.run}
         eventId="quarterly-connect"
         resolution={pending.screen.resolution}
-        onInspectDeck={() => undefined}
       />,
     );
 
@@ -150,9 +139,7 @@ describe("EventScreen", () => {
       ...testRun(),
       mapModifiers: [{ kind: "reveal" as const, nodeIds: ["cycle-2", "event-2"] }],
     };
-    const markup = renderToStaticMarkup(
-      <MapScreen dispatch={() => undefined} run={run} onInspectDeck={() => undefined} />,
-    );
+    const markup = renderToStaticMarkup(<MapScreen dispatch={() => undefined} run={run} />);
     const node = mapNodes.find((candidate) => candidate.id === "cycle-2");
     if (!node) throw new Error("Expected cycle-2");
     const cycleId = getMapNodeCycleId(node, run.seed);
@@ -165,6 +152,7 @@ describe("EventScreen", () => {
   it("keeps queued reward and map modifiers visible in the run HUD", () => {
     const markup = renderToStaticMarkup(
       <RunVitals
+        onInspectDeck={() => undefined}
         run={{
           ...testRun(),
           nextRewardModifiers: [{ choiceCount: 4 }],
@@ -175,5 +163,6 @@ describe("EventScreen", () => {
 
     expect(markup).toContain("Next reward modified");
     expect(markup).toContain("2 nodes revealed");
+    expect(markup).toContain(`aria-label="Inspect Deck, ${testRun().deck.length} cards"`);
   });
 });

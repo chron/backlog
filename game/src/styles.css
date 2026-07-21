@@ -2151,7 +2151,7 @@ main:focus {
   position: fixed;
   z-index: 10;
   top: 1rem;
-  right: max(1rem, calc((100vw - 1180px) / 2));
+  right: max(4.75rem, calc((100vw - 1180px) / 2));
 }
 
 .run-vitals--floating .run-vital--debt .game-tooltip {
@@ -4063,10 +4063,6 @@ main:focus {
   font-size: clamp(3.2rem, 7.5vw, 6rem);
 }
 
-.event-screen .collection-entry {
-  margin-top: 1rem;
-}
-
 .event-art {
   display: grid;
   height: clamp(150px, 31vh, 250px);
@@ -4420,29 +4416,6 @@ main:focus {
   line-height: 0.78;
   text-shadow: 5px 5px 0 var(--ink);
   -webkit-text-stroke: 2px var(--ink);
-}
-
-.shop-wallet {
-  display: flex;
-  align-items: stretch;
-  gap: 0.45rem;
-}
-
-.shop-wallet .collection-entry {
-  display: grid;
-  min-height: 48px;
-  padding: 0.45rem 0.7rem;
-  border: 3px solid var(--ink);
-  background: var(--panel);
-  place-items: center;
-  text-transform: uppercase;
-}
-
-.shop-wallet .collection-entry {
-  display: flex;
-  background: var(--yellow);
-  box-shadow: 4px 4px 0 var(--ink);
-  gap: 0.45rem;
 }
 
 .shop-layout {
@@ -4944,12 +4917,6 @@ main:focus {
   line-height: 0.78;
   text-shadow: 5px 5px 0 var(--ink);
   -webkit-text-stroke: 2px var(--ink);
-}
-
-.weekend-heading .collection-entry {
-  margin-top: 3.5rem;
-  background: var(--yellow);
-  box-shadow: 4px 4px 0 var(--ink);
 }
 
 .weekend-calendar {
@@ -5657,13 +5624,10 @@ main:focus {
   }
 
   .map-screen .screen-heading {
+    align-items: flex-start;
+    flex-direction: column;
     flex-wrap: wrap;
     gap: 0.8rem 2rem;
-  }
-
-  .map-screen .collection-entry-group {
-    flex: 0 0 100%;
-    justify-content: flex-start;
   }
 
   .boss-preview {
@@ -5910,17 +5874,9 @@ main:focus {
     grid-template-columns: 1fr;
   }
 
-  .shop-wallet {
-    width: 100%;
-  }
-
   .weekend-heading {
     align-items: flex-start;
     flex-direction: column;
-  }
-
-  .weekend-heading .collection-entry {
-    margin-top: 0;
   }
 
   .weekend-calendar {

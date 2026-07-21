@@ -2,7 +2,7 @@ import { CircleDollarSign, Copy, RefreshCw, Trash2, Wrench } from "lucide-react"
 import { useState } from "react";
 import sharkimedesArt from "../assets/mascots/research.svg";
 import type { DispatchProps, RunProps } from "../app/types";
-import { CardCollectionBrowser, CardCollectionEntry } from "../components/CardCollectionBrowser";
+import { CardCollectionBrowser } from "../components/CardCollectionBrowser";
 import { CharacterPortrait } from "../components/CharacterPortrait";
 import { getCard, getDeveloper, getTool } from "../domain/content";
 import {
@@ -20,7 +20,6 @@ import {
 type ShopScreenProps = DispatchProps &
   RunProps & {
     inventory: ShopInventoryState;
-    onInspectDeck: () => void;
   };
 
 const serviceCopy: Readonly<
@@ -42,7 +41,7 @@ function sharkimedesLine(inventory: ShopInventoryState): string {
   return "omg bestie these addons are literally production ready";
 }
 
-export function ShopScreen({ dispatch, run, inventory, onInspectDeck }: ShopScreenProps) {
+export function ShopScreen({ dispatch, run, inventory }: ShopScreenProps) {
   const [openService, setOpenService] = useState<"refactor" | "duplicate">();
   if (!run) return null;
   const refreshPrice = shopRefreshPrice(inventory.refreshCount);
@@ -53,9 +52,6 @@ export function ShopScreen({ dispatch, run, inventory, onInspectDeck }: ShopScre
         <div>
           <span>#sharkimedes</span>
           <h1 id="shop-heading">MARKETPLACE</h1>
-        </div>
-        <div className="shop-wallet">
-          <CardCollectionEntry count={run.deck.length} onOpen={onInspectDeck} />
         </div>
       </header>
 

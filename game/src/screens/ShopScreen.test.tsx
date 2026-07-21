@@ -17,12 +17,7 @@ describe("ShopScreen", () => {
     };
     const inventory = createShopInventory(run, "shop-1");
     const markup = renderToStaticMarkup(
-      <ShopScreen
-        dispatch={() => undefined}
-        run={run}
-        inventory={inventory}
-        onInspectDeck={() => undefined}
-      />,
+      <ShopScreen dispatch={() => undefined} run={run} inventory={inventory} />,
     );
 
     expect(markup).toContain("MARKETPLACE");

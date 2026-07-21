@@ -1,16 +1,12 @@
 import { useEffect, useMemo, useRef } from "react";
 import type { DispatchProps, RunProps } from "../app/types";
-import { CardCollectionEntry } from "../components/CardCollectionBrowser";
 import { CharacterToken } from "../components/CharacterToken";
 import { getBossDefinition } from "../domain/bosses";
 import { getActMap, getCycle, getMapNodeCycleId, isMapNodeAvailable } from "../domain/content";
 import type { MapNode, RunState } from "../domain/models";
 import { effectiveMapEdges, revealedMapNodeIds } from "../game/eventResolution";
 
-type MapScreenProps = DispatchProps &
-  RunProps & {
-    onInspectDeck: () => void;
-  };
+type MapScreenProps = DispatchProps & RunProps;
 
 type MapNodeState = "available" | "current" | "locked" | "visited";
 
@@ -68,7 +64,7 @@ function nodeRewardLabel(node: MapNode): string | undefined {
   if (node.kind === "weekend") return "Recover";
 }
 
-export function MapScreen({ dispatch, run, onInspectDeck }: MapScreenProps) {
+export function MapScreen({ dispatch, run }: MapScreenProps) {
   const viewportRef = useRef<HTMLDivElement>(null);
   const nodes = useMemo(() => getActMap(run?.seed ?? 1).nodes, [run?.seed]);
   const mapNodeById = useMemo(() => new Map(nodes.map((node) => [node.id, node])), [nodes]);
@@ -97,13 +93,10 @@ export function MapScreen({ dispatch, run, onInspectDeck }: MapScreenProps) {
         <h1 id="map-heading" className="display-title">
           ROADMAP
         </h1>
-        <div className="collection-entry-group">
-          <div className="squad-strip" aria-label="Current squad">
-            {run?.squad.map((developerId) => (
-              <CharacterToken key={developerId} developerId={developerId} compact />
-            ))}
-          </div>
-          <CardCollectionEntry count={run?.deck.length ?? 0} onOpen={onInspectDeck} />
+        <div className="squad-strip" aria-label="Current squad">
+          {run?.squad.map((developerId) => (
+            <CharacterToken key={developerId} developerId={developerId} compact />
+          ))}
         </div>
       </div>
 

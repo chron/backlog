@@ -273,13 +273,6 @@ button.collection-card:not(:disabled):hover,
   text-transform: uppercase;
 }
 
-.collection-entry-group {
-  display: flex;
-  align-items: flex-start;
-  justify-content: flex-end;
-  gap: 0.8rem;
-}
-
 .collection-entry small {
   font-size: 0.58rem;
   font-weight: 900;

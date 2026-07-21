@@ -1,14 +1,16 @@
 import type { RunState } from "../domain/models";
 import { eventModifierLabels } from "../game/eventResolution";
+import { CardCollectionEntry } from "./CardCollectionBrowser";
 import { ToolRack } from "./ToolRack";
 
 interface RunVitalsProps {
   floating?: boolean;
+  onInspectDeck?: () => void;
   run: RunState;
   showMorale?: boolean;
 }
 
-export function RunVitals({ floating, run, showMorale = true }: RunVitalsProps) {
+export function RunVitals({ floating, onInspectDeck, run, showMorale = true }: RunVitalsProps) {
   const debtUntilJunk = 3 - (run.techDebt % 3);
   const modifierLabels = eventModifierLabels(run);
 
@@ -54,6 +56,7 @@ export function RunVitals({ floating, run, showMorale = true }: RunVitalsProps) 
           <span>{debtUntilJunk} Debt away</span>
         </span>
       </button>
+      {onInspectDeck && <CardCollectionEntry count={run.deck.length} onOpen={onInspectDeck} />}
       <ToolRack toolIds={run.tools} />
       {modifierLabels.length > 0 && (
         <span className="run-modifiers" aria-label="Queued run effects">

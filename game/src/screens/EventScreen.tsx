@@ -1,5 +1,4 @@
 import type { DispatchProps, RunProps } from "../app/types";
-import { CardCollectionEntry } from "../components/CardCollectionBrowser";
 import { GameCard } from "../components/GameCard";
 import { getCard, getCardForInstance } from "../domain/content";
 import type { CardInstance } from "../domain/models";
@@ -17,16 +16,9 @@ type EventScreenProps = DispatchProps &
       outcome: readonly string[];
       pending: EventPendingSelection;
     };
-    onInspectDeck: () => void;
   };
 
-export function EventScreen({
-  dispatch,
-  run,
-  eventId,
-  resolution,
-  onInspectDeck,
-}: EventScreenProps) {
+export function EventScreen({ dispatch, run, eventId, resolution }: EventScreenProps) {
   if (!run) return null;
   const event = getEvent(eventId);
   const pendingUsesCards =
@@ -43,7 +35,6 @@ export function EventScreen({
         <h1 id="event-heading" className="display-title">
           {event.title}
         </h1>
-        <CardCollectionEntry count={run.deck.length} onOpen={onInspectDeck} />
       </div>
       <div className="event-art" data-event-art={event.artTreatment} aria-hidden="true">
         {event.artLabel}

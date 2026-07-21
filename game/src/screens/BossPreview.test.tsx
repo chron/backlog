@@ -10,9 +10,7 @@ describe("Final Release preview", () => {
     if (!started.run) throw new Error("Expected run");
     const boss = getBossDefinition(started.run.selectedBossId);
 
-    const markup = renderToStaticMarkup(
-      <MapScreen dispatch={() => undefined} run={started.run} onInspectDeck={() => undefined} />,
-    );
+    const markup = renderToStaticMarkup(<MapScreen dispatch={() => undefined} run={started.run} />);
 
     expect(markup).toContain("Final Review");
     expect(markup).toContain(boss.stakeholder);

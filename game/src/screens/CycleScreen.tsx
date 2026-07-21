@@ -498,7 +498,11 @@ export function CycleScreen({ dispatch, run, onInspectCards }: CycleScreenProps)
       aria-label={definition.name}
     >
       <header className="cycle-hud">
-        <RunVitals run={run} showMorale={false} />
+        <RunVitals
+          run={run}
+          showMorale={false}
+          onInspectDeck={() => onInspectCards("Deck", run.deck)}
+        />
 
         <div className="squad-zone">
           <div className="passive-rack" aria-label="Squad passives">

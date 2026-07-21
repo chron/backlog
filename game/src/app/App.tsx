@@ -577,6 +577,9 @@ export function App() {
   }, [retroOutcome, state.run, unlockedAchievements]);
 
   const activeAchievement = achievementQueue[0];
+  const inspectDeck = () => {
+    if (state.run) setCardCollection({ title: "Deck", cards: state.run.deck });
+  };
 
   useEffect(() => {
     if (!activeAchievement) return;
@@ -617,15 +620,7 @@ export function App() {
         screen = <SquadScreen dispatch={dispatch} run={state.run} />;
         break;
       case "map":
-        screen = (
-          <MapScreen
-            dispatch={dispatch}
-            run={state.run}
-            onInspectDeck={() =>
-              state.run && setCardCollection({ title: "Deck", cards: state.run.deck })
-            }
-          />
-        );
+        screen = <MapScreen dispatch={dispatch} run={state.run} />;
         break;
       case "cycle":
         screen = (
@@ -654,35 +649,16 @@ export function App() {
             run={state.run}
             eventId={state.screen.eventId}
             resolution={state.screen.resolution}
-            onInspectDeck={() =>
-              state.run && setCardCollection({ title: "Deck", cards: state.run.deck })
-            }
           />
         );
         break;
       case "shop":
         screen = (
-          <ShopScreen
-            dispatch={dispatch}
-            run={state.run}
-            inventory={state.screen.inventory}
-            onInspectDeck={() =>
-              state.run && setCardCollection({ title: "Deck", cards: state.run.deck })
-            }
-          />
+          <ShopScreen dispatch={dispatch} run={state.run} inventory={state.screen.inventory} />
         );
         break;
       case "weekend":
-        screen = (
-          <WeekendScreen
-            dispatch={dispatch}
-            run={state.run}
-            nodeId={state.screen.nodeId}
-            onInspectDeck={() =>
-              state.run && setCardCollection({ title: "Deck", cards: state.run.deck })
-            }
-          />
-        );
+        screen = <WeekendScreen dispatch={dispatch} run={state.run} nodeId={state.screen.nodeId} />;
         break;
       case "retro":
         screen = (
@@ -702,7 +678,7 @@ export function App() {
         Skip to game
       </a>
       {state.run && !["title", "squad", "cycle"].includes(state.screen.name) && (
-        <RunVitals run={state.run} floating />
+        <RunVitals run={state.run} floating onInspectDeck={inspectDeck} />
       )}
       <button
         className="settings-trigger"

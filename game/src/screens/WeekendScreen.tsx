@@ -4,7 +4,7 @@ import panelMascot from "../assets/mascots/panel.svg";
 import platformMascot from "../assets/mascots/platform.svg";
 import researchMascot from "../assets/mascots/research.svg";
 import type { DispatchProps, RunProps } from "../app/types";
-import { CardCollectionBrowser, CardCollectionEntry } from "../components/CardCollectionBrowser";
+import { CardCollectionBrowser } from "../components/CardCollectionBrowser";
 import { CharacterPortrait } from "../components/CharacterPortrait";
 import { GameCard } from "../components/GameCard";
 import { getCard } from "../domain/content";
@@ -19,7 +19,6 @@ import {
 type WeekendScreenProps = DispatchProps &
   RunProps & {
     nodeId: string;
-    onInspectDeck: () => void;
   };
 
 const weekendChoices = [
@@ -46,7 +45,7 @@ const weekendChoices = [
   },
 ] as const;
 
-export function WeekendScreen({ dispatch, run, nodeId, onInspectDeck }: WeekendScreenProps) {
+export function WeekendScreen({ dispatch, run, nodeId }: WeekendScreenProps) {
   const [refactoring, setRefactoring] = useState(false);
   const [drafting, setDrafting] = useState(false);
   if (!run) return null;
@@ -86,7 +85,6 @@ export function WeekendScreen({ dispatch, run, nodeId, onInspectDeck }: WeekendS
           <span>Out of office</span>
           <h1 id="weekend-heading">WEEKEND</h1>
         </div>
-        <CardCollectionEntry count={run.deck.length} onOpen={onInspectDeck} />
       </header>
 
       <div className="weekend-calendar" aria-hidden="true">
