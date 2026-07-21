@@ -451,6 +451,19 @@ describe("gameReducer", () => {
     expect(boss.run?.cycle?.tasks[0]?.taskId).toBe("final-release");
   });
 
+  it("lets the development shortcut finish an ordinary fight cleanly", () => {
+    const state = gameReducer(startCycle(), { type: "DEBUG_WIN_CYCLE" });
+
+    expect(state.screen.name).toBe("report");
+    expect(state.run?.cycle).toBeNull();
+    expect(state.run?.completedNodeIds).toContain("cycle-1");
+    expect(state.run?.techDebt).toBe(0);
+    if (state.screen.name !== "report") throw new Error("Expected a report");
+    expect(state.screen.report).toMatchObject({ outcome: "shipped", defects: 0 });
+    expect(state.screen.report.tasks.every((task) => task.completed)).toBe(true);
+    expect(state.screen.report.tasks.every((task) => task.unverifiedWork === 0)).toBe(true);
+  });
+
   it("waits for an explicit clean Final Release launch and skips ordinary rewards", () => {
     let state = readyFinalRelease();
 

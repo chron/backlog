@@ -129,6 +129,7 @@ export type GameAction =
       target: CardTarget;
     }
   | { type: "CHOOSE_CYCLE_CARD"; instanceId: string }
+  | { type: "DEBUG_WIN_CYCLE" }
   | { type: "END_DAY" }
   | { type: "ACKNOWLEDGE_BOSS_TRANSITION" }
   | { type: "LAUNCH_FINAL_RELEASE" }
@@ -1643,6 +1644,24 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
           },
         },
       };
+    }
+
+    case "DEBUG_WIN_CYCLE": {
+      if (state.screen.name !== "cycle" || !state.run?.cycle || state.run.cycle.boss) return state;
+      const completedCycle: CycleState = {
+        ...state.run.cycle,
+        tasks: state.run.cycle.tasks.map((task) => ({
+          ...task,
+          status: "shipped",
+          stunned: false,
+          requirements: task.requirements.map((requirement) => ({
+            ...requirement,
+            verified: requirement.target,
+            unverified: 0,
+          })),
+        })),
+      };
+      return completeShippedCycle({ ...state.run, cycle: completedCycle }, completedCycle);
     }
 
     case "END_DAY":

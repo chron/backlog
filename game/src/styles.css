@@ -2802,6 +2802,11 @@ main:focus {
   line-height: 1.2;
 }
 
+.cycle-action--debug {
+  background: color-mix(in oklch, var(--pink) 55%, var(--panel));
+  box-shadow: 4px 4px 0 var(--ink);
+}
+
 @media (min-width: 821px) and (min-height: 720px) {
   body:has(.cycle-screen) {
     overflow: hidden;

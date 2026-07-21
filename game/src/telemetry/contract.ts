@@ -8,6 +8,7 @@ const telemetryActionTypes = [
   "VISIT_NODE",
   "PLAY_CARD",
   "CHOOSE_CYCLE_CARD",
+  "DEBUG_WIN_CYCLE",
   "END_DAY",
   "ACKNOWLEDGE_BOSS_TRANSITION",
   "LAUNCH_FINAL_RELEASE",

@@ -841,6 +841,19 @@ export function CycleScreen({ dispatch, run, onInspectCards }: CycleScreenProps)
 
         <div className="cycle-corner">
           <div className="cycle-actions">
+            {import.meta.env.DEV && !cycle.boss && (
+              <button
+                className="button cycle-action cycle-action--debug"
+                type="button"
+                disabled={
+                  resolvingDay || resolvingCard || resolvingBoss || Boolean(cycle.pendingCardChoice)
+                }
+                onClick={() => dispatch({ type: "DEBUG_WIN_CYCLE" })}
+              >
+                <strong>Win This Fight</strong>
+                <small>Debug</small>
+              </button>
+            )}
             <button
               className="button button--secondary cycle-action"
               type="button"
