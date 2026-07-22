@@ -1,10 +1,16 @@
 import { describe, expect, it } from "vitest";
 import { createPlaytestReport, formatPlaytestReport } from "./report";
+import { cards } from "../domain/content";
+import { gameReducer, initialGameState, type GameState } from "../game/gameReducer";
 import {
+  createPlaytestMetrics,
+  choosePlaytestCardReward,
   mixedPlaytestScenarios,
   playtestScenarios,
   runPlaytestBatch,
+  scorePlaytestCardReward,
   simulatePlaytestRun,
+  updatePlaytestMetrics,
   type PlaytestRunResult,
 } from "./simulator";
 
@@ -131,6 +137,13 @@ describe("scripted playtest harness", () => {
       winningDeckInclusionRate: 0.8,
     });
     expect(spike.winRateLift).toBeCloseTo(0.6);
+    expect(spike.outcomes.clean).toMatchObject({
+      successesWith: 4,
+      successesWithout: 1,
+      strata: 1,
+      stratifiedRuns: 10,
+    });
+    expect(spike.outcomes.clean.stratifiedLift).toBeCloseTo(0.6);
     expect(neverPicked).toMatchObject({
       eligibleRuns: 10,
       presentRuns: 0,
@@ -138,10 +151,186 @@ describe("scripted playtest harness", () => {
       winRateLift: null,
       averageCopiesWhenPresent: 0,
     });
-    expect(formatPlaytestReport(report)).toContain("Spike It");
+    expect(formatPlaytestReport(report)).toContain(
+      "No scenario-adjusted clean association clears 30 decks per side",
+    );
     expect(JSON.parse(JSON.stringify(report)).cardAssociations).toHaveLength(
       report.cardAssociations.length,
     );
+  }, 15_000);
+
+  it("records card offers, acquisitions, removals, timing, and acquisition state", () => {
+    let state = gameReducer(initialGameState, { type: "START_RUN", seed: 92 });
+    for (const developerId of ["paul", "odin", "madi"] as const) {
+      state = gameReducer(state, { type: "TOGGLE_DEVELOPER", developerId });
+    }
+    state = gameReducer(state, { type: "CONFIRM_SQUAD" });
+    const rewardState: GameState = {
+      screen: { name: "reward" },
+      run: {
+        ...state.run!,
+        pendingCardReward: {
+          sourceNodeId: "cycle-test",
+          cardIds: ["pair-programming", "health-check", "spike-it"],
+        },
+      },
+    };
+    const metrics = createPlaytestMetrics();
+    const rewardAction = { type: "CHOOSE_CARD_REWARD", cardId: "pair-programming" } as const;
+    const rewarded = gameReducer(rewardState, rewardAction);
+    updatePlaytestMetrics(metrics, rewardState, rewardAction, rewarded);
+    const added = rewarded.run!.deck.find((card) => card.cardId === "pair-programming")!;
+    const weekendState: GameState = {
+      screen: { name: "weekend", nodeId: "weekend-test" },
+      run: rewarded.run,
+    };
+    const removeAction = {
+      type: "CHOOSE_WEEKEND",
+      choiceId: "refactor",
+      instanceId: added.instanceId,
+    } as const;
+    const removed = gameReducer(weekendState, removeAction);
+    updatePlaytestMetrics(metrics, weekendState, removeAction, removed);
+
+    expect(metrics.cardOffers).toEqual([
+      expect.objectContaining({
+        source: "cycle-reward",
+        offeredCardIds: ["pair-programming", "health-check", "spike-it"],
+        selectedCardIds: ["pair-programming"],
+        action: 1,
+        morale: 12,
+        techDebt: 0,
+        deckSize: 10,
+      }),
+    ]);
+    expect(metrics.cardAcquisitions).toEqual([
+      expect.objectContaining({
+        cardId: "pair-programming",
+        sourceAction: "CHOOSE_CARD_REWARD",
+        action: 1,
+      }),
+    ]);
+    expect(metrics.cardRemovals).toEqual([
+      expect.objectContaining({
+        cardId: "pair-programming",
+        sourceAction: "CHOOSE_WEEKEND",
+        action: 2,
+      }),
+    ]);
+  });
+
+  it("uses scenario strata instead of mistaking squad mix for a card effect", () => {
+    const base = simulatePlaytestRun(playtestScenarios[0]!, 6_200);
+    let seed = 100;
+    const cohort = (
+      scenarioId: string,
+      runs: number,
+      wins: number,
+      withCard: boolean,
+    ): PlaytestRunResult[] =>
+      Array.from({ length: runs }, (_, index) => ({
+        ...base,
+        seed: seed++,
+        scenarioId,
+        scenarioName: scenarioId,
+        outcome: index < wins ? "victory" : "defeat",
+        squad: ["paul", "odin", "madi"],
+        finalDeck: withCard ? [{ cardId: "spike-it", copies: 1 }] : [],
+        deckSize: withCard ? 1 : 0,
+      }));
+    const report = createPlaytestReport(
+      [
+        ...cohort("strong-squad", 40, 32, true),
+        ...cohort("strong-squad", 10, 8, false),
+        ...cohort("weak-squad", 10, 2, true),
+        ...cohort("weak-squad", 40, 8, false),
+      ],
+      playtestScenarios,
+    );
+    const spike = report.cardAssociations.find((card) => card.cardId === "spike-it")!;
+
+    expect(spike.outcomes.clean.rawLift).toBeCloseTo(0.36);
+    expect(spike.outcomes.clean.stratifiedLift).toBeCloseTo(0);
+    expect(spike.outcomes.clean.strata).toBe(2);
+    expect(spike.outcomes.clean.confidenceLow).toBeLessThan(0);
+    expect(spike.outcomes.clean.confidenceHigh).toBeGreaterThan(0);
+    expect(formatPlaytestReport(report)).not.toContain("  Spike It");
+  }, 15_000);
+
+  it("assigns every reward card a viable score in at least one relevant build state", () => {
+    let state = gameReducer(initialGameState, { type: "START_RUN", seed: 93 });
+    for (const developerId of ["paul", "odin", "madi"] as const) {
+      state = gameReducer(state, { type: "TOGGLE_DEVELOPER", developerId });
+    }
+    state = gameReducer(state, { type: "CONFIRM_SQUAD" });
+    const debtRun = { ...state.run!, techDebt: 6 };
+    const unviable = cards
+      .filter((card) => card.tags.includes("reward"))
+      .filter((card) => {
+        const scenarios = mixedPlaytestScenarios.filter(
+          (scenario) => !card.ownerId || scenario.squad.includes(card.ownerId),
+        );
+        return scenarios.every(
+          (scenario) => scorePlaytestCardReward(card.id, scenario, debtRun) < 8,
+        );
+      });
+
+    expect(unviable.map((card) => card.id)).toEqual([]);
+  });
+
+  it("occasionally explores viable build-arounds outside the near-best score band", () => {
+    let state = gameReducer(initialGameState, { type: "START_RUN", seed: 93 });
+    for (const developerId of ["levi", "odin", "madi"] as const) {
+      state = gameReducer(state, { type: "TOGGLE_DEVELOPER", developerId });
+    }
+    state = gameReducer(state, { type: "CONFIRM_SQUAD" });
+    const scenario = mixedPlaytestScenarios.find((candidate) => candidate.squad.includes("levi"))!;
+    const run = state.run!;
+
+    expect(scorePlaytestCardReward("flow-state", scenario, run)).toBeGreaterThan(
+      scorePlaytestCardReward("context-loaded", scenario, run) + 8,
+    );
+    expect(
+      Array.from({ length: 100 }, (_, rngState) =>
+        choosePlaytestCardReward(["context-loaded", "flow-state"], scenario, { ...run, rngState }),
+      ),
+    ).toContain("context-loaded");
+  });
+
+  it("raises smoke signals for severe build outliers instead of blessing the batch", () => {
+    const base = simulatePlaytestRun(playtestScenarios[0]!, 6_300);
+    const cohort = (
+      scenarioId: string,
+      launchCount: number,
+      cleanCount: number,
+    ): PlaytestRunResult[] =>
+      Array.from({ length: 100 }, (_, index) => ({
+        ...base,
+        seed: 1_000 + index + (scenarioId === "high" ? 1_000 : 0),
+        scenarioId,
+        scenarioName: scenarioId === "high" ? "High Build" : "Low Build",
+        reachedFinalRelease: index < Math.max(launchCount, 10),
+        launchedFinalRelease: index < launchCount,
+        outcome: index < cleanCount ? "victory" : "defeat",
+        finalDeck: [],
+        deckSize: 0,
+        cardOffers: [],
+        cardAcquisitions: [],
+        cardRemovals: [],
+      }));
+    const report = createPlaytestReport(
+      [...cohort("low", 10, 1), ...cohort("high", 95, 30)],
+      playtestScenarios,
+    );
+
+    expect(report.diagnostics).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("Low Build: only 10% launched"),
+        expect.stringContaining("High Build: 95% launched"),
+        expect.stringContaining("Build launch spread is 85%"),
+      ]),
+    );
+    expect(formatPlaytestReport(report)).not.toContain("No obvious smoke signals");
   }, 15_000);
 
   it("matches the launch shape of the three successful human calibration runs", () => {

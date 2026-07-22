@@ -61,6 +61,30 @@ interface CardAssociationSummary {
   winRateLift: number | null;
   averageCopiesWhenPresent: number;
   winningDeckInclusionRate: number | null;
+  offeredCount: number;
+  pickedCount: number;
+  pickRate: number | null;
+  acquisitionCount: number;
+  removalCount: number;
+  averageTechDebtAtAcquisition: number | null;
+  averageMoraleAtAcquisition: number | null;
+  averageEncounterAtAcquisition: number | null;
+  outcomes: Record<CardOutcomeKey, CardOutcomeAssociation>;
+}
+
+type CardOutcomeKey = "reach" | "launch" | "clean";
+
+interface CardOutcomeAssociation {
+  successesWith: number;
+  successesWithout: number;
+  rateWith: number | null;
+  rateWithout: number | null;
+  rawLift: number | null;
+  stratifiedLift: number | null;
+  confidenceLow: number | null;
+  confidenceHigh: number | null;
+  strata: number;
+  stratifiedRuns: number;
 }
 
 function average(values: readonly number[]): number {
@@ -74,6 +98,81 @@ function round(value: number, places = 1): number {
 
 function deckCopies(run: PlaytestRunResult, cardId: string): number {
   return run.finalDeck?.find((card) => card.cardId === cardId)?.copies ?? 0;
+}
+
+const cardOutcomePredicates: Readonly<Record<CardOutcomeKey, (run: PlaytestRunResult) => boolean>> =
+  {
+    reach: (run) => run.reachedFinalRelease,
+    launch: (run) => run.launchedFinalRelease,
+    clean: (run) => run.outcome === "victory",
+  };
+
+function summarizeCardOutcome(
+  runs: readonly PlaytestRunResult[],
+  cardId: string,
+  outcome: CardOutcomeKey,
+): CardOutcomeAssociation {
+  const succeeds = cardOutcomePredicates[outcome];
+  const presentRuns = runs.filter((run) => deckCopies(run, cardId) > 0);
+  const absentRuns = runs.filter((run) => deckCopies(run, cardId) === 0);
+  const successesWith = presentRuns.filter(succeeds).length;
+  const successesWithout = absentRuns.filter(succeeds).length;
+  const rateWith = presentRuns.length === 0 ? null : successesWith / presentRuns.length;
+  const rateWithout = absentRuns.length === 0 ? null : successesWithout / absentRuns.length;
+  const strata = [...new Set(runs.map((run) => run.scenarioId))].flatMap((scenarioId) => {
+    const scenarioRuns = runs.filter((run) => run.scenarioId === scenarioId);
+    const withCard = scenarioRuns.filter((run) => deckCopies(run, cardId) > 0);
+    const withoutCard = scenarioRuns.filter((run) => deckCopies(run, cardId) === 0);
+    if (withCard.length === 0 || withoutCard.length === 0) return [];
+    const withSuccesses = withCard.filter(succeeds).length;
+    const withoutSuccesses = withoutCard.filter(succeeds).length;
+    const withRate = withSuccesses / withCard.length;
+    const withoutRate = withoutSuccesses / withoutCard.length;
+    const weight = (withCard.length * withoutCard.length) / scenarioRuns.length;
+    const adjustedWithRate = (withSuccesses + 1) / (withCard.length + 2);
+    const adjustedWithoutRate = (withoutSuccesses + 1) / (withoutCard.length + 2);
+    const variance =
+      (adjustedWithRate * (1 - adjustedWithRate)) / withCard.length +
+      (adjustedWithoutRate * (1 - adjustedWithoutRate)) / withoutCard.length;
+    return [
+      {
+        lift: withRate - withoutRate,
+        weight,
+        variance,
+        runs: withCard.length + withoutCard.length,
+      },
+    ];
+  });
+  const totalWeight = strata.reduce((sum, stratum) => sum + stratum.weight, 0);
+  const stratifiedLift =
+    totalWeight === 0
+      ? null
+      : strata.reduce((sum, stratum) => sum + stratum.lift * stratum.weight, 0) / totalWeight;
+  const standardError =
+    totalWeight === 0
+      ? null
+      : Math.sqrt(
+          strata.reduce((sum, stratum) => sum + stratum.weight ** 2 * stratum.variance, 0) /
+            totalWeight ** 2,
+        );
+  return {
+    successesWith,
+    successesWithout,
+    rateWith,
+    rateWithout,
+    rawLift: rateWith === null || rateWithout === null ? null : rateWith - rateWithout,
+    stratifiedLift,
+    confidenceLow:
+      stratifiedLift === null || standardError === null
+        ? null
+        : Math.max(-1, stratifiedLift - 1.96 * standardError),
+    confidenceHigh:
+      stratifiedLift === null || standardError === null
+        ? null
+        : Math.min(1, stratifiedLift + 1.96 * standardError),
+    strata: strata.length,
+    stratifiedRuns: strata.reduce((sum, stratum) => sum + stratum.runs, 0),
+  };
 }
 
 function createCardAssociations(runs: readonly PlaytestRunResult[]): CardAssociationSummary[] {
@@ -90,6 +189,19 @@ function createCardAssociations(runs: readonly PlaytestRunResult[]): CardAssocia
       const eligibleWins = winsWith + winsWithout;
       const winRateWith = presentRuns.length === 0 ? null : winsWith / presentRuns.length;
       const winRateWithout = absentRuns.length === 0 ? null : winsWithout / absentRuns.length;
+      const offers = eligibleRuns.flatMap((run) =>
+        (run.cardOffers ?? []).filter((offer) => offer.offeredCardIds.includes(card.id)),
+      );
+      const pickedCount = offers.reduce(
+        (sum, offer) => sum + offer.selectedCardIds.filter((cardId) => cardId === card.id).length,
+        0,
+      );
+      const acquisitions = eligibleRuns.flatMap((run) =>
+        (run.cardAcquisitions ?? []).filter((acquisition) => acquisition.cardId === card.id),
+      );
+      const removals = eligibleRuns.flatMap((run) =>
+        (run.cardRemovals ?? []).filter((removal) => removal.cardId === card.id),
+      );
       return {
         cardId: card.id,
         cardName: card.name,
@@ -109,6 +221,28 @@ function createCardAssociations(runs: readonly PlaytestRunResult[]): CardAssocia
           2,
         ),
         winningDeckInclusionRate: eligibleWins === 0 ? null : winsWith / eligibleWins,
+        offeredCount: offers.length,
+        pickedCount,
+        pickRate: offers.length === 0 ? null : pickedCount / offers.length,
+        acquisitionCount: acquisitions.length,
+        removalCount: removals.length,
+        averageTechDebtAtAcquisition:
+          acquisitions.length === 0
+            ? null
+            : round(average(acquisitions.map((acquisition) => acquisition.techDebt)), 2),
+        averageMoraleAtAcquisition:
+          acquisitions.length === 0
+            ? null
+            : round(average(acquisitions.map((acquisition) => acquisition.morale)), 2),
+        averageEncounterAtAcquisition:
+          acquisitions.length === 0
+            ? null
+            : round(average(acquisitions.map((acquisition) => acquisition.encounters)), 2),
+        outcomes: {
+          reach: summarizeCardOutcome(eligibleRuns, card.id, "reach"),
+          launch: summarizeCardOutcome(eligibleRuns, card.id, "launch"),
+          clean: summarizeCardOutcome(eligibleRuns, card.id, "clean"),
+        },
       };
     })
     .sort((left, right) => left.cardName.localeCompare(right.cardName));
@@ -191,6 +325,7 @@ export function createPlaytestReport(
       runs: outcomeLabels.filter((candidate) => candidate === outcome).length,
     }))
     .sort((left, right) => right.runs - left.runs);
+  const cardAssociations = createCardAssociations(runs);
   for (const summary of summaries) {
     const scenario = scenarios.find((candidate) => candidate.id === summary.scenarioId);
     if (summary.stalled > 0) {
@@ -214,6 +349,21 @@ export function createPlaytestReport(
         `${summary.scenarioName}: 100% wins with high Morale; may be under-pressured.`,
       );
     }
+    if (summary.runs >= 50 && summary.launchRate < 0.2) {
+      diagnostics.push(
+        `${summary.scenarioName}: only ${percent(summary.launchRate)} launched; severe low outlier.`,
+      );
+    }
+    if (summary.runs >= 50 && summary.launchRate > 0.9) {
+      diagnostics.push(
+        `${summary.scenarioName}: ${percent(summary.launchRate)} launched; severe high outlier.`,
+      );
+    }
+    if (summary.runs >= 50 && summary.winRate > 0 && summary.winRate < 0.03) {
+      diagnostics.push(
+        `${summary.scenarioName}: only ${percent(summary.winRate)} launched cleanly.`,
+      );
+    }
     if (scenario?.expectedSignal === "automation" && summary.averageAutomation < 2) {
       diagnostics.push(`${summary.scenarioName}: its automation engine barely installed anything.`);
     }
@@ -230,6 +380,45 @@ export function createPlaytestReport(
       diagnostics.push(`${summary.scenarioName}: the Debt build never meaningfully touched Debt.`);
     }
   }
+  if (summaries.length >= 2) {
+    const launchRates = summaries.map((summary) => summary.launchRate);
+    const launchSpread = Math.max(...launchRates) - Math.min(...launchRates);
+    if (launchSpread >= 0.35) {
+      diagnostics.push(
+        `Build launch spread is ${percent(launchSpread)}; separate pilot and squad effects before balance changes.`,
+      );
+    }
+  }
+  if (runs.length >= 100 && runs.some((run) => (run.cardOffers?.length ?? 0) > 0)) {
+    const neverOffered = cardAssociations.filter((card) => card.offeredCount === 0);
+    const neverPicked = cardAssociations.filter(
+      (card) => card.offeredCount >= 20 && card.pickedCount === 0,
+    );
+    const underSampled = cardAssociations.filter((card) => card.presentRuns < 30);
+    if (neverOffered.length > 0) {
+      const names = neverOffered
+        .slice(0, 5)
+        .map((card) => card.cardName)
+        .join(", ");
+      diagnostics.push(
+        `${neverOffered.length} reward cards were never offered (${names}); inspect catalogue reachability.`,
+      );
+    }
+    if (neverPicked.length > 0) {
+      const names = neverPicked
+        .slice(0, 5)
+        .map((card) => card.cardName)
+        .join(", ");
+      diagnostics.push(
+        `${neverPicked.length} reward cards were offered at least 20 times but never picked (${names}); inspect pilot valuation.`,
+      );
+    }
+    if (underSampled.length > 0) {
+      diagnostics.push(
+        `${underSampled.length} reward cards finished in fewer than 30 decks; association coverage is incomplete.`,
+      );
+    }
+  }
   return {
     schemaVersion: 1,
     generatedAt,
@@ -237,7 +426,7 @@ export function createPlaytestReport(
     summaries,
     bossWinRates,
     outcomeCounts,
-    cardAssociations: createCardAssociations(runs),
+    cardAssociations,
     diagnostics,
     runs: [...runs],
   };
@@ -264,27 +453,39 @@ function signedPercent(value: number): string {
 
 function formatCardAssociationRows(associations: readonly CardAssociationSummary[]): string[] {
   const rankable = associations.filter(
-    (card) => card.presentRuns >= 5 && card.absentRuns >= 5 && card.winRateLift !== null,
+    (card) =>
+      card.presentRuns >= 30 &&
+      card.absentRuns >= 30 &&
+      card.outcomes.clean.strata >= 2 &&
+      card.outcomes.clean.stratifiedLift !== null,
   );
   const positive = rankable
-    .filter((card) => card.winRateLift! > 0)
+    .filter((card) => (card.outcomes.clean.confidenceLow ?? -1) > 0)
     .sort(
       (left, right) =>
-        right.winRateLift! - left.winRateLift! || right.presentRuns - left.presentRuns,
+        right.outcomes.clean.stratifiedLift! - left.outcomes.clean.stratifiedLift! ||
+        right.presentRuns - left.presentRuns,
     )
     .slice(0, 8);
   const negative = rankable
-    .filter((card) => card.winRateLift! < 0)
+    .filter((card) => (card.outcomes.clean.confidenceHigh ?? 1) < 0)
     .sort(
       (left, right) =>
-        left.winRateLift! - right.winRateLift! || right.presentRuns - left.presentRuns,
+        left.outcomes.clean.stratifiedLift! - right.outcomes.clean.stratifiedLift! ||
+        right.presentRuns - left.presentRuns,
     )
     .slice(0, 8);
-  const row = (card: CardAssociationSummary) =>
-    `  ${pad(card.cardName, 26, "left")} ${pad(card.presentRuns, 5)} with · ${pad(percent(card.winRateWith!), 4)} win · ${pad(card.absentRuns, 5)} without · ${pad(percent(card.winRateWithout!), 4)} base · ${pad(signedPercent(card.winRateLift!), 4)} lift · ${pad(percent(card.winningDeckInclusionRate ?? 0), 4)} of wins`;
+  const row = (card: CardAssociationSummary) => {
+    const clean = card.outcomes.clean;
+    const confidence = `[${signedPercent(clean.confidenceLow!)}, ${signedPercent(clean.confidenceHigh!)}]`;
+    const pick = card.pickRate === null ? "--" : percent(card.pickRate);
+    return `  ${pad(card.cardName, 26, "left")} ${pad(card.presentRuns, 4)}/${pad(card.eligibleRuns, 4)} decks · pick ${pad(pick, 4)} · reach ${pad(signedPercent(card.outcomes.reach.stratifiedLift ?? 0), 4)} · launch ${pad(signedPercent(card.outcomes.launch.stratifiedLift ?? 0), 4)} · clean ${pad(signedPercent(clean.stratifiedLift!), 4)} ${confidence}`;
+  };
 
   if (positive.length === 0 && negative.length === 0) {
-    return ["  Not enough eligible with/without samples yet (need 5 of each)."];
+    return [
+      "  No scenario-adjusted clean association clears 30 decks per side and a 95% interval yet.",
+    ];
   }
   return [
     ...(positive.length > 0 ? ["  POSITIVE", ...positive.map(row)] : []),
@@ -373,7 +574,7 @@ export function formatPlaytestReport(report: PlaytestBatchReport): string {
       ? [
           "",
           "CARD ASSOCIATIONS",
-          "  Final permanent decks · owner-eligible runs · association, not causation",
+          "  Final permanent decks · scenario-adjusted lift · 95% interval · association, not causation",
           ...cardAssociationRows,
         ]
       : []),

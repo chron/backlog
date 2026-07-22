@@ -294,6 +294,28 @@ export interface PlaytestDeckCard {
   copies: number;
 }
 
+interface PlaytestCardStateSnapshot {
+  action: number;
+  nodeId?: string;
+  encounters: number;
+  day?: number;
+  morale: number;
+  techDebt: number;
+  credits: number;
+  deckSize: number;
+}
+
+interface PlaytestCardOffer extends PlaytestCardStateSnapshot {
+  source: "cycle-reward" | "event-draft" | "event-guest" | "shop" | "weekend-draft";
+  offeredCardIds: readonly string[];
+  selectedCardIds: string[];
+}
+
+interface PlaytestCardChange extends PlaytestCardStateSnapshot {
+  cardId: string;
+  sourceAction: GameAction["type"];
+}
+
 export interface PlaytestRunResult {
   schemaVersion: 1;
   scenarioId: string;
@@ -337,6 +359,9 @@ export interface PlaytestRunResult {
   tools: readonly string[];
   deckSize: number;
   finalDeck: readonly PlaytestDeckCard[];
+  cardOffers: readonly PlaytestCardOffer[];
+  cardAcquisitions: readonly PlaytestCardChange[];
+  cardRemovals: readonly PlaytestCardChange[];
 }
 
 export function summarizePlaytestDeck(deck: readonly CardInstance[]): PlaytestDeckCard[] {
@@ -376,6 +401,9 @@ export interface PlaytestMetrics {
   peakChain: number;
   deadHands: number;
   loopGuardTrips: number;
+  cardOffers: PlaytestCardOffer[];
+  cardAcquisitions: PlaytestCardChange[];
+  cardRemovals: PlaytestCardChange[];
 }
 
 interface CandidateAction {
@@ -437,7 +465,142 @@ export function createPlaytestMetrics(): PlaytestMetrics {
     peakChain: 0,
     deadHands: 0,
     loopGuardTrips: 0,
+    cardOffers: [],
+    cardAcquisitions: [],
+    cardRemovals: [],
   };
+}
+
+function cardStateSnapshot(metrics: PlaytestMetrics, state: GameState): PlaytestCardStateSnapshot {
+  const run = state.run;
+  return {
+    action: metrics.actions,
+    ...(run?.currentNodeId ? { nodeId: run.currentNodeId } : {}),
+    encounters: metrics.encounters,
+    ...(run?.cycle ? { day: run.cycle.day } : {}),
+    morale: run?.morale ?? 0,
+    techDebt: run?.techDebt ?? 0,
+    credits: run?.credits ?? 0,
+    deckSize: run?.deck.length ?? 0,
+  };
+}
+
+function recordCardOffer(
+  metrics: PlaytestMetrics,
+  state: GameState,
+  source: PlaytestCardOffer["source"],
+  offeredCardIds: readonly string[],
+  selectedCardIds: readonly string[] = [],
+): void {
+  if (offeredCardIds.length === 0) return;
+  metrics.cardOffers.push({
+    ...cardStateSnapshot(metrics, state),
+    source,
+    offeredCardIds: [...new Set(offeredCardIds)],
+    selectedCardIds: [...selectedCardIds],
+  });
+}
+
+function recordCardEconomy(
+  metrics: PlaytestMetrics,
+  before: GameState,
+  action: GameAction,
+  after: GameState,
+): void {
+  if (action.type === "CHOOSE_CARD_REWARD" || action.type === "SKIP_CARD_REWARD") {
+    const offered = before.run?.pendingCardReward?.cardIds ?? [];
+    recordCardOffer(
+      metrics,
+      before,
+      "cycle-reward",
+      offered,
+      action.type === "CHOOSE_CARD_REWARD" ? [action.cardId] : [],
+    );
+  }
+
+  if (
+    action.type === "CHOOSE_EVENT_OPTION" &&
+    before.screen.name === "event" &&
+    (before.screen.resolution?.pending.kind === "draft" ||
+      before.screen.resolution?.pending.kind === "guest")
+  ) {
+    const pending = before.screen.resolution.pending;
+    const selected = pending.options.find((option) => option.id === action.optionId)?.cardId;
+    recordCardOffer(
+      metrics,
+      before,
+      pending.kind === "draft" ? "event-draft" : "event-guest",
+      pending.options.flatMap((option) => (option.cardId ? [option.cardId] : [])),
+      selected ? [selected] : [],
+    );
+  }
+
+  if (
+    action.type === "CHOOSE_WEEKEND" &&
+    action.choiceId === "squad-draft" &&
+    before.screen.name === "weekend" &&
+    before.run
+  ) {
+    recordCardOffer(
+      metrics,
+      before,
+      "weekend-draft",
+      getWeekendSquadDraftCardIds(before.run, before.screen.nodeId),
+      action.cardId ? [action.cardId] : [],
+    );
+  }
+
+  if (
+    (action.type === "VISIT_NODE" || action.type === "REFRESH_SHOP") &&
+    after.screen.name === "shop"
+  ) {
+    const inventory = after.screen.inventory;
+    recordCardOffer(
+      metrics,
+      after,
+      "shop",
+      inventory.cardOffers
+        .filter((offer) => !inventory.purchasedOfferIds.includes(offer.id))
+        .map((offer) => offer.cardId),
+    );
+  }
+
+  if (action.type === "BUY_SHOP_CARD" && before.screen.name === "shop") {
+    const shopNodeId = before.screen.nodeId;
+    const cardId = before.screen.inventory.cardOffers.find(
+      (offer) => offer.id === action.offerId,
+    )?.cardId;
+    const activeOffer = [...metrics.cardOffers]
+      .reverse()
+      .find(
+        (offer) =>
+          offer.source === "shop" &&
+          offer.nodeId === shopNodeId &&
+          cardId &&
+          offer.offeredCardIds.includes(cardId),
+      );
+    if (cardId && activeOffer) activeOffer.selectedCardIds.push(cardId);
+  }
+
+  if (!before.run || !after.run || action.type === "CONFIRM_SQUAD") return;
+  const beforeDeck = new Map(before.run.deck.map((card) => [card.instanceId, card]));
+  const afterDeck = new Map(after.run.deck.map((card) => [card.instanceId, card]));
+  const snapshot = cardStateSnapshot(metrics, before);
+
+  for (const [instanceId, instance] of afterDeck) {
+    const previous = beforeDeck.get(instanceId);
+    const cardId = getCardForInstance(instance).id;
+    if (!previous || getCardForInstance(previous).id !== cardId) {
+      metrics.cardAcquisitions.push({ ...snapshot, cardId, sourceAction: action.type });
+    }
+  }
+  for (const [instanceId, instance] of beforeDeck) {
+    const next = afterDeck.get(instanceId);
+    const cardId = getCardForInstance(instance).id;
+    if (!next || getCardForInstance(next).id !== cardId) {
+      metrics.cardRemovals.push({ ...snapshot, cardId, sourceAction: action.type });
+    }
+  }
 }
 
 function totalWork(run: RunState | null): number {
@@ -786,11 +949,130 @@ function generatedCardCount(card: CardDefinition): number {
     : card.generatedCards.reduce((sum, generated) => sum + generated.count, 0);
 }
 
-function cardRewardScore(cardId: string, scenario: PlaytestScenario, run?: RunState): number {
+function bespokeCardUtility(
+  card: CardDefinition,
+  scenario: PlaytestScenario,
+  run?: RunState,
+): number {
+  const preferred = new Set(scenario.preferredTags);
+  const expectedChain = scenario.expectedSignal === "chain" ? 5 : 2;
+  const expectedGeneratedCards = scenario.expectedSignal === "cards" ? 5 : 2;
+  const expectedOpenTasks = scenario.expectedSignal === "completion" ? 4 : 2;
+  const expectedIncompleteRequirements = scenario.expectedSignal === "automation" ? 5 : 3;
+  const expectedAutomationMeters = scenario.expectedSignal === "automation" ? 4 : 1;
+  const expectedTechDebt = Math.max(run?.techDebt ?? 0, scenario.expectedSignal === "debt" ? 6 : 2);
+  const generatedPerChain = card.generatedCardsPerChain
+    ? Math.floor(expectedChain / card.generatedCardsPerChain.divisor) * 5
+    : 0;
+  const automationTrigger = card.automation?.kind === "trigger" ? expectedAutomationMeters * 5 : 0;
+  const handPlanning =
+    (card.exhaustHandTarget ? 8 : 0) +
+    (card.retainHandTarget ? 7 : 0) +
+    (card.targetCostReduction ?? 0) * 7 +
+    (card.exhaustOtherHand ? 12 : 0) +
+    (card.drawEntireDrawPile ? 18 : 0) +
+    (card.returnDrawnToTop ?? 0) * 3;
+  const chain =
+    (card.additionalChain ?? 0) * 5 +
+    (card.drawIfContinuesChain ?? 0) * 5 +
+    (card.blockPerChain ?? 0) * expectedChain * 2 +
+    generatedPerChain +
+    (card.doubleChain ? 12 : 0) +
+    (card.transferChainThisDay ? 10 : 0);
+  const completion =
+    (card.focusOnRequirementComplete ?? 0) * 6 +
+    (card.spilloverVerifiedOnCompletion ?? 0) * 3 +
+    (card.cardsDrawnOnRequirementComplete ?? 0) * 5 +
+    (card.blockPerCompletedRequirement ?? 0) * 4 +
+    (card.focusIfTaskFullyVerified ?? 0) * 6 +
+    (card.cardsDrawnIfTaskFullyVerified ?? 0) * 5 +
+    (card.completeRequirementsAtMost ? 16 : 0) +
+    (card.finishingTouchesEveryTask ? 16 : 0) +
+    (card.cardsDrawnPerTaskCleaned ?? 0) * 5;
+  const automation =
+    (card.scriptPowerPerIncompleteRequirement ?? 0) * expectedIncompleteRequirements * 4 +
+    (card.triggerTargetScriptAfterWork ? 12 : 0) +
+    (card.scriptPowerOnEveryIncompleteFrontend ?? 0) * 12 +
+    (card.triggerInstalledScripts ? 14 : 0) +
+    (card.triggerEveryAutomation ? expectedAutomationMeters * 5 : 0) +
+    (card.triggerAutomationAfterInstall?.length ?? 0) * 8 +
+    (card.triggerAllTaskGuardsAfterWork ? 10 : 0) +
+    (card.doubleTargetAutomationMeters ? 14 : 0) +
+    (card.triggerTargetAutomation
+      ? (Number(card.triggerTargetAutomation.script) + Number(card.triggerTargetAutomation.guard)) *
+        card.triggerTargetAutomation.times *
+        6
+      : 0) +
+    automationTrigger;
+  const broadWork =
+    (card.frontendWorkToEveryTask ?? 0) * expectedOpenTasks * 3 +
+    (card.frontendSpreadToOtherTasks ?? 0) * Math.max(1, expectedOpenTasks - 1) * 3 +
+    (card.workPerOtherIncompleteFrontendTask ?? 0) * Math.max(1, expectedOpenTasks - 1) * 3 +
+    (card.frontendSpreadIfTaskClean ?? 0) * 4 +
+    (card.verifiedWorkPerOpenTask ?? 0) * expectedOpenTasks * 3 +
+    (card.bonusWorkIfTaskStunned ?? 0) * 3 +
+    (card.fullStackAdded ?? 0) * 12;
+  const cardStorm =
+    (card.generatedCardPerExhaustedHandCard ? 12 : 0) +
+    (card.generateLastWorkCopy ? 12 : 0) +
+    (card.generateLastNonGeneratedCopy ? 14 : 0) +
+    (card.retrieveGeneratedFromExhaust ? 9 : 0) +
+    (card.amountPerGeneratedCardPlayed ?? 0) * expectedGeneratedCards * 3 +
+    (card.focusPerGeneratedCardsPlayed ?? 0) * expectedGeneratedCards * 5;
+  const defense =
+    (card.blockPerCardPlayed ?? 0) * 4 +
+    (card.blockPerExhaustedThisDay ?? 0) * 4 +
+    (card.blockPerFinishingTouchesReview ?? 0) * 8 +
+    (card.blockEqualIncomingMorale ? 12 : 0) +
+    (card.doubleCurrentBlock ? 10 : 0) +
+    (card.cycleFlexibleBlockBonus ?? 0) * 5 +
+    (card.blockPerOpenTask ?? 0) * expectedOpenTasks * 2 +
+    (card.cardsDrawnIfBlockCoversIncoming ?? 0) * 5 +
+    (card.blockWorkPowerThisDay ?? 0) * 10;
+  const planning =
+    (card.cycleWorkBonus?.amount ?? 0) * 8 +
+    (card.dayWorkBonus?.amount ?? 0) * 8 +
+    (card.dayReviewStunFocusBonus ?? 0) * 10 +
+    (card.reviewEveryTask ? 14 : 0) +
+    (card.cardsDrawnPerReviewStun ?? 0) * 5 +
+    (card.workPerRetainedCard ?? 0) * 5 +
+    handPlanning;
+  const control =
+    (card.stun || card.stunIntent ? 12 : 0) +
+    (card.reviewAllUnverified ? 18 : 0) +
+    (card.exhaustAllTechDebtCards ? expectedTechDebt * 2 : 0) +
+    (card.workPerTechDebt ?? 0) * expectedTechDebt * 2;
+  const buildAround =
+    (card.spawnSideQuest ? 12 : 0) +
+    (card.copyNextCardEffect ? 15 : 0) +
+    (card.extraSharedComponentsOnCompletion ?? 0) * 7 +
+    (card.cycleFlexibleBlockBonus && preferred.has("flexible") ? 5 : 0);
+
+  return (
+    chain +
+    completion +
+    automation +
+    broadWork +
+    cardStorm +
+    defense +
+    planning +
+    control +
+    buildAround
+  );
+}
+
+export function scorePlaytestCardReward(
+  cardId: string,
+  scenario: PlaytestScenario,
+  run?: RunState,
+): number {
   const card = getCard(cardId);
   if (card.id === "tech-debt" || card.id === "distraction") return -40;
   const copies = run?.deck.filter((instance) => instance.cardId === cardId).length ?? 0;
-  const automation = card.automation?.kind === "install" ? card.automation.power * 9 : 0;
+  const automation =
+    card.automation?.kind === "install"
+      ? card.automation.power * 9 + (card.automation.blockPower ?? 0) * 6
+      : 0;
   const utility =
     (card.block ?? 0) * 2 +
     (card.focusGained ?? 0) * 6 +
@@ -805,9 +1087,9 @@ function cardRewardScore(cardId: string, scenario: PlaytestScenario, run?: RunSt
     (card.exhaustAllTechDebtCards
       ? (run?.deck.filter((instance) => instance.cardId === "tech-debt").length ?? 0) * 8
       : 0) +
-    (card.stun || card.stunIntent ? 9 : 0) +
     (card.exhaust ? 2 : 0) +
-    automation;
+    automation +
+    bespokeCardUtility(card, scenario, run);
   const output =
     (card.amount + (card.workPerTechDebt ?? 0) * (run?.techDebt ?? 0)) *
       (card.workKind === "unverified" ? 2 : 3) +
@@ -824,6 +1106,32 @@ function cardRewardScore(cardId: string, scenario: PlaytestScenario, run?: RunSt
     copies * 4 -
     Math.max(0, (run?.deck.length ?? 12) - 14) * 0.35
   );
+}
+
+export function choosePlaytestCardReward(
+  cardIds: readonly string[],
+  scenario: PlaytestScenario,
+  run: RunState,
+): string | undefined {
+  const scored = cardIds
+    .map((cardId) => ({ cardId, score: scorePlaytestCardReward(cardId, scenario, run) }))
+    .sort((left, right) => right.score - left.score || left.cardId.localeCompare(right.cardId));
+  const best = scored.find((candidate) => candidate.score >= 8);
+  if (!best) return undefined;
+  const exploratory = scored.filter((candidate) => candidate.score >= 4);
+  let roll =
+    run.seed ^
+    run.rngState ^
+    Math.imul(run.history.length + 1, 0x9e3779b1) ^
+    Math.imul(run.deck.length + 1, 0x85ebca6b);
+  roll ^= roll >>> 16;
+  roll = Math.imul(roll, 0x7feb352d);
+  roll ^= roll >>> 15;
+  roll = Math.imul(roll, 0x846ca68b);
+  roll = (roll ^ (roll >>> 16)) >>> 0;
+  const explores = exploratory.length > 1 && roll % 5 === 0;
+  if (!explores) return best.cardId;
+  return exploratory.at(-1)?.cardId ?? best.cardId;
 }
 
 function toolScore(toolId: ToolId, run: RunState, scenario: PlaytestScenario): number {
@@ -910,7 +1218,10 @@ function stateValue(
     run.techDebt * 7 * profile.debt +
     run.credits * 0.05 +
     run.tools.reduce((sum, toolId) => sum + toolScore(toolId, run, scenario), 0) +
-    run.deck.reduce((sum, card) => sum + cardRewardScore(card.cardId, scenario, run) * 0.18, 0)
+    run.deck.reduce(
+      (sum, card) => sum + scorePlaytestCardReward(card.cardId, scenario, run) * 0.18,
+      0,
+    )
   );
 }
 
@@ -922,7 +1233,8 @@ function weakestRefactorTarget(
     .filter((instance) => canRefactorCard(run, instance))
     .sort(
       (left, right) =>
-        cardRewardScore(left.cardId, scenario, run) - cardRewardScore(right.cardId, scenario, run),
+        scorePlaytestCardReward(left.cardId, scenario, run) -
+        scorePlaytestCardReward(right.cardId, scenario, run),
     )[0];
 }
 
@@ -950,6 +1262,7 @@ export function updatePlaytestMetrics(
   after: GameState,
 ): void {
   metrics.actions += 1;
+  recordCardEconomy(metrics, before, action, after);
   metrics.maxTechDebt = Math.max(metrics.maxTechDebt, after.run?.techDebt ?? 0);
   metrics.peakChain = Math.max(metrics.peakChain, after.run?.cycle?.peakChain ?? 0);
 
@@ -1066,14 +1379,12 @@ function nextNonCycleAction(
     case "report":
       return { type: "CONTINUE_REPORT" };
     case "reward": {
-      const cardId = [...(state.run.pendingCardReward?.cardIds ?? [])].sort(
-        (left, right) =>
-          cardRewardScore(right, scenario, state.run!) -
-          cardRewardScore(left, scenario, state.run!),
-      )[0];
-      return cardId && cardRewardScore(cardId, scenario, state.run) >= 8
-        ? { type: "CHOOSE_CARD_REWARD", cardId }
-        : { type: "SKIP_CARD_REWARD" };
+      const cardId = choosePlaytestCardReward(
+        state.run.pendingCardReward?.cardIds ?? [],
+        scenario,
+        state.run,
+      );
+      return cardId ? { type: "CHOOSE_CARD_REWARD", cardId } : { type: "SKIP_CARD_REWARD" };
     }
     case "tool-reward": {
       const toolId = [...(state.run.pendingToolReward?.toolIds ?? [])].sort(
@@ -1129,7 +1440,7 @@ function nextNonCycleAction(
         weakest &&
         !shopScreen.inventory.usedServiceIds.includes("refactor") &&
         run.credits >= shopServicePrices.refactor &&
-        cardRewardScore(weakest.cardId, scenario, run) < 2
+        scorePlaytestCardReward(weakest.cardId, scenario, run) < 2
       ) {
         return {
           type: "BUY_SHOP_SERVICE",
@@ -1145,24 +1456,24 @@ function nextNonCycleAction(
         )
         .sort(
           (left, right) =>
-            cardRewardScore(right.cardId, scenario, run) -
-            cardRewardScore(left.cardId, scenario, run),
+            scorePlaytestCardReward(right.cardId, scenario, run) -
+            scorePlaytestCardReward(left.cardId, scenario, run),
         )[0];
-      if (unboughtCard && cardRewardScore(unboughtCard.cardId, scenario, run) >= 12) {
+      if (unboughtCard && scorePlaytestCardReward(unboughtCard.cardId, scenario, run) >= 12) {
         return { type: "BUY_SHOP_CARD", offerId: unboughtCard.id };
       }
       const duplicate = run.deck
         .filter(canDuplicateCard)
         .sort(
           (left, right) =>
-            cardRewardScore(right.cardId, scenario, run) -
-            cardRewardScore(left.cardId, scenario, run),
+            scorePlaytestCardReward(right.cardId, scenario, run) -
+            scorePlaytestCardReward(left.cardId, scenario, run),
         )[0];
       if (
         duplicate &&
         !shopScreen.inventory.usedServiceIds.includes("duplicate") &&
         run.credits >= shopServicePrices.duplicate &&
-        cardRewardScore(duplicate.cardId, scenario, run) >= 20
+        scorePlaytestCardReward(duplicate.cardId, scenario, run) >= 20
       ) {
         return {
           type: "BUY_SHOP_SERVICE",
@@ -1183,18 +1494,18 @@ function nextNonCycleAction(
       ) {
         return { type: "CHOOSE_WEEKEND", choiceId: "rest" };
       }
-      if (weakest && cardRewardScore(weakest.cardId, scenario, state.run) < 2) {
+      if (weakest && scorePlaytestCardReward(weakest.cardId, scenario, state.run) < 2) {
         return {
           type: "CHOOSE_WEEKEND",
           choiceId: "refactor",
           instanceId: weakest.instanceId,
         };
       }
-      const draftCardId = [...getWeekendSquadDraftCardIds(state.run, state.screen.nodeId)].sort(
-        (left, right) =>
-          cardRewardScore(right, scenario, state.run!) -
-          cardRewardScore(left, scenario, state.run!),
-      )[0];
+      const draftCardId = choosePlaytestCardReward(
+        getWeekendSquadDraftCardIds(state.run, state.screen.nodeId),
+        scenario,
+        state.run,
+      );
       if (
         draftCardId &&
         !getWeekendChoiceState("squad-draft", state.run, state.screen.nodeId).disabledReason
@@ -1225,8 +1536,8 @@ function nextCycleAction(
   if (cycle.pendingCardChoice) {
     const instance = [...cycle.hand].sort(
       (left, right) =>
-        cardRewardScore(right.cardId, scenario, state.run!) -
-        cardRewardScore(left.cardId, scenario, state.run!),
+        scorePlaytestCardReward(right.cardId, scenario, state.run!) -
+        scorePlaytestCardReward(left.cardId, scenario, state.run!),
     )[0];
     return instance ? { type: "CHOOSE_CYCLE_CARD", instanceId: instance.instanceId } : undefined;
   }
