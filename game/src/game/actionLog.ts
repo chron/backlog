@@ -7,6 +7,8 @@
  */
 
 import type { GameAction, GameState } from "./gameReducer";
+import { getCardForInstance } from "../domain/content";
+import type { CardInstance } from "../domain/models";
 import { loadTelemetryPreference } from "../settings/settingsStore";
 import {
   maxTelemetryEventsPerBatch,
@@ -65,7 +67,28 @@ function freshRunId(): string {
   return `${new Date().toISOString().slice(0, 10)}-${randomId()}`;
 }
 
-function productionActionDetails(action: GameAction): TelemetryDetails {
+function cardInstancesInState(state: GameState): readonly CardInstance[] {
+  const run = state.run;
+  const cycle = run?.cycle;
+  return [
+    ...(cycle?.hand ?? []),
+    ...(cycle?.drawPile ?? []),
+    ...(cycle?.discardPile ?? []),
+    ...(cycle?.exhaustPile ?? []),
+    ...(cycle?.pendingCardChoice?.selected ?? []),
+    ...(run?.deck ?? []),
+  ];
+}
+
+function cardIdForInstance(state: GameState, instanceId?: string): string | undefined {
+  if (!instanceId) return undefined;
+  const instance = cardInstancesInState(state).find(
+    (candidate) => candidate.instanceId === instanceId,
+  );
+  return instance ? getCardForInstance(instance).id : undefined;
+}
+
+function productionActionDetails(action: GameAction, stateBefore: GameState): TelemetryDetails {
   switch (action.type) {
     case "START_RUN":
       return action.seed === undefined ? {} : { seed: action.seed };
@@ -74,24 +97,33 @@ function productionActionDetails(action: GameAction): TelemetryDetails {
     case "VISIT_NODE":
       return { nodeId: action.nodeId };
     case "PLAY_CARD": {
+      const cardId = cardIdForInstance(stateBefore, action.instanceId);
       if (action.target.kind === "discipline") {
         return {
           instanceId: action.instanceId,
+          ...(cardId ? { cardId } : {}),
           targetKind: "discipline",
           targetDiscipline: action.target.discipline,
         };
       }
       if (action.target.kind) {
-        return { instanceId: action.instanceId, targetKind: action.target.kind };
+        return {
+          instanceId: action.instanceId,
+          ...(cardId ? { cardId } : {}),
+          targetKind: action.target.kind,
+        };
       }
       return {
         instanceId: action.instanceId,
+        ...(cardId ? { cardId } : {}),
         targetKind: "task",
         targetTaskId: action.target.taskId,
       };
     }
-    case "CHOOSE_CYCLE_CARD":
-      return { instanceId: action.instanceId };
+    case "CHOOSE_CYCLE_CARD": {
+      const cardId = cardIdForInstance(stateBefore, action.instanceId);
+      return { instanceId: action.instanceId, ...(cardId ? { cardId } : {}) };
+    }
     case "SHIP_TASK":
       return { targetTaskId: action.taskId };
     case "CHOOSE_CARD_REWARD":
@@ -102,21 +134,53 @@ function productionActionDetails(action: GameAction): TelemetryDetails {
       return { toolId: action.toolId };
     case "CHOOSE_EVENT":
       return { choiceId: action.choiceId };
-    case "CHOOSE_EVENT_OPTION":
-      return { optionId: action.optionId };
-    case "BUY_SHOP_CARD":
-    case "BUY_SHOP_TOOL":
-      return { offerId: action.offerId };
-    case "BUY_SHOP_SERVICE":
+    case "CHOOSE_EVENT_OPTION": {
+      const option =
+        stateBefore.screen.name === "event"
+          ? stateBefore.screen.resolution?.pending.options.find(
+              (candidate) => candidate.id === action.optionId,
+            )
+          : undefined;
+      return {
+        optionId: action.optionId,
+        ...(option?.cardId ? { cardId: option.cardId } : {}),
+        ...(option?.toolId ? { toolId: option.toolId } : {}),
+      };
+    }
+    case "BUY_SHOP_CARD": {
+      const offer =
+        stateBefore.screen.name === "shop"
+          ? stateBefore.screen.inventory.cardOffers.find(
+              (candidate) => candidate.id === action.offerId,
+            )
+          : undefined;
+      return { offerId: action.offerId, ...(offer ? { cardId: offer.cardId } : {}) };
+    }
+    case "BUY_SHOP_TOOL": {
+      const offer =
+        stateBefore.screen.name === "shop"
+          ? stateBefore.screen.inventory.toolOffers.find(
+              (candidate) => candidate.id === action.offerId,
+            )
+          : undefined;
+      return { offerId: action.offerId, ...(offer ? { toolId: offer.toolId } : {}) };
+    }
+    case "BUY_SHOP_SERVICE": {
+      const cardId = cardIdForInstance(stateBefore, action.instanceId);
       return {
         serviceId: action.serviceId,
         ...(action.instanceId ? { instanceId: action.instanceId } : {}),
+        ...(cardId ? { cardId } : {}),
       };
-    case "CHOOSE_WEEKEND":
+    }
+    case "CHOOSE_WEEKEND": {
+      const cardId = action.cardId ?? cardIdForInstance(stateBefore, action.instanceId);
       return {
         choiceId: action.choiceId,
         ...(action.instanceId ? { instanceId: action.instanceId } : {}),
+        ...(cardId ? { cardId } : {}),
       };
+    }
     case "CONFIRM_SQUAD":
     case "RANDOMIZE_SQUAD":
     case "DEBUG_WIN_CYCLE":
@@ -196,7 +260,7 @@ export function createProductionTelemetryEvent(
     accepted: stateAfter !== stateBefore,
     screenBefore: stateBefore.screen.name,
     screenAfter: stateAfter.screen.name,
-    details: productionActionDetails(action),
+    details: productionActionDetails(action, stateBefore),
     snapshot: createProductionRunSnapshot(snapshotState, context.elapsedMs),
   };
 }

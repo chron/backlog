@@ -4,6 +4,8 @@ import {
   createProductionRunSnapshot,
   createProductionTelemetryEvent,
 } from "./actionLog";
+import { getCardForInstance } from "../domain/content";
+import { createShopInventory } from "../domain/shop";
 import { gameReducer, initialGameState, type GameState } from "./gameReducer";
 
 describe("game action log", () => {
@@ -73,6 +75,130 @@ describe("game action log", () => {
       encounters: 0,
       tasksShipped: 0,
     });
+  });
+
+  it("records stable content ids alongside transient interaction ids", () => {
+    let state = gameReducer(initialGameState, { type: "START_RUN", seed: 7 });
+    state = gameReducer(state, { type: "TOGGLE_DEVELOPER", developerId: "paul" });
+    state = gameReducer(state, { type: "TOGGLE_DEVELOPER", developerId: "odin" });
+    state = gameReducer(state, { type: "TOGGLE_DEVELOPER", developerId: "madi" });
+    state = gameReducer(state, { type: "CONFIRM_SQUAD" });
+    const run = state.run!;
+    const deckCard = run.deck[0]!;
+    const cardId = getCardForInstance(deckCard).id;
+
+    const playEvent = createProductionTelemetryEvent(
+      { type: "PLAY_CARD", instanceId: deckCard.instanceId, target: { kind: "squad" } },
+      state,
+      state,
+      { at: "2026-07-20T00:00:00.000Z", sequence: 2, elapsedMs: 20 },
+    );
+    expect(playEvent.details).toEqual({
+      instanceId: deckCard.instanceId,
+      cardId,
+      targetKind: "squad",
+    });
+
+    const cycleState = gameReducer(state, { type: "VISIT_NODE", nodeId: "cycle-1" });
+    const generatedState: GameState = {
+      ...cycleState,
+      run: {
+        ...cycleState.run!,
+        cycle: {
+          ...cycleState.run!.cycle!,
+          hand: [{ cardId: "snippet", instanceId: "generated-telemetry", generated: true }],
+        },
+      },
+    };
+    expect(
+      createProductionTelemetryEvent(
+        {
+          type: "PLAY_CARD",
+          instanceId: "generated-telemetry",
+          target: { kind: "squad" },
+        },
+        generatedState,
+        generatedState,
+        { at: "2026-07-20T00:00:00.500Z", sequence: 3, elapsedMs: 500 },
+      ).details,
+    ).toEqual({ instanceId: "generated-telemetry", cardId: "snippet", targetKind: "squad" });
+
+    const inventory = createShopInventory(run, "shop-test");
+    const shopState: GameState = {
+      screen: { name: "shop", nodeId: "shop-test", inventory },
+      run,
+    };
+    const cardOffer = inventory.cardOffers[0]!;
+    const toolOffer = inventory.toolOffers[0]!;
+    expect(
+      createProductionTelemetryEvent(
+        { type: "BUY_SHOP_CARD", offerId: cardOffer.id },
+        shopState,
+        shopState,
+        { at: "2026-07-20T00:00:01.000Z", sequence: 4, elapsedMs: 1_000 },
+      ).details,
+    ).toEqual({ offerId: cardOffer.id, cardId: cardOffer.cardId });
+    expect(
+      createProductionTelemetryEvent(
+        { type: "BUY_SHOP_TOOL", offerId: toolOffer.id },
+        shopState,
+        shopState,
+        { at: "2026-07-20T00:00:02.000Z", sequence: 5, elapsedMs: 2_000 },
+      ).details,
+    ).toEqual({ offerId: toolOffer.id, toolId: toolOffer.toolId });
+    expect(
+      createProductionTelemetryEvent(
+        { type: "BUY_SHOP_SERVICE", serviceId: "refactor", instanceId: deckCard.instanceId },
+        shopState,
+        shopState,
+        { at: "2026-07-20T00:00:03.000Z", sequence: 6, elapsedMs: 3_000 },
+      ).details,
+    ).toEqual({ serviceId: "refactor", instanceId: deckCard.instanceId, cardId });
+
+    const eventState: GameState = {
+      screen: {
+        name: "event",
+        nodeId: "event-test",
+        eventId: "quarterly-connect",
+        resolution: {
+          choiceId: "choice-test",
+          effectIndex: 0,
+          outcome: [],
+          pending: {
+            effectIndex: 0,
+            kind: "card",
+            prompt: "Remove a card",
+            options: [{ id: deckCard.instanceId, label: "Card", cardId }],
+          },
+        },
+      },
+      run,
+    };
+    expect(
+      createProductionTelemetryEvent(
+        { type: "CHOOSE_EVENT_OPTION", optionId: deckCard.instanceId },
+        eventState,
+        eventState,
+        { at: "2026-07-20T00:00:04.000Z", sequence: 7, elapsedMs: 4_000 },
+      ).details,
+    ).toEqual({ optionId: deckCard.instanceId, cardId });
+
+    const weekendState: GameState = {
+      screen: { name: "weekend", nodeId: "weekend-test" },
+      run,
+    };
+    expect(
+      createProductionTelemetryEvent(
+        {
+          type: "CHOOSE_WEEKEND",
+          choiceId: "refactor",
+          instanceId: deckCard.instanceId,
+        },
+        weekendState,
+        weekendState,
+        { at: "2026-07-20T00:00:05.000Z", sequence: 8, elapsedMs: 5_000 },
+      ).details,
+    ).toEqual({ choiceId: "refactor", instanceId: deckCard.instanceId, cardId });
   });
 
   it("preserves the completed run summary when returning to the title", () => {
