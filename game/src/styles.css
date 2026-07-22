@@ -2016,6 +2016,10 @@ main:focus {
   background: color-mix(in oklch, var(--ink) 12%, var(--panel));
 }
 
+.game-card--status.has-owner {
+  background: color-mix(in oklch, var(--card-accent) 24%, var(--panel));
+}
+
 .game-card--harmful-status {
   background-color: color-mix(in oklch, var(--pink) 45%, var(--panel));
   background-image: repeating-linear-gradient(
@@ -2253,9 +2257,14 @@ main:focus {
   overflow: visible;
   scrollbar-width: thin;
   white-space: nowrap;
+  pointer-events: none;
   transition:
     background 140ms var(--ease-out-quint),
     box-shadow 140ms var(--ease-out-quint);
+}
+
+.squad-status-rack :is(button, [data-card-target]) {
+  pointer-events: auto;
 }
 
 .squad-status-rack.is-targetable {
