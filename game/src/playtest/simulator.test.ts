@@ -198,7 +198,7 @@ describe("scripted playtest harness", () => {
         offeredCardIds: ["pair-programming", "health-check", "spike-it"],
         selectedCardIds: ["pair-programming"],
         action: 1,
-        morale: 12,
+        morale: 13,
         techDebt: 0,
         deckSize: 10,
       }),
