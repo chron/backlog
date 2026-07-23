@@ -302,7 +302,7 @@ function triggeredAutomationAmount(run: RunState, power: number): number {
   );
 }
 
-function automationPacketLabel(source: "CI" | "Run", amount: number, run: RunState): string {
+function automationPacketLabel(source: "CI" | "Trigger", amount: number, run: RunState): string {
   const modifiers = [
     run.tools.includes("cron-upgrade") ? "Cron ×2" : undefined,
     run.tools.includes("platypus") ? "Platypus +1" : undefined,
@@ -631,7 +631,7 @@ function resolveCardTargetOnce(
     const installedGuardPower = cycle.guardPower + (card.automation.blockPower ?? 0);
     const afterInstallLabels = (card.triggerAutomationAfterInstall ?? []).map((meter) =>
       meter === "guard"
-        ? automationPacketLabel("Run", triggeredAutomationAmount(run, installedGuardPower), run)
+        ? automationPacketLabel("Trigger", triggeredAutomationAmount(run, installedGuardPower), run)
         : undefined,
     );
     return {
@@ -663,7 +663,7 @@ function resolveCardTargetOnce(
         card.doubleTargetAutomationMeters ? "Guard ×2" : undefined,
         triggerCount > 0
           ? automationPacketLabel(
-              "Run",
+              "Trigger",
               triggeredAutomationAmount(run, guardPower) * triggerCount,
               run,
             )
@@ -723,7 +723,7 @@ function resolveCardTargetOnce(
     const afterInstallLabels = (card.triggerAutomationAfterInstall ?? []).map((meter) => {
       if (meter === "guard") {
         return automationPacketLabel(
-          "Run",
+          "Trigger",
           triggeredAutomationAmount(run, installedGuardPower),
           run,
         );
@@ -734,7 +734,7 @@ function resolveCardTargetOnce(
       );
       previewRemaining -= amount;
       afterInstallWorkAmount += amount;
-      return amount > 0 ? automationPacketLabel("Run", amount, run) : undefined;
+      return amount > 0 ? automationPacketLabel("Trigger", amount, run) : undefined;
     });
     return {
       ...tacticBase,
@@ -897,7 +897,7 @@ function resolveCardTargetOnce(
         cardsDrawn: tacticBase.cardsDrawn + passiveDraws,
         triggeredPassiveIds: passiveDraws > 0 ? ["irene"] : tacticBase.triggeredPassiveIds,
         label: [
-          verifiedWorkHits.length > 0 ? `Run ${verifiedWorkHits.length} Scripts` : undefined,
+          verifiedWorkHits.length > 0 ? `Trigger ${verifiedWorkHits.length} Scripts` : undefined,
           guardBlock > 0 ? `Block ${guardBlock}` : undefined,
         ]
           .filter(Boolean)
@@ -1116,7 +1116,7 @@ function resolveCardTargetOnce(
           ? `Script +${scriptPower} · ${scriptInstallations.length} ${scriptInstallations.length === 1 ? "bar" : "bars"}`
           : undefined,
         scriptInstallations.reduce((total, installation) => total + installation.runAmount, 0) > 0
-          ? `Run +${scriptInstallations.reduce((total, installation) => total + installation.runAmount, 0)}`
+          ? `Trigger +${scriptInstallations.reduce((total, installation) => total + installation.runAmount, 0)}`
           : undefined,
         reviewStuns > 0 ? (card.reviewEveryTask ? `Cancel ${reviewStuns}` : "Cancel") : undefined,
         blockGained ? `Block ${blockGained}` : undefined,
@@ -1339,7 +1339,7 @@ function resolveCardTargetOnce(
     : `Pitch In · ${amount} Unverified`;
   const label =
     card.automation?.kind === "trigger"
-      ? `Run Script · +${amount} Verified`
+      ? `Trigger Script · +${amount} Verified`
       : card.automation?.kind === "install"
         ? [
             amount > 0
@@ -1352,7 +1352,7 @@ function resolveCardTargetOnce(
               ? automationPacketLabel("CI", scriptInstallRunAmount, run)
               : undefined,
             scriptTriggerRunAmount > 0
-              ? automationPacketLabel("Run", scriptTriggerRunAmount, run)
+              ? automationPacketLabel("Trigger", scriptTriggerRunAmount, run)
               : undefined,
             verifiedWorkHits[0]
               ? `${disciplineLabel(verifiedWorkHits[0].discipline)} spill +${verifiedWorkHits[0].amount}`
@@ -1385,7 +1385,7 @@ function resolveCardTargetOnce(
               ? automationPacketLabel("CI", scriptInstallRunAmount, run)
               : undefined,
             scriptTriggerRunAmount > 0
-              ? automationPacketLabel("Run", scriptTriggerRunAmount, run)
+              ? automationPacketLabel("Trigger", scriptTriggerRunAmount, run)
               : undefined,
             verifiedWorkHits[0]
               ? `${disciplineLabel(verifiedWorkHits[0].discipline)} spill +${verifiedWorkHits[0].amount}`

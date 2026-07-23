@@ -124,7 +124,8 @@ export const stephContent = {
       triggerTargetAutomation: { script: true, guard: true, times: 1 },
       exhaust: true,
       display: { value: "1×", label: "Trigger", rules: "Script and squad Guard. Exhaust." },
-      rules: "Trigger a Script and squad Guard once. Aim at the squad for Guard only. Exhaust.",
+      rules:
+        "Trigger one installed Script and the squad's Guard. Aim at the squad for Guard only. Requires Script or Guard. Exhaust.",
       tags: ["automation", "character", "exhaust", "generated"],
     },
   ],

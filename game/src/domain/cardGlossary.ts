@@ -238,7 +238,8 @@ const glossary: readonly GlossaryDefinition[] = [
   {
     id: "trigger",
     term: "Trigger",
-    description: "Runs a requirement's Script or the squad's full Guard immediately.",
+    description:
+      "Activates installed automation immediately: Script adds Verified Work; Guard adds Block.",
     appliesTo: (card) =>
       card.automation?.kind === "trigger" ||
       Boolean(

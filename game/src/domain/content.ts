@@ -359,7 +359,8 @@ const sharedCards: readonly CardDefinition[] = [
     amount: 0,
     workKind: "verified",
     automation: { kind: "trigger" },
-    rules: "Trigger one Script now.",
+    display: { value: "1×", label: "Trigger", rules: "One installed Script." },
+    rules: "Trigger one installed Script. Requires an incomplete scripted requirement.",
     tags: ["automation", "flexible", "reward"],
   },
   {

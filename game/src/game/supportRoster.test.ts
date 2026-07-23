@@ -228,7 +228,7 @@ describe("support roster integration", () => {
       scriptPower: 1,
     });
     expect(setup.run?.history.at(-1)).toMatchObject({
-      label: "Script +1 · CI +1 · Run +1",
+      label: "Script +1 · CI +1 · Trigger +1",
     });
 
     let automate = scenario("steph", "status-refresh", "automate-this-bit");

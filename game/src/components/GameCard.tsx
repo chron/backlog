@@ -10,6 +10,7 @@ interface GameCardProps {
   selected: boolean;
   referenceOnly?: boolean;
   disabled?: boolean;
+  disabledReason?: string;
   presentationOnly?: boolean;
   onSelect?: () => void;
   onPointerDown?: PointerEventHandler<HTMLButtonElement>;
@@ -26,6 +27,7 @@ export function GameCard({
   selected,
   referenceOnly,
   disabled,
+  disabledReason,
   presentationOnly,
   onSelect,
   onPointerDown,
@@ -37,7 +39,12 @@ export function GameCard({
 }: GameCardProps) {
   const card = getCardForInstance(instance);
   const glossaryId = useId();
-  const glossaryEntries = getCardGlossaryEntries(card);
+  const glossaryEntries = [
+    ...(disabledReason
+      ? [{ id: "unavailable", term: "Unavailable", description: disabledReason }]
+      : []),
+    ...getCardGlossaryEntries(card),
+  ];
   const owner = card.ownerId ? getDeveloper(card.ownerId) : undefined;
   const unplayable = card.kind === "status" && !card.cycleFlexibleBlockBonus;
   const rare = card.rarity === "rare" || card.tags.includes("rare");
@@ -65,7 +72,7 @@ export function GameCard({
           ? "Guard"
           : "Script"
         : card.automation?.kind === "trigger"
-          ? "Run"
+          ? "Trigger"
           : card.kind === "review"
             ? "Verify"
             : card.discipline === "flexible"
@@ -82,7 +89,7 @@ export function GameCard({
   const style = { "--card-accent": cardAccent } as React.CSSProperties;
   const accessibleLabel = unplayable
     ? `${card.name}. ${card.rules}`
-    : `${selected ? "Selected: " : ""}${card.name}, costs ${effectiveCost} Focus. ${card.rules}`;
+    : `${selected ? "Selected: " : ""}${card.name}, costs ${effectiveCost} Focus. ${card.rules}${disabledReason ? ` Unavailable: ${disabledReason}` : ""}`;
   const content = (
     <>
       {cardTarget && <span className="game-card__target-hint">Choose</span>}

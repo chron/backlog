@@ -16,6 +16,7 @@ import type {
   CharacterMood,
   Discipline,
   DeveloperId,
+  RunState,
 } from "../domain/models";
 import { getCardPresentation } from "../game/presentation";
 import { getBossIntentPreview, getBossLaunchPreview } from "../game/bossEngine";
@@ -74,6 +75,39 @@ function cardTagLabel(tag: CardTag): string {
         .split("-")
         .map((part) => part.slice(0, 1).toUpperCase() + part.slice(1))
         .join(" ");
+}
+
+export function automationUnavailableReason(
+  run: RunState,
+  instance: CardInstance,
+): string | undefined {
+  const cycle = run.cycle;
+  if (!cycle) return undefined;
+  const card = getCardForInstance(instance);
+  const requiresInstalledAutomation = Boolean(
+    card.automation?.kind === "trigger" ||
+    card.triggerTargetAutomation ||
+    card.doubleTargetAutomationMeters ||
+    card.triggerEveryAutomation,
+  );
+  if (!requiresInstalledAutomation) return undefined;
+
+  const targets: CardTarget[] = [
+    { kind: "squad" },
+    ...cycle.tasks.flatMap((task) =>
+      task.status === "shipped"
+        ? []
+        : task.requirements.map((requirement) => ({
+            taskId: task.taskId,
+            discipline: requirement.discipline,
+          })),
+    ),
+  ];
+  if (targets.some((target) => resolveCardTarget(run, instance, target).legal)) return undefined;
+
+  return card.automation?.kind === "trigger"
+    ? "Install a Script on an incomplete requirement first."
+    : "Install a Script on an incomplete requirement or install Guard first.";
 }
 
 export function CycleScreen({ dispatch, run, onInspectCards }: CycleScreenProps) {
@@ -806,6 +840,8 @@ export function CycleScreen({ dispatch, run, onInspectCards }: CycleScreenProps)
             const card = getCardForInstance(instance);
             const cost = effectiveCardCost(card, cycle, run.squad, instance);
             const unplayable = card.kind === "status" && !card.cycleFlexibleBlockBonus;
+            const automationReason =
+              cost <= cycle.focus ? automationUnavailableReason(run, instance) : undefined;
             const handTargetResolution = selectedCard
               ? resolveCardTarget(run, selectedCard, {
                   kind: "hand-card",
@@ -819,9 +855,11 @@ export function CycleScreen({ dispatch, run, onInspectCards }: CycleScreenProps)
                 instance={instance}
                 effectiveCost={cost}
                 selected={activeInstanceId === instance.instanceId}
+                disabledReason={!handTargetable ? automationReason : undefined}
                 disabled={
                   !handTargetable &&
                   (unplayable ||
+                    Boolean(automationReason) ||
                     resolvingDay ||
                     resolvingCard ||
                     resolvingBoss ||
@@ -839,15 +877,21 @@ export function CycleScreen({ dispatch, run, onInspectCards }: CycleScreenProps)
                 }
                 aimed={aim?.hoveredTargetKey === `hand:${instance.instanceId}`}
                 onPointerDown={
-                  unplayable ? undefined : (event) => beginAim(instance.instanceId, event)
+                  unplayable || automationReason
+                    ? undefined
+                    : (event) => beginAim(instance.instanceId, event)
                 }
                 onPointerMove={
-                  unplayable ? undefined : (event) => moveAim(instance.instanceId, event)
+                  unplayable || automationReason
+                    ? undefined
+                    : (event) => moveAim(instance.instanceId, event)
                 }
                 onPointerUp={
-                  unplayable ? undefined : (event) => finishAim(instance.instanceId, event)
+                  unplayable || automationReason
+                    ? undefined
+                    : (event) => finishAim(instance.instanceId, event)
                 }
-                onPointerCancel={unplayable ? undefined : cancelAim}
+                onPointerCancel={unplayable || automationReason ? undefined : cancelAim}
               />
             );
           })}

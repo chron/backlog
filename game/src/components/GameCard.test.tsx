@@ -129,8 +129,25 @@ describe("GameCard", () => {
     expect(cronJobMarkup).toContain('class="game-card__cost" aria-label="2 Focus">2</span>');
     expect(cronJobMarkup).toContain("<b>3</b><small>Script</small>");
     expect(cronJobMarkup).not.toContain("<button");
-    expect(runItNowMarkup).toContain("<b>▶</b><small>Run</small>");
+    expect(runItNowMarkup).toContain("<b>1×</b><small>Trigger</small>");
+    expect(runItNowMarkup).toContain("One installed Script.");
     expect(mattMarkup).toContain("game-card--rare has-owner");
     expect(mattMarkup).toContain("character-portrait--card");
+  });
+
+  it("explains why an automation card is temporarily unavailable", () => {
+    const markup = renderToStaticMarkup(
+      <GameCard
+        instance={{ cardId: "run-it-now", instanceId: "blocked-run-it-now" }}
+        effectiveCost={1}
+        selected={false}
+        disabled
+        disabledReason="Install a Script on an incomplete requirement first."
+      />,
+    );
+
+    expect(markup).toContain("Unavailable");
+    expect(markup).toContain("Install a Script on an incomplete requirement first.");
+    expect(markup).toContain('disabled=""');
   });
 });

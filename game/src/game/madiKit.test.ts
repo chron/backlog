@@ -166,7 +166,7 @@ describe("Madi's automation engine", () => {
       cardId: "agentic-loop",
       taskId: "status-composer",
       discipline: "frontend",
-      label: "Frontend +2 unverified · Script +1 · Run +1",
+      label: "Frontend +2 unverified · Script +1 · Trigger +1",
       generated: false,
       generatedByCardId: undefined,
       exhausted: false,
@@ -208,7 +208,7 @@ describe("Madi's automation engine", () => {
       scriptPower: 2,
     });
     expect(state.run?.history.at(-1)).toMatchObject({
-      label: "Frontend +2 unverified · Script +1 · CI +2 (Cron ×2) · Run +4 (Cron ×2)",
+      label: "Frontend +2 unverified · Script +1 · CI +2 (Cron ×2) · Trigger +4 (Cron ×2)",
     });
   });
 
@@ -348,7 +348,7 @@ describe("Madi's automation engine", () => {
     expect(state.run?.cycle?.drawPile).toHaveLength(drawBefore - 1);
     expect(state.run?.cycle?.triggeredPassiveIds).toEqual(["irene"]);
     expect(state.run?.history.at(-1)).toMatchObject({
-      label: "Verify 3 · Script +1 · 1 bar · Run +1 · Draw 1",
+      label: "Verify 3 · Script +1 · 1 bar · Trigger +1 · Draw 1",
     });
   });
 
