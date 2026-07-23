@@ -53,13 +53,13 @@ describe("Weekend stop", () => {
     state = gameReducer(state, { type: "CHOOSE_WEEKEND", choiceId: "rest" });
 
     expect(state.screen).toEqual({ name: "map" });
-    expect(state.run?.morale).toBe(13);
+    expect(state.run?.morale).toBe(14);
     expect(state.run?.completedNodeIds).toContain("weekend-1");
     expect(state.run?.history.at(-1)).toEqual({
       kind: "weekend-resolved",
       nodeId: "weekend-1",
       choiceId: "rest",
-      outcome: ["+5 Morale"],
+      outcome: ["+6 Morale"],
     });
 
     const tired = startWeekend(6);
@@ -117,7 +117,7 @@ describe("Weekend stop", () => {
   });
 
   it("keeps full-Morale Rest and minimum-deck Refactor visibly unavailable", () => {
-    const full = startWeekend(13);
+    const full = startWeekend(15);
     expect(getWeekendChoiceState("rest", full.run!)).toEqual({
       disabledReason: "Morale full",
       outcomes: ["Morale full"],

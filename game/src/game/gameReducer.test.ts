@@ -246,7 +246,7 @@ function readyFinalRelease(unverifiedWork = 0, morale = 10, block = 0): GameStat
 describe("gameReducer", () => {
   it("builds a 10-card deck from three character cards and seven Basics", () => {
     const state = startCycle();
-    expect(state.run).toMatchObject({ morale: 13, maxMorale: 13 });
+    expect(state.run).toMatchObject({ morale: 15, maxMorale: 15 });
     expect(state.run?.deck).toHaveLength(10);
     expect(state.run?.deck.map((card) => card.cardId)).toEqual([
       "vibe-code",
@@ -356,7 +356,7 @@ describe("gameReducer", () => {
     state = playCard(state, "agent-swarm", "status-composer", "backend");
     state = gameReducer(state, { type: "END_DAY" });
 
-    expect(state.run?.morale).toBe(11);
+    expect(state.run?.morale).toBe(13);
     expect(state.run?.cycle?.day).toBe(2);
     expect(state.run?.cycle?.resolvedIntents).toEqual(["Crunch · −2 Morale"]);
     expect(state.run?.cycle?.tasks[0]?.status).toBe("ready");
@@ -364,7 +364,7 @@ describe("gameReducer", () => {
 
   it("takes telegraphed Morale damage from an Open Task at End Day", () => {
     const state = gameReducer(startCycle(), { type: "END_DAY" });
-    expect(state.run?.morale).toBe(11);
+    expect(state.run?.morale).toBe(13);
     expect(state.run?.cycle?.resolvedIntents).toContain("Crunch · −2 Morale");
   });
 
@@ -379,7 +379,7 @@ describe("gameReducer", () => {
 
     state = gameReducer(state, { type: "END_DAY" });
 
-    expect(state.run?.morale).toBe(13);
+    expect(state.run?.morale).toBe(15);
     expect(state.run?.cycle).toMatchObject({ day: 2, block: 0 });
     expect(state.run?.cycle?.resolvedIntents).toContain("Crunch · −2 Morale");
   });
@@ -398,7 +398,7 @@ describe("gameReducer", () => {
 
     state = gameReducer(state, { type: "SHIP_TASK", taskId: "status-composer" });
 
-    expect(state.run?.morale).toBe(13);
+    expect(state.run?.morale).toBe(15);
     expect(state.run?.cycle?.block).toBe(6);
     expect(state.run?.history.at(-1)).toMatchObject({
       kind: "task-shipped",
@@ -417,7 +417,7 @@ describe("gameReducer", () => {
 
     state = gameReducer(state, { type: "END_DAY" });
 
-    expect(state.run?.morale).toBe(13);
+    expect(state.run?.morale).toBe(15);
     expect(state.run?.cycle?.tasks[0]?.stunned).toBe(false);
     expect(state.run?.cycle?.resolvedIntents).toContain("Cancelled Today · Crunch · −2 Morale");
   });
@@ -431,7 +431,7 @@ describe("gameReducer", () => {
 
     state = gameReducer(state, { type: "END_DAY" });
 
-    expect(state.run?.morale).toBe(12);
+    expect(state.run?.morale).toBe(14);
     expect(state.run?.cycle).toMatchObject({ day: 2, block: 2 });
   });
 
@@ -682,7 +682,7 @@ describe("gameReducer", () => {
 
     state = gameReducer(state, { type: "SHIP_TASK", taskId: "theme-clustering" });
     expect(state.run?.techDebt).toBe(2);
-    expect(state.run?.morale).toBe(13);
+    expect(state.run?.morale).toBe(15);
     expect(state.run?.cycle).toMatchObject({ defects: 1, techDebtAdded: 2 });
     expect(state.run?.history.at(-1)).toMatchObject({
       kind: "task-shipped",
@@ -912,7 +912,7 @@ describe("gameReducer", () => {
       scheduleBonusCredits: 15,
       techDebtAdded: 4,
     });
-    expect(state.run?.morale).toBe(13);
+    expect(state.run?.morale).toBe(15);
     expect(state.run?.techDebt).toBe(4);
     expect(state.run?.credits).toBe(75);
     expect(state.run?.completedNodeIds).toContain("cycle-1");
@@ -949,7 +949,7 @@ describe("gameReducer", () => {
     state = gameReducer(state, { type: "SHIP_TASK", taskId: "status-composer" });
 
     expect(state.screen.name).toBe("cycle");
-    expect(state.run?.morale).toBe(13);
+    expect(state.run?.morale).toBe(15);
     expect(state.run?.cycle?.defects).toBe(3);
     expect(state.run?.cycle?.tasks.map((task) => task.status)).toEqual(["shipped", "open"]);
     expect(state.run?.history.at(-1)).toEqual({
@@ -1010,7 +1010,7 @@ describe("gameReducer", () => {
 
     state = gameReducer(state, { type: "SHIP_TASK", taskId: "status-composer" });
 
-    expect(state.run?.morale).toBe(13);
+    expect(state.run?.morale).toBe(15);
     expect(state.run?.cycle).toMatchObject({ defects: 3, techDebtAdded: 4 });
     expect(state.run?.techDebt).toBe(4);
     expect(state.run?.deck).toHaveLength(initialDeckSize + 1);
@@ -1393,7 +1393,7 @@ describe("gameReducer", () => {
     state = gameReducer(state, { type: "SHIP_TASK", taskId: "status-composer" });
     state = gameReducer(state, { type: "END_DAY" });
 
-    expect(state.run?.morale).toBe(13);
+    expect(state.run?.morale).toBe(15);
     expect(state.run?.cycle?.resolvedIntents).toEqual(["+1 Distraction"]);
   });
 
