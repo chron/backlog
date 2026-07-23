@@ -2,6 +2,7 @@
 node_modules/
 dist/
 coverage/
+output/
 tmp/
 *.local
 *.log
