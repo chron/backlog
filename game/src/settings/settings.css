@@ -56,7 +56,8 @@
   background: var(--paper);
   box-shadow: 11px 11px 0 var(--ink);
   color: var(--ink);
-  overflow: hidden;
+  max-height: calc(100dvh - 2rem);
+  overflow: auto;
 }
 
 .settings-modal__header {

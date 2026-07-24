@@ -1,6 +1,10 @@
 import { useEffect, useId, useRef } from "react";
 
 interface SettingsModalProps {
+  reducedMotionEnabled: boolean;
+  onReducedMotionChange: (enabled: boolean) => void;
+  soundEnabled: boolean;
+  onSoundChange: (enabled: boolean) => void;
   telemetryEnabled: boolean;
   onTelemetryChange: (enabled: boolean) => void;
   tutorialEnabled: boolean;
@@ -16,6 +20,10 @@ const focusableSelector = [
 ].join(",");
 
 export function SettingsModal({
+  reducedMotionEnabled,
+  onReducedMotionChange,
+  soundEnabled,
+  onSoundChange,
   telemetryEnabled,
   onTelemetryChange,
   tutorialEnabled,
@@ -85,6 +93,40 @@ export function SettingsModal({
         </header>
 
         <div className="settings-modal__body">
+          <div className="settings-modal__row">
+            <div className="settings-modal__copy">
+              <strong>Game sounds</strong>
+              <p>Hear cards, consequences, rewards, and extremely professional shipping noises.</p>
+            </div>
+            <button
+              className="settings-toggle"
+              type="button"
+              role="switch"
+              aria-label="Game sounds"
+              aria-checked={soundEnabled}
+              onClick={() => onSoundChange(!soundEnabled)}
+            >
+              <span aria-hidden="true" />
+              <b>{soundEnabled ? "On" : "Off"}</b>
+            </button>
+          </div>
+          <div className="settings-modal__row">
+            <div className="settings-modal__copy">
+              <strong>Reduce motion</strong>
+              <p>Replace animated flourishes with immediate, readable state changes.</p>
+            </div>
+            <button
+              className="settings-toggle"
+              type="button"
+              role="switch"
+              aria-label="Reduce motion"
+              aria-checked={reducedMotionEnabled}
+              onClick={() => onReducedMotionChange(!reducedMotionEnabled)}
+            >
+              <span aria-hidden="true" />
+              <b>{reducedMotionEnabled ? "On" : "Off"}</b>
+            </button>
+          </div>
           <div className="settings-modal__row">
             <div className="settings-modal__copy">
               <strong>Show tutorial</strong>

@@ -31,6 +31,7 @@ import {
 } from "../game/rules";
 import type { CardTarget } from "../game/rules";
 import { CombatTutorial } from "../tutorial/CombatTutorial";
+import { loadReducedMotionPreference } from "../settings/settingsStore";
 
 type CycleScreenProps = DispatchProps &
   RunProps & {
@@ -197,7 +198,7 @@ export function CycleScreen({ dispatch, run, onInspectCards }: CycleScreenProps)
 
   useEffect(() => {
     if (!reaction) return;
-    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const reducedMotion = loadReducedMotionPreference();
     const duration = reducedMotion ? 280 : reaction.level === "hero" ? 1080 : 680;
     const timer = window.setTimeout(() => {
       setReaction(undefined);
@@ -208,7 +209,7 @@ export function CycleScreen({ dispatch, run, onInspectCards }: CycleScreenProps)
 
   useEffect(() => {
     if (!ceremony) return;
-    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const reducedMotion = loadReducedMotionPreference();
     const timer = window.setTimeout(
       () => {
         if (ceremony.index < ceremony.items.length - 1) {

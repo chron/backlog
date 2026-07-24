@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef } from "react";
 import type { DispatchProps, RunProps } from "../app/types";
 import { CharacterToken } from "../components/CharacterToken";
 import { getBossDefinition } from "../domain/bosses";
+import { loadReducedMotionPreference } from "../settings/settingsStore";
 import { getActMap, getCycle, getMapNodeCycleId, isMapNodeAvailable } from "../domain/content";
 import type { MapNode, RunState } from "../domain/models";
 import { effectiveMapEdges, revealedMapNodeIds } from "../game/eventResolution";
@@ -83,7 +84,7 @@ export function MapScreen({ dispatch, run }: MapScreenProps) {
     const canvas = viewport.firstElementChild;
     if (!(canvas instanceof HTMLElement)) return;
     const top = (activeY / 100) * canvas.offsetHeight - viewport.clientHeight / 2;
-    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const reducedMotion = loadReducedMotionPreference();
     viewport.scrollTo({ top: Math.max(0, top), behavior: reducedMotion ? "auto" : "smooth" });
   }, [nodes, run]);
 

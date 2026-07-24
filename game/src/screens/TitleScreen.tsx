@@ -14,6 +14,7 @@ import { createRequestedRunSeed } from "../game/random";
 interface TitleScreenProps extends DispatchProps {
   onOpenAchievements: () => void;
   onOpenCodex: () => void;
+  reducedMotion?: boolean;
 }
 
 const titleHeroOptions = {
@@ -30,7 +31,12 @@ type TitleHeroKey = keyof typeof titleHeroOptions;
 
 const titleHeroKeys = Object.keys(titleHeroOptions) as TitleHeroKey[];
 
-export function TitleScreen({ dispatch, onOpenAchievements, onOpenCodex }: TitleScreenProps) {
+export function TitleScreen({
+  dispatch,
+  onOpenAchievements,
+  onOpenCodex,
+  reducedMotion = false,
+}: TitleScreenProps) {
   const [expansionIndex, setExpansionIndex] = useState(() =>
     Math.floor(Math.random() * lgtmExpansions.length),
   );
@@ -38,14 +44,14 @@ export function TitleScreen({ dispatch, onOpenAchievements, onOpenCodex }: Title
   const expansion = getLgtmExpansion(expansionIndex);
 
   useEffect(() => {
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    if (reducedMotion) return;
 
     const interval = window.setInterval(() => setExpansionIndex((current) => current + 1), 3600);
     return () => window.clearInterval(interval);
-  }, []);
+  }, [reducedMotion]);
 
   useEffect(() => {
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    if (reducedMotion) return;
 
     const interval = window.setInterval(() => {
       setTitleHeroKey((current) => {
@@ -55,7 +61,7 @@ export function TitleScreen({ dispatch, onOpenAchievements, onOpenCodex }: Title
     }, 10_000);
 
     return () => window.clearInterval(interval);
-  }, []);
+  }, [reducedMotion]);
 
   const startRun = () =>
     dispatch({ type: "START_RUN", seed: createRequestedRunSeed(window.location.search) });

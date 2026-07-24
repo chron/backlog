@@ -28,10 +28,18 @@ import { developers, getCycle } from "../domain/content";
 import { eventDefinitions } from "../domain/events";
 import type { CardInstance, TaskState } from "../domain/models";
 import { discardQueuedProductionTelemetry, logGameAction } from "../game/actionLog";
+import { gameSoundCuesForAction, playGameSounds } from "../game/sound";
 import type { GameAction } from "../game/gameReducer";
 import type { GameState } from "../game/gameReducer";
 import { SettingsModal } from "../settings/SettingsModal";
-import { loadTelemetryPreference, saveTelemetryPreference } from "../settings/settingsStore";
+import {
+  loadReducedMotionPreference,
+  loadSoundPreference,
+  loadTelemetryPreference,
+  saveReducedMotionPreference,
+  saveSoundPreference,
+  saveTelemetryPreference,
+} from "../settings/settingsStore";
 import {
   completeCombatTutorial,
   restartCombatTutorial,
@@ -533,17 +541,24 @@ export function App() {
   const [state, reducerDispatch] = useReducer(gameReducer, initialGameState, createAppInitialState);
   const stateRef = useRef(state);
   stateRef.current = state;
+  const soundEnabledRef = useRef(loadSoundPreference());
   const dispatch = useCallback((action: GameAction) => {
     const stateBefore = stateRef.current;
     const stateAfter = gameReducer(stateBefore, action);
     stateRef.current = stateAfter;
     reducerDispatch(action);
     logGameAction(action, stateBefore, stateAfter);
+    playGameSounds(
+      gameSoundCuesForAction(action, stateBefore, stateAfter),
+      soundEnabledRef.current,
+    );
   }, []);
   const [cardCollection, setCardCollection] = useState<OpenCardCollection>();
   const [achievementsOpen, setAchievementsOpen] = useState(false);
   const [codexOpen, setCodexOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [soundEnabled, setSoundEnabled] = useState(soundEnabledRef.current);
+  const [reducedMotionEnabled, setReducedMotionEnabled] = useState(loadReducedMotionPreference);
   const [telemetryEnabled, setTelemetryEnabled] = useState(loadTelemetryPreference);
   const [tutorialEnabled, setTutorialEnabled] = useState(shouldShowCombatTutorial);
   const [unlockedAchievements, setUnlockedAchievements] = useState<readonly AchievementId[]>(() =>
@@ -557,6 +572,11 @@ export function App() {
   useEffect(() => {
     mainRef.current?.focus();
   }, [state.screen.name, achievementsOpen, codexOpen]);
+
+  useEffect(() => {
+    document.documentElement.classList.toggle("reduce-motion", reducedMotionEnabled);
+    return () => document.documentElement.classList.remove("reduce-motion");
+  }, [reducedMotionEnabled]);
 
   useEffect(() => {
     setCardCollection(undefined);
@@ -585,6 +605,7 @@ export function App() {
 
   useEffect(() => {
     if (!activeAchievement) return;
+    playGameSounds(["achievement"], soundEnabledRef.current);
     const timer = window.setTimeout(() => setAchievementQueue((current) => current.slice(1)), 3200);
     return () => window.clearTimeout(timer);
   }, [activeAchievement]);
@@ -619,6 +640,7 @@ export function App() {
         screen = (
           <TitleScreen
             dispatch={dispatch}
+            reducedMotion={reducedMotionEnabled}
             onOpenAchievements={() => setAchievementsOpen(true)}
             onOpenCodex={() => setCodexOpen(true)}
           />
@@ -719,8 +741,20 @@ export function App() {
       )}
       {settingsOpen && (
         <SettingsModal
+          soundEnabled={soundEnabled}
+          reducedMotionEnabled={reducedMotionEnabled}
           telemetryEnabled={telemetryEnabled}
           tutorialEnabled={tutorialEnabled}
+          onSoundChange={(enabled) => {
+            soundEnabledRef.current = enabled;
+            setSoundEnabled(enabled);
+            saveSoundPreference(enabled);
+            if (enabled) playGameSounds(["select"]);
+          }}
+          onReducedMotionChange={(enabled) => {
+            setReducedMotionEnabled(enabled);
+            saveReducedMotionPreference(enabled);
+          }}
           onTelemetryChange={(enabled) => {
             setTelemetryEnabled(enabled);
             saveTelemetryPreference(enabled);

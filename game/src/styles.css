@@ -6161,6 +6161,22 @@ main:focus {
     transform: none !important;
   }
 }
+
+.reduce-motion *,
+.reduce-motion *::before,
+.reduce-motion *::after {
+  scroll-behavior: auto !important;
+  transition-duration: 0.01ms !important;
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+}
+
+.reduce-motion .character-reaction,
+.reduce-motion .character-reaction .character-portrait {
+  opacity: 1 !important;
+  animation: none !important;
+  transform: none !important;
+}
 .cycle-card-choice {
   position: fixed;
   z-index: 80;
