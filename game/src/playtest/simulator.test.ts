@@ -61,6 +61,7 @@ describe("scripted playtest harness", () => {
     expect(first.every((run) => run.outcome !== "stalled")).toBe(true);
     expect(first.every((run) => run.actions > 0 && run.encounters > 0)).toBe(true);
     expect(first.every((run) => run.loopGuardTrips === 0)).toBe(true);
+    expect(first.every((run) => Number.isInteger(run.lateIncidentStuns))).toBe(true);
   }, 15_000);
 
   it("scores Irene's dynamically learned cards without catalogue lookup", () => {

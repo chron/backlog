@@ -331,6 +331,9 @@ export interface PlaytestRunResult {
   cause?: string;
   reachedFinalRelease: boolean;
   launchedFinalRelease: boolean;
+  lateIncidentEntered: boolean;
+  lateIncidentShipped: boolean;
+  lateIncidentStuns: number;
   encounters: number;
   cyclesShipped: number;
   cyclesMissed: number;
@@ -379,6 +382,9 @@ export interface PlaytestMetrics {
   actions: number;
   reachedFinalRelease: boolean;
   launchedFinalRelease: boolean;
+  lateIncidentEntered: boolean;
+  lateIncidentShipped: boolean;
+  lateIncidentStuns: number;
   encounters: number;
   cyclesShipped: number;
   cyclesMissed: number;
@@ -443,6 +449,9 @@ export function createPlaytestMetrics(): PlaytestMetrics {
     actions: 0,
     reachedFinalRelease: false,
     launchedFinalRelease: false,
+    lateIncidentEntered: false,
+    lateIncidentShipped: false,
+    lateIncidentStuns: 0,
     encounters: 0,
     cyclesShipped: 0,
     cyclesMissed: 0,
@@ -1294,6 +1303,7 @@ export function updatePlaytestMetrics(
   if (action.type === "VISIT_NODE" && after.screen.name === "cycle") {
     metrics.encounters += 1;
     if (action.nodeId === "final-release") metrics.reachedFinalRelease = true;
+    if (action.nodeId === "incident-2") metrics.lateIncidentEntered = true;
   }
 
   if (action.type === "PLAY_CARD" && before.run?.cycle && after.run?.cycle) {
@@ -1317,6 +1327,14 @@ export function updatePlaytestMetrics(
         0,
         completedRequirements(after.run) - completedRequirements(before.run),
       );
+      if (before.run.currentNodeId === "incident-2") {
+        const stunnedBefore = new Set(
+          before.run.cycle.tasks.filter((task) => task.stunned).map((task) => task.taskId),
+        );
+        metrics.lateIncidentStuns += after.run.cycle.tasks.filter(
+          (task) => task.stunned && !stunnedBefore.has(task.taskId),
+        ).length;
+      }
     }
   }
 
@@ -1351,6 +1369,9 @@ export function updatePlaytestMetrics(
     if (event.kind === "cycle-finished") {
       if (event.outcome === "shipped") metrics.cyclesShipped += 1;
       else metrics.cyclesMissed += 1;
+      if (before.run?.currentNodeId === "incident-2" && event.outcome === "shipped") {
+        metrics.lateIncidentShipped = true;
+      }
     }
     if (event.kind === "card-played" && event.exhausted) metrics.cardsExhausted += 1;
     if (event.kind === "final-release-launched") metrics.launchedFinalRelease = true;
