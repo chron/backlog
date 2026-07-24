@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { eligibleRewardCardIds, getCard } from "../domain/content";
 import type { CardInstance, DeveloperId, Discipline } from "../domain/models";
 import { gameReducer, initialGameState, type GameState } from "./gameReducer";
-import { effectiveCardCost, taskUnverifiedWork } from "./rules";
+import { effectiveCardCost, resolveCardTarget, taskUnverifiedWork } from "./rules";
 import { useTestCycle } from "./testSupport";
 
 function startCycle(
@@ -303,6 +303,103 @@ describe("Nick's Exhaust planner", () => {
     expect(state.run?.cycle?.focus).toBe(focusBefore - 1 + 4);
     expect(state.run?.cycle?.hand.map((card) => card.cardId)).toEqual(["infra-3", "flexible-2"]);
     expect(state.run?.cycle?.drawPile).toHaveLength(0);
+  });
+
+  it("Archives Exhaust Work to finish reviewing a Ready Task without replaying its Work", () => {
+    let state = withHand(startCycle(["nick", "irene", "paul"]), "action-item", "backend-3");
+    if (!state.run?.cycle) throw new Error("Expected an active Cycle");
+    state = {
+      ...state,
+      run: {
+        ...state.run,
+        cycle: {
+          ...state.run.cycle,
+          focus: 3,
+          tasks: state.run.cycle.tasks.map((task, taskIndex) => ({
+            ...task,
+            status: taskIndex === 0 ? "ready" : task.status,
+            requirements: task.requirements.map((requirement, requirementIndex) =>
+              taskIndex === 0
+                ? {
+                    ...requirement,
+                    verified: requirement.target - (requirementIndex === 0 ? 1 : 0),
+                    unverified: requirementIndex === 0 ? 1 : 0,
+                  }
+                : requirement,
+            ),
+          })),
+        },
+      },
+    };
+    const archiveRun = state.run;
+    if (!archiveRun?.cycle) throw new Error("Expected an active Cycle");
+    const actionItem = archiveRun.cycle.hand.find((card) => card.cardId === "action-item")!;
+    expect(resolveCardTarget(archiveRun, actionItem, { kind: "squad" })).toMatchObject({
+      legal: true,
+      kind: "tactic",
+      archived: true,
+      label: "Archive · Focus +1 · Review 1",
+    });
+
+    state = play(state, "action-item", { kind: "squad" });
+
+    expect(state.run?.cycle?.focus).toBe(2);
+    expect(state.run?.cycle?.exhaustPile.map((card) => card.cardId)).toContain("action-item");
+    expect(state.run?.cycle?.tasks[0]).toMatchObject({ status: "ready" });
+    expect(state.run?.cycle?.tasks[0]?.requirements[0]).toMatchObject({
+      verified: state.run!.cycle!.tasks[0]!.requirements[0]!.target,
+      unverified: 0,
+    });
+    expect(state.run?.cycle?.tasks[1]?.requirements).toEqual(
+      expect.arrayContaining([expect.objectContaining({ verified: 0, unverified: 0 })]),
+    );
+  });
+
+  it("does not offer Archive before a dirty Task is Ready or for ordinary Work cards", () => {
+    let state = withHand(startCycle(["nick", "irene", "paul"]), "action-item", "backend-3");
+    if (!state.run?.cycle) throw new Error("Expected an active Cycle");
+    state = {
+      ...state,
+      run: {
+        ...state.run,
+        cycle: {
+          ...state.run.cycle,
+          tasks: state.run.cycle.tasks.map((task, taskIndex) => ({
+            ...task,
+            requirements: task.requirements.map((requirement, requirementIndex) => ({
+              ...requirement,
+              unverified: taskIndex === 0 && requirementIndex === 0 ? 1 : 0,
+            })),
+          })),
+        },
+      },
+    };
+    const dirtyRun = state.run;
+    if (!dirtyRun?.cycle) throw new Error("Expected an active Cycle");
+    const actionItem = dirtyRun.cycle.hand.find((card) => card.cardId === "action-item")!;
+    const backend = dirtyRun.cycle.hand.find((card) => card.cardId === "backend-3")!;
+
+    expect(resolveCardTarget(dirtyRun, actionItem, { kind: "squad" })).toMatchObject({
+      legal: false,
+    });
+
+    const dirtyCycle = dirtyRun.cycle;
+    state = {
+      ...state,
+      run: {
+        ...dirtyRun,
+        cycle: {
+          ...dirtyCycle,
+          tasks: dirtyCycle.tasks.map((task, taskIndex) => ({
+            ...task,
+            status: taskIndex === 0 ? "ready" : task.status,
+          })),
+        },
+      },
+    };
+    expect(resolveCardTarget(state.run!, backend, { kind: "squad" })).toMatchObject({
+      legal: false,
+    });
   });
 });
 

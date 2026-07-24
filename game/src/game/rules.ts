@@ -123,6 +123,7 @@ export type CardResolution =
       previewWorkAmount?: number;
       stun: boolean;
       sideQuestDiscipline?: Discipline;
+      archived?: boolean;
     })
   | { legal: false; reason: string };
 
@@ -384,6 +385,44 @@ function resolveCardTargetOnce(
 
   const cost = effectiveCardCost(card, cycle, run.squad, instance);
   if (cost > cycle.focus) return { legal: false, reason: "Not enough Focus." };
+
+  const canArchiveForNick =
+    target.kind === "squad" &&
+    run.squad.includes("nick") &&
+    card.kind === "work" &&
+    card.exhaust === true &&
+    cycle.tasks.some(
+      (task) =>
+        task.status === "ready" &&
+        task.requirements.some((requirement) => requirement.unverified > 0),
+    );
+  if (canArchiveForNick) {
+    return {
+      legal: true,
+      kind: "tactic",
+      cost,
+      blockGained: 0,
+      techDebtAdded: 0,
+      cardsDrawn: 0,
+      nextDayCardsDrawn: 0,
+      focusGained: 0,
+      generatedCards: [],
+      verifiedWorkHits: [],
+      discardedCardInstanceIds: [],
+      exhaustedCardInstanceIds: [],
+      drawEntireDrawPile: false,
+      returnDrawnToTop: 0,
+      queuedDistractions: 0,
+      dayReviewStunFocusAdded: 0,
+      fullStackAdded: 0,
+      polishBudgetAdded: 0,
+      triggeredPassiveIds: ["nick"],
+      chainAfterPlay: cycle.chain,
+      label: "Archive · Focus +1 · Review 1",
+      stun: false,
+      archived: true,
+    };
+  }
 
   const exhaustedCardInstanceIds = card.exhaustAllTechDebtCards
     ? [...cycle.hand, ...cycle.drawPile, ...cycle.discardPile]
@@ -1510,7 +1549,14 @@ export function resolveCardTarget(
   const resolution = resolveCardTargetOnce(run, instance, target);
   const cycle = run.cycle;
   const card = getCardForInstance(instance);
-  if (!resolution.legal || !cycle || card.copyNextCardEffect) return resolution;
+  if (
+    !resolution.legal ||
+    !cycle ||
+    card.copyNextCardEffect ||
+    (resolution.kind === "tactic" && resolution.archived)
+  ) {
+    return resolution;
+  }
   return repeatResolvedCardEffect(resolution, 1 + (cycle.copiedCardEffectCount ?? 0));
 }
 
@@ -1649,6 +1695,18 @@ export function applyRosterBoardEffects(
   let focusGained = 0;
   let automationWorkGained = 0;
   const queue: FrontendPacket[] = [];
+
+  if (resolution.kind === "tactic" && resolution.archived) {
+    return {
+      tasks,
+      cardsDrawn,
+      blockGained,
+      guardPower,
+      focusGained,
+      triggeredPassiveIds,
+      labels,
+    };
+  }
 
   const markPassive = (id: DeveloperId) => {
     if (!triggeredPassiveIds.includes(id)) triggeredPassiveIds.push(id);

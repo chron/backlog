@@ -10,7 +10,7 @@ export const nickContent = {
     role: "CTO",
     passiveName: "Well Organised",
     passiveRules:
-      "Whenever a card Exhausts, gain 1 Focus and Review 1 on the Task with the most Unverified Work.",
+      "Whenever a card Exhausts, gain 1 Focus and Review 1 on the Task with the most Unverified Work. Once a Task is Ready with Unverified Work, drag Exhaust Work cards onto the board to Archive them without their Work.",
     startingCardId: "clear-the-calendar",
     accent: "oklch(0.58 0.17 245)",
     art: { idle: nickIdle, thinking: nickThinking, success: nickSuccess },
