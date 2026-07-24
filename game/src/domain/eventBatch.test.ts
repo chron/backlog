@@ -165,6 +165,37 @@ describe("first Event batch", () => {
     );
   });
 
+  it("makes three distinct later-run stakes explicit and deterministic", () => {
+    const run = { ...playableRun(9191), currentNodeId: "event-1" };
+
+    const deepWork = choice("quiet-hours", "deep-work");
+    expect(resolveEventChoice(deepWork, run).outcome.map((chip) => chip.text)).toEqual([
+      "+2 opening Focus",
+    ]);
+    expect(advanceEventResolution(run, deepWork.effects).run.nextCycleModifiers).toEqual([
+      { kind: "opening-focus", amount: 2 },
+    ]);
+
+    const bounty = choice("customer-feedback-flood", "fix-the-top-pain");
+    expect(resolveEventChoice(bounty, run).outcome.map((chip) => chip.text)).toEqual([
+      "Bounty: Fix the Top Pain",
+      "Ships for Tool choice",
+    ]);
+    expect(advanceEventResolution(run, bounty.effects).run.pendingBounties).toContainEqual(
+      expect.objectContaining({ id: "customer-top-pain" }),
+    );
+
+    const futureMap = choice("founder-hackathon", "nick-makes-a-board");
+    expect(resolveEventChoice(futureMap, run).outcome.map((chip) => chip.text)).toEqual([
+      "Reveal 3 nodes",
+      "4 next reward choices",
+    ]);
+    const first = advanceEventResolution(run, futureMap.effects).run;
+    const second = advanceEventResolution(run, futureMap.effects).run;
+    expect(first.mapModifiers).toEqual(second.mapModifiers);
+    expect(first.nextRewardModifiers).toEqual([{ choiceCount: 4 }]);
+  });
+
   it("pays both halves of the Enterprise bounty when it ships", () => {
     const prepared = advanceEventResolution(
       playableRun(),

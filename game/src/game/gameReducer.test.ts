@@ -487,6 +487,42 @@ describe("gameReducer", () => {
     });
   });
 
+  it("does not carry an ordinary reward promise into Final Release", () => {
+    let state = gameReducer(initialGameState, { type: "START_RUN", seed: 0x5eed1234 });
+    for (const developerId of ["paul", "irene", "madi"] as const) {
+      state = gameReducer(state, { type: "TOGGLE_DEVELOPER", developerId });
+    }
+    state = gameReducer(state, { type: "CONFIRM_SQUAD" });
+    if (!state.run) throw new Error("Expected a run");
+    state = {
+      screen: { name: "map" },
+      run: {
+        ...state.run,
+        currentNodeId: "weekend-2",
+        completedNodeIds: [
+          "cycle-1",
+          "event-1",
+          "cycle-2",
+          "incident-1",
+          "event-2",
+          "weekend-1",
+          "cycle-3",
+          "event-3",
+          "cycle-4",
+          "incident-2",
+          "event-4",
+          "weekend-2",
+        ],
+        nextRewardModifiers: [{ choiceCount: 4 }],
+      },
+    };
+
+    state = gameReducer(state, { type: "VISIT_NODE", nodeId: "final-release" });
+
+    expect(state.screen.name).toBe("cycle");
+    expect(state.run?.nextRewardModifiers).toEqual([]);
+  });
+
   it("finishes Final Release when every project Task was already shipped", () => {
     let state = readyFinalRelease(3);
     if (!state.run?.cycle) throw new Error("Expected an active Final Release");

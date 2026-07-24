@@ -1340,6 +1340,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
               cycle: opened.cycle,
               nextCycleModifiers: [],
               pendingBounties: [],
+              nextRewardModifiers: [],
             },
           };
         }
