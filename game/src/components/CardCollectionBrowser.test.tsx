@@ -68,6 +68,25 @@ describe("CardCollectionBrowser", () => {
     expect(markup).toContain("Remove");
   });
 
+  it("supports a mandatory choice after an Event has already applied its costs", () => {
+    const markup = renderToStaticMarkup(
+      <CardCollectionBrowser
+        cards={cards}
+        title="Remove a card"
+        mode="choose-one"
+        confirmLabel="Remove"
+        dismissible={false}
+        onClose={() => undefined}
+        onChoose={() => undefined}
+      />,
+    );
+
+    expect(markup).toContain("<dialog");
+    expect(markup).not.toContain("Close Remove a card");
+    expect(markup).not.toContain(">Cancel<");
+    expect(markup).toContain(">Remove<");
+  });
+
   it("uses the full card's output language for compact tactics", () => {
     const markup = renderToStaticMarkup(
       <CardCollectionBrowser

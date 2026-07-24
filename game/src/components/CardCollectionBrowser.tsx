@@ -9,6 +9,8 @@ interface CardCollectionBrowserBaseProps {
   cards: readonly CardInstance[];
   title: string;
   orderHidden?: boolean;
+  dismissible?: boolean;
+  note?: string;
   onClose: () => void;
 }
 
@@ -56,7 +58,8 @@ export function CardCollectionEntry({ count, onOpen }: CardCollectionEntryProps)
 }
 
 export function CardCollectionBrowser(props: CardCollectionBrowserProps) {
-  const { cards, title, orderHidden, onClose } = props;
+  const { cards, title, orderHidden, note, onClose } = props;
+  const dismissible = props.dismissible ?? true;
   const mode = props.mode ?? "inspect";
   const dialogRef = useRef<HTMLDialogElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
@@ -74,11 +77,15 @@ export function CardCollectionBrowser(props: CardCollectionBrowserProps) {
   useEffect(() => {
     returnFocusRef.current =
       document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    closeRef.current?.focus();
+    if (dismissible) {
+      closeRef.current?.focus();
+    } else {
+      dialogRef.current?.querySelector<HTMLElement>(focusableSelector)?.focus();
+    }
     return () => {
       if (returnFocusRef.current?.isConnected) returnFocusRef.current.focus();
     };
-  }, []);
+  }, [dismissible]);
 
   useEffect(() => {
     if (selectedCardId && !chooseCardInstanceId(cards, selectedCardId, canChoose)) {
@@ -87,7 +94,7 @@ export function CardCollectionBrowser(props: CardCollectionBrowserProps) {
   }, [canChoose, cards, selectedCardId]);
 
   function handleKeyDown(event: React.KeyboardEvent<HTMLDialogElement>) {
-    if (shouldCloseCardCollection(event.key)) {
+    if (dismissible && shouldCloseCardCollection(event.key)) {
       event.preventDefault();
       onClose();
       return;
@@ -128,17 +135,20 @@ export function CardCollectionBrowser(props: CardCollectionBrowserProps) {
             <p id={descriptionId}>
               {cards.length} {cards.length === 1 ? "card" : "cards"}
               {orderHidden ? " · Order hidden" : ""}
+              {note ? ` · ${note}` : ""}
             </p>
           </div>
-          <button
-            className="collection-browser__close"
-            ref={closeRef}
-            type="button"
-            onClick={onClose}
-            aria-label={`Close ${title}`}
-          >
-            ×
-          </button>
+          {dismissible && (
+            <button
+              className="collection-browser__close"
+              ref={closeRef}
+              type="button"
+              onClick={onClose}
+              aria-label={`Close ${title}`}
+            >
+              ×
+            </button>
+          )}
         </header>
 
         <div className="collection-browser__grid" aria-label={`${title} cards`}>
@@ -171,9 +181,11 @@ export function CardCollectionBrowser(props: CardCollectionBrowserProps) {
 
         {props.mode === "choose-one" && (
           <footer className="collection-browser__actions">
-            <button className="button button--text" type="button" onClick={onClose}>
-              Cancel
-            </button>
+            {dismissible && (
+              <button className="button button--text" type="button" onClick={onClose}>
+                Cancel
+              </button>
+            )}
             <button
               className="button button--primary"
               type="button"

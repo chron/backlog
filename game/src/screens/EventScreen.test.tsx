@@ -103,6 +103,44 @@ describe("EventScreen", () => {
     expect(markup).not.toContain("Power Ballad");
   });
 
+  it("uses the grouped deck browser for Event removal, including Tech Debt", () => {
+    const debtCards = [
+      { cardId: "tech-debt", instanceId: "debt-1" },
+      { cardId: "tech-debt", instanceId: "debt-2" },
+      { cardId: "tech-debt", instanceId: "debt-3" },
+    ];
+    const run = {
+      ...testRun(),
+      deck: [...testRun().deck, ...debtCards],
+    };
+    const pending = gameReducer(
+      {
+        screen: { name: "event", nodeId: "event-1", eventId: "quiet-hours" },
+        run,
+      },
+      { type: "CHOOSE_EVENT", choiceId: "clean-up" },
+    );
+    if (pending.screen.name !== "event" || !pending.screen.resolution) {
+      throw new Error("Expected a pending Event removal");
+    }
+
+    const markup = renderToStaticMarkup(
+      <EventScreen
+        dispatch={() => undefined}
+        run={pending.run}
+        eventId="quiet-hours"
+        resolution={pending.screen.resolution}
+      />,
+    );
+
+    expect(markup).toContain("collection-browser__backdrop");
+    expect(markup).toContain("Remove a card");
+    expect(markup).toContain("Tech Debt");
+    expect(markup).toContain("×3");
+    expect(markup).toContain('aria-label="Tech Debt, 3 copies"');
+    expect(markup).not.toContain("event-card-option");
+  });
+
   it("renders Event card drafts as the same full cards used by rewards", () => {
     const run: ReturnType<typeof testRun> = {
       ...testRun(),

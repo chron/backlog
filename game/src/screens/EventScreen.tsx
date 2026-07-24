@@ -1,4 +1,5 @@
 import type { DispatchProps, RunProps } from "../app/types";
+import { CardCollectionBrowser } from "../components/CardCollectionBrowser";
 import { GameCard } from "../components/GameCard";
 import { getCard, getCardForInstance } from "../domain/content";
 import type { CardInstance } from "../domain/models";
@@ -22,9 +23,12 @@ export function EventScreen({ dispatch, run, eventId, resolution }: EventScreenP
   if (!run) return null;
   const event = getEvent(eventId);
   const pendingUsesCards =
-    resolution?.pending.kind === "card" ||
-    resolution?.pending.kind === "draft" ||
-    resolution?.pending.kind === "guest";
+    resolution?.pending.kind === "draft" || resolution?.pending.kind === "guest";
+  const pendingCardOptionIds = new Set(
+    resolution?.pending.kind === "card"
+      ? resolution.pending.options.map((option) => option.id)
+      : [],
+  );
 
   return (
     <section
@@ -40,7 +44,19 @@ export function EventScreen({ dispatch, run, eventId, resolution }: EventScreenP
         {event.artLabel}
       </div>
       <p className="event-setup">{event.setup}</p>
-      {resolution ? (
+      {resolution?.pending.kind === "card" ? (
+        <CardCollectionBrowser
+          cards={run.deck}
+          title={resolution.pending.prompt}
+          mode="choose-one"
+          confirmLabel={resolution.pending.prompt.split(" ")[0]}
+          note={resolution.outcome.join(" · ") || undefined}
+          canChoose={(instance) => pendingCardOptionIds.has(instance.instanceId)}
+          onChoose={(instanceId) => dispatch({ type: "CHOOSE_EVENT_OPTION", optionId: instanceId })}
+          dismissible={false}
+          onClose={() => undefined}
+        />
+      ) : resolution ? (
         <div className="event-selection" aria-label={resolution.pending.prompt}>
           <h2>{resolution.pending.prompt}</h2>
           {resolution.outcome.length > 0 && (
@@ -84,17 +100,15 @@ export function EventScreen({ dispatch, run, eventId, resolution }: EventScreenP
               );
             })}
           </div>
-          {resolution.pending.kind !== "card" && (
-            <button
-              className="button button--text event-selection__skip"
-              type="button"
-              onClick={() =>
-                dispatch({ type: "CHOOSE_EVENT_OPTION", optionId: skipEventSelectionId })
-              }
-            >
-              {resolution.pending.kind === "tool" ? "Skip Tool" : "Skip Card"}
-            </button>
-          )}
+          <button
+            className="button button--text event-selection__skip"
+            type="button"
+            onClick={() =>
+              dispatch({ type: "CHOOSE_EVENT_OPTION", optionId: skipEventSelectionId })
+            }
+          >
+            {resolution.pending.kind === "tool" ? "Skip Tool" : "Skip Card"}
+          </button>
         </div>
       ) : (
         <div className="choice-stack">
